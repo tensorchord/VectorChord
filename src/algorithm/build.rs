@@ -1,7 +1,9 @@
 use crate::algorithm::rabitq;
 use crate::algorithm::tuples::*;
+use crate::index::utils::load_centroids;
 use crate::postgres::BufferWriteGuard;
 use crate::postgres::Relation;
+use crate::types::ExternalCentroids;
 use crate::types::RabbitholeIndexingOptions;
 use base::distance::DistanceKind;
 use base::index::VectorOptions;
@@ -263,18 +265,30 @@ impl Structure {
         samples: Vec2<f32>,
     ) -> Self {
         let dims = vector_options.dims;
+        let external_centroids: Option<Vec2<f32>> = match &rabbithole_options.centroids {
+            Some(ExternalCentroids { table, column }) => Some(load_centroids(
+                table,
+                column,
+                rabbithole_options.nlist,
+                vector_options.dims,
+            )),
+            None => None,
+        };
         let h1_means = base::parallelism::RayonParallelism::scoped(
             rabbithole_options.build_threads as _,
             Arc::new(AtomicBool::new(false)),
             |parallelism| {
-                let raw = k_means::k_means(
-                    parallelism,
-                    rabbithole_options.nlist as usize,
-                    samples,
-                    rabbithole_options.spherical_centroids,
-                    10,
-                    false,
-                );
+                let raw = match &external_centroids{
+                    Some(e) => e.clone(),
+                    None => k_means::k_means(
+                        parallelism,
+                        rabbithole_options.nlist as usize,
+                        samples,
+                        rabbithole_options.spherical_centroids,
+                        10,
+                        false,
+                    )
+                };
                 let mut centroids = Vec::new();
                 for i in 0..rabbithole_options.nlist {
                     centroids.push(raw[(i as usize,)].to_vec());
