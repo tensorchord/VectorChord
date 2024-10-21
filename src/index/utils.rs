@@ -4,7 +4,7 @@ use pgrx::pg_sys::panic::ErrorReportable;
 use pgrx::{error, Spi};
 
 use crate::algorithm::rabitq;
-use crate::datatype::memory_vecf32::Vecf32Output;
+use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 
 pub fn pointer_to_ctid(pointer: Pointer) -> pgrx::pg_sys::ItemPointerData {
     let value = pointer.as_u64();
@@ -25,23 +25,23 @@ pub fn ctid_to_pointer(ctid: pgrx::pg_sys::ItemPointerData) -> Pointer {
     Pointer::new(value)
 }
 
-pub fn load_centroids(table_name: &str, column_name: &str, nlist: u32, dims: u32) -> Vec<Vec<f32>> {
+pub fn load_proj_vectors(table_name: &str, column_name: &str, rows: u32, dims: u32) -> Vec<Vec<f32>> {
     let query = format!("SELECT {column_name} FROM {table_name};");
     let mut centroids = Vec::new();
 
     Spi::connect(|client| {
         let tup_table = client.select(&query, None, None).unwrap_or_report();
-        assert_eq!(tup_table.len(), nlist as usize);
+        assert_eq!(tup_table.len(), rows as usize);
 
         for row in tup_table {
-            let vector = row[column_name].value::<Vecf32Output>();
+            let vector = row[column_name].value::<PgvectorVectorOutput>();
             if let Ok(Some(v)) = vector {
                 let borrowed = v.as_borrowed();
                 assert_eq!(borrowed.dims(), dims);
                 let projected_centroids = rabitq::project(borrowed.slice());
                 centroids.push(projected_centroids);
             } else {
-                error!("centroid vectors is not valid")
+                error!("load vectors from column is not valid")
             }
         }
         centroids
