@@ -1,14 +1,16 @@
 use crate::algorithm::rabitq;
+use crate::algorithm::rabitq::FScanProcess;
 use crate::algorithm::tuples::*;
 use crate::postgres::Relation;
 use base::always_equal::AlwaysEqual;
 use base::distance::Distance;
+use base::distance::DistanceKind;
 use base::scalar::ScalarLike;
 use base::search::Pointer;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
+pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_kind: DistanceKind) {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()
@@ -19,7 +21,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
     let dims = meta_tuple.dims;
     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
     let vector = rabitq::project(&vector);
-    let is_residual = meta_tuple.is_residual;
+    let is_residual = meta_tuple.is_residual && distance_kind == DistanceKind::L2;
     let default_lut = if !is_residual {
         Some(rabitq::fscan_preprocess(&vector))
     } else {
@@ -107,7 +109,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = rabitq::fscan_process_lowerbound(
+                    let lowerbounds = distance_kind.fscan_process_lowerbound(
                         dims,
                         lut,
                         (
@@ -143,8 +145,18 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                     .map(rkyv::check_archived_root::<VectorTuple>)
                     .expect("data corruption")
                     .expect("data corruption");
-                let dis_u =
-                    Distance::from_f32(f32::reduce_sum_of_d2(&vector, &vector_tuple.vector));
+                let dis_u = match distance_kind {
+                        DistanceKind::L2 => Distance::from_f32(f32::reduce_sum_of_d2(
+                            &vector,
+                            &vector_tuple.vector,
+                        )),
+                        DistanceKind::Dot => Distance::from_f32(-f32::reduce_sum_of_xy(
+                            &vector,
+                            &vector_tuple.vector,
+                        )),
+                        DistanceKind::Hamming => unreachable!(),
+                        DistanceKind::Jaccard => unreachable!(),
+                    };
                 cache.push((
                     Reverse(dis_u),
                     AlwaysEqual(first),

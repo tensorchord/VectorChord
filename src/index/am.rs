@@ -226,7 +226,7 @@ pub unsafe extern "C" fn ambuild(
             }
         }
     }
-    let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
+    let (vector_options, rabbithole_options, pg_distance) = unsafe { am_options::options(index) };
     let heap_relation = Heap {
         heap,
         index,
@@ -605,7 +605,12 @@ pub unsafe extern "C" fn aminsert(
             OwnedVector::BVector(_) => unreachable!(),
         };
         let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
-        algorithm::insert::insert(unsafe { Relation::new(index) }, pointer, vector.into_vec());
+        algorithm::insert::insert(
+            unsafe { Relation::new(index) },
+            pointer,
+            vector.into_vec(),
+            opfamily.distance_kind(),
+        );
     }
     false
 }

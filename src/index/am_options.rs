@@ -38,12 +38,15 @@ impl Reloption {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PgDistanceKind {
     L2,
+    Dot,
+    Cos,
 }
 
 impl PgDistanceKind {
     pub fn to_distance(self) -> DistanceKind {
         match self {
             PgDistanceKind::L2 => DistanceKind::L2,
+            PgDistanceKind::Dot | PgDistanceKind::Cos => DistanceKind::Dot,
         }
     }
 }
@@ -85,6 +88,8 @@ pub fn convert_opfamily_to_vd(
 fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
     match name.strip_suffix("_ops") {
         Some("vector_l2") => Some((VectorKind::Vecf32, PgDistanceKind::L2)),
+        Some("vector_dot") => Some((VectorKind::Vecf32, PgDistanceKind::Dot)),
+        Some("vector_cos") => Some((VectorKind::Vecf32, PgDistanceKind::Cos)),
         _ => None,
     }
 }
@@ -109,7 +114,9 @@ unsafe fn convert_reloptions_to_options(
     }
 }
 
-pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, RabbitholeIndexingOptions) {
+pub unsafe fn options(
+    index: pgrx::pg_sys::Relation,
+) -> (VectorOptions, RabbitholeIndexingOptions, PgDistanceKind) {
     let opfamily = unsafe { (*index).rd_opfamily.read() };
     let att = unsafe { &mut *(*index).rd_att };
     let atts = unsafe { att.attrs.as_slice(att.natts as _) };
@@ -137,7 +144,7 @@ pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, Rabbitho
     };
     // get indexing, segment, optimizing
     let rabitq = unsafe { convert_reloptions_to_options((*index).rd_options) };
-    (vector, rabitq)
+    (vector, rabitq, pg_d)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -187,14 +194,22 @@ impl Opfamily {
         use BorrowedVector as B;
         use OwnedVector as O;
         match (vector, self.pg_distance) {
-            (B::Vecf32(x), _) => O::Vecf32(x.own()),
+            (B::Vecf32(x), PgDistanceKind::L2) => O::Vecf32(x.own()),
+            (B::Vecf32(x), PgDistanceKind::Dot) => O::Vecf32(x.own()),
+            (B::Vecf32(x), PgDistanceKind::Cos) => O::Vecf32(x.function_normalize()),
             (B::Vecf16(x), _) => O::Vecf16(x.own()),
             (B::SVecf32(x), _) => O::SVecf32(x.own()),
             (B::BVector(x), _) => O::BVector(x.own()),
         }
     }
     pub fn process(self, x: Distance) -> f32 {
-        f32::from(x)
+        match self.pg_distance {
+            PgDistanceKind::Cos => f32::from(x) + 1.0f32,
+            _ => f32::from(x),
+        }
+    }
+    pub fn distance_kind(self) -> DistanceKind {
+        self.pg_distance.to_distance()
     }
 }
 

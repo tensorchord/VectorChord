@@ -80,6 +80,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                     OwnedVector::SVecf32(_) => unreachable!(),
                     OwnedVector::BVector(_) => unreachable!(),
                 },
+                opfamily.distance_kind(),
                 nprobe(),
             );
             *scanner = Scanner::Vbase {

@@ -21,7 +21,7 @@ Or you can use `starkind/rabbithole:pg16-latest` to run the bench.
 ## Run Instance
 
 ```shell
-docker run --name rabbithole -e POSTGRES_PASSWORD=123 -p 5432:5432 -d starkind/rabbithole:pg16-latest
+docker run --name rabbithole -e POSTGRES_PASSWORD=123 -p 5432:5432 -d rabbithole:pg16-latest --volume /data:/var/lib/postgresql/data
 
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "CREATE USER bench WITH PASSWORD '123';"
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "ALTER ROLE bench SUPERUSER;"
@@ -54,7 +54,7 @@ Options for `-n`:
 - cohere_10m_23
 
 ```shell
-# pip install pgvector numpy faiss-cpu psycopg h5py
+# pip install pgvector numpy faiss-cpu psycopg h5py tqdm
 
 # dump table embedding column to a local h5 file["train"]
 python dump.py -n sift -o sift.h5 -c embedding -d 128

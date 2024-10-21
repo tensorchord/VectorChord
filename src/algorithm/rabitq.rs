@@ -1,4 +1,4 @@
-use base::distance::Distance;
+use base::distance::{Distance, DistanceKind};
 use base::scalar::ScalarLike;
 use nalgebra::DMatrix;
 use quantization::utils::InfiniteByteChunks;
@@ -167,27 +167,49 @@ pub fn fscan_preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<u8>) {
     (dis_v_2, b, k, qvector_sum, compress(qvector))
 }
 
-pub fn fscan_process_lowerbound(
-    dims: u32,
-    lut: &(f32, f32, f32, f32, Vec<u8>),
-    (dis_u_2, factor_ppc, factor_ip, factor_err, t): (
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[u8],
-    ),
-) -> [Distance; 32] {
-    let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
-    let r = quantization::fast_scan::b4::fast_scan_b4(dims.div_ceil(4), t, s);
-    std::array::from_fn(|i| {
-        let rough = dis_u_2[i]
-            + dis_v_2
-            + b * factor_ppc[i]
-            + ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
-        let err = factor_err[i] * dis_v_2.sqrt();
-        Distance::from_f32(rough - 1.9 * err)
-    })
+pub trait FScanProcess {
+    fn fscan_process_lowerbound(
+        &self,
+        dims: u32,
+        lut: &(f32, f32, f32, f32, Vec<u8>),
+        factors: (&[f32; 32], &[f32; 32], &[f32; 32], &[f32; 32], &[u8]),
+    ) -> [Distance; 32];
+}
+
+impl FScanProcess for DistanceKind {
+    fn fscan_process_lowerbound(
+        &self,
+        dims: u32,
+        lut: &(f32, f32, f32, f32, Vec<u8>),
+        (dis_u_2, factor_ppc, factor_ip, factor_err, t): (
+            &[f32; 32],
+            &[f32; 32],
+            &[f32; 32],
+            &[f32; 32],
+            &[u8],
+        ),
+    ) -> [Distance; 32] {
+        let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
+        let r = quantization::fast_scan::b4::fast_scan_b4(dims.div_ceil(4), t, s);
+        match self {
+            DistanceKind::L2 => std::array::from_fn(|i| {
+                let rough = dis_u_2[i]
+                    + dis_v_2
+                    + b * factor_ppc[i]
+                    + ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
+                let err = factor_err[i] * dis_v_2.sqrt();
+                Distance::from_f32(rough - 1.9 * err)
+            }),
+            DistanceKind::Dot => std::array::from_fn(|i| {
+                let rough = 0.5 * b * factor_ppc[i]
+                    + 0.5 * ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
+                let err = 0.5 * factor_err[i] * dis_v_2.sqrt();
+                Distance::from_f32(rough - 1.9 * err)
+            }),
+            DistanceKind::Hamming => unreachable!(),
+            DistanceKind::Jaccard => unreachable!(),
+        }
+    }
 }
 
 fn compress(mut qvector: Vec<u8>) -> Vec<u8> {
