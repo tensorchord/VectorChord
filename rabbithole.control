@@ -4,4 +4,4 @@ module_pathname = '$libdir/rabbithole'
 relocatable = false
 superuser = true
 schema = rabbithole
-requires = 'vectors'
+requires = 'vector'

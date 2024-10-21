@@ -1,5 +1,5 @@
-use crate::datatype::memory_vecf32::Vecf32Input;
-use crate::datatype::memory_vecf32::Vecf32Output;
+use crate::datatype::memory_pgvector_vector::PgvectorVectorInput;
+use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 use crate::datatype::typmod::Typmod;
 use crate::types::RabbitholeIndexingOptions;
 use base::distance::*;
@@ -157,7 +157,7 @@ impl Opfamily {
         }
         let vector = match self.vector {
             VectorKind::Vecf32 => {
-                let vector = unsafe { Vecf32Input::from_datum(datum, false).unwrap() };
+                let vector = unsafe { PgvectorVectorInput::from_datum(datum, false).unwrap() };
                 self.preprocess(BorrowedVector::Vecf32(vector.as_borrowed()))
             }
             _ => unreachable!(),
@@ -175,7 +175,7 @@ impl Opfamily {
         let tuple = unsafe { PgHeapTuple::from_composite_datum(datum) };
         let center = match self.vector {
             VectorKind::Vecf32 => tuple
-                .get_by_index::<Vecf32Output>(NonZero::new(1).unwrap())
+                .get_by_index::<PgvectorVectorOutput>(NonZero::new(1).unwrap())
                 .unwrap()
                 .map(|vector| self.preprocess(BorrowedVector::Vecf32(vector.as_borrowed()))),
             _ => unreachable!(),

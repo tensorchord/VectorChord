@@ -1,2 +1,2 @@
-pub mod memory_vecf32;
+pub mod memory_pgvector_vector;
 pub mod typmod;
