@@ -47,6 +47,12 @@ fn orthogonal_matrix(n: usize) -> Vec<Vec<f32>> {
 
 static MATRIXS: [OnceLock<Vec<Vec<f32>>>; 1 + 2000] = [const { OnceLock::new() }; 1 + 2000];
 
+pub fn prewarm(n: usize) {
+    if n <= 2000 {
+        MATRIXS[n].get_or_init(|| orthogonal_matrix(n));
+    }
+}
+
 pub fn project(vector: &[f32]) -> Vec<f32> {
     use base::scalar::ScalarLike;
     let n = vector.len();
