@@ -1,7 +1,8 @@
 use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting};
 use std::ffi::CStr;
 
-static PREWARM_DIM: GucSetting<Option<&CStr>> = GucSetting::<Option<&CStr>>::new(None);
+static PREWARM_DIM: GucSetting<Option<&CStr>> =
+    GucSetting::<Option<&CStr>>::new(Some(c"64,128,256,384,512,768,1024,1536"));
 
 pub unsafe fn init() {
     GucRegistry::define_string_guc(
