@@ -1,5 +1,5 @@
 use crate::algorithm;
-use crate::algorithm::build::HeapRelation;
+use crate::algorithm::build::{HeapRelation, Reporter};
 use crate::index::am_options::{Opfamily, Reloption};
 use crate::index::am_scan::Scanner;
 use crate::index::utils::{ctid_to_pointer, pointer_to_ctid};
@@ -200,6 +200,25 @@ pub unsafe extern "C" fn ambuild(
             }
         }
     }
+    pub struct PgReporter {}
+    impl Reporter for PgReporter {
+        fn tuples_total(&mut self, tuples_total: usize) {
+            unsafe {
+                pgrx::pg_sys::pgstat_progress_update_param(
+                    pgrx::pg_sys::PROGRESS_CREATEIDX_TUPLES_TOTAL as _,
+                    tuples_total as _,
+                );
+            }
+        }
+        fn tuples_done(&mut self, tuples_done: usize) {
+            unsafe {
+                pgrx::pg_sys::pgstat_progress_update_param(
+                    pgrx::pg_sys::PROGRESS_CREATEIDX_TUPLES_DONE as _,
+                    tuples_done as _,
+                );
+            }
+        }
+    }
     let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
     let heap_relation = Heap {
         heap,
@@ -213,6 +232,7 @@ pub unsafe extern "C" fn ambuild(
         rabbithole_options,
         heap_relation,
         index_relation,
+        PgReporter {},
     );
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
 }
