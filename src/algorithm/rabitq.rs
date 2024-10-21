@@ -32,6 +32,22 @@ fn check_all_matrixs_are_full_rank() {
     });
 }
 
+#[test]
+fn check_matrices() {
+    assert_eq!(
+        orthogonal_matrix(2),
+        vec![vec![-0.5424608, -0.8400813], vec![0.8400813, -0.54246056]]
+    );
+    assert_eq!(
+        orthogonal_matrix(3),
+        vec![
+            vec![-0.5309615, -0.69094884, -0.49058124],
+            vec![0.8222731, -0.56002235, -0.10120347],
+            vec![0.20481002, 0.45712686, -0.86549866]
+        ]
+    );
+}
+
 fn orthogonal_matrix(n: usize) -> Vec<Vec<f32>> {
     use nalgebra::QR;
     let matrix = random_matrix(n);
