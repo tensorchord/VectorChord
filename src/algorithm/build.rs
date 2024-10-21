@@ -265,39 +265,32 @@ impl Structure {
         samples: Vec2<f32>,
     ) -> Self {
         let dims = vector_options.dims;
-        let external_centroids: Option<Vec2<f32>> = match &rabbithole_options.centroids {
-            Some(ExternalCentroids { table, column }) => Some(load_centroids(
-                table,
-                column,
-                rabbithole_options.nlist,
-                vector_options.dims,
-            )),
-            None => None,
-        };
-        let h1_means = base::parallelism::RayonParallelism::scoped(
-            rabbithole_options.build_threads as _,
-            Arc::new(AtomicBool::new(false)),
-            |parallelism| {
-                let raw = match &external_centroids{
-                    Some(e) => e.clone(),
-                    None => k_means::k_means(
+        let h1_means = match &rabbithole_options.centroids {
+            Some(ExternalCentroids { table, column }) => {
+                load_centroids(table, column, rabbithole_options.nlist, vector_options.dims)
+            }
+            None => base::parallelism::RayonParallelism::scoped(
+                rabbithole_options.build_threads as _,
+                Arc::new(AtomicBool::new(false)),
+                |parallelism| {
+                    let raw = k_means::k_means(
                         parallelism,
                         rabbithole_options.nlist as usize,
                         samples,
                         rabbithole_options.spherical_centroids,
                         10,
                         false,
-                    )
-                };
-                let mut centroids = Vec::new();
-                for i in 0..rabbithole_options.nlist {
-                    centroids.push(raw[(i as usize,)].to_vec());
-                }
-                centroids
-            },
-        )
-        .expect("k_means panics")
-        .expect("k_means interrupted");
+                    );
+                    let mut centroids = Vec::new();
+                    for i in 0..rabbithole_options.nlist {
+                        centroids.push(raw[(i as usize,)].to_vec());
+                    }
+                    centroids
+                },
+            )
+            .expect("k_means panics")
+            .expect("k_means interrupted"),
+        };
         let h2_mean = {
             let mut centroid = vec![0.0; dims as _];
             for i in 0..rabbithole_options.nlist {

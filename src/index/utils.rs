@@ -1,5 +1,5 @@
 use base::search::*;
-use common::vec2::Vec2;
+use base::vector::VectorBorrowed;
 use pgrx::pg_sys::panic::ErrorReportable;
 use pgrx::{error, Spi};
 
@@ -25,25 +25,21 @@ pub fn ctid_to_pointer(ctid: pgrx::pg_sys::ItemPointerData) -> Pointer {
     Pointer::new(value)
 }
 
-pub fn load_centroids(table_name: &str, column_name: &str, nlist: u32, dims: u32) -> Vec2<f32> {
+pub fn load_centroids(table_name: &str, column_name: &str, nlist: u32, dims: u32) -> Vec<Vec<f32>> {
     let query = format!("SELECT {column_name} FROM {table_name};");
-    let mut centroids = Vec2::zeros((nlist as usize, dims as usize));
+    let mut centroids = Vec::new();
 
     Spi::connect(|client| {
         let tup_table = client.select(&query, None, None).unwrap_or_report();
         assert_eq!(tup_table.len(), nlist as usize);
 
-        for (i, row) in tup_table.enumerate() {
+        for row in tup_table {
             let vector = row[column_name].value::<Vecf32Output>();
             if let Ok(Some(v)) = vector {
-                let header = unsafe { v.into_raw().as_ref() };
-                if let Some(h) = header {
-                    assert_eq!(h.dims(), dims);
-                    let projected_centroids = rabitq::project(h.slice());
-                    centroids[(i,)].copy_from_slice(&projected_centroids);
-                } else {
-                    error!("centroid vectors deserialize failed")
-                }
+                let borrowed = v.as_borrowed();
+                assert_eq!(borrowed.dims(), dims);
+                let projected_centroids = rabitq::project(borrowed.slice());
+                centroids.push(projected_centroids);
             } else {
                 error!("centroid vectors is not valid")
             }
