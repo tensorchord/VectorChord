@@ -5,7 +5,7 @@ use base::distance::Distance;
 use base::scalar::ScalarLike;
 use base::search::Pointer;
 
-pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
+pub fn insert(relation: Relation, payload: Pointer, extra: Option<u32>, vector: Vec<f32>) {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()
@@ -111,6 +111,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
         mask: [false; 32],
         mean: [(0, 0); 32],
         payload: [0; 32],
+        extra: [None; 32],
         dis_u_2: [0.0f32; 32],
         factor_ppc: [0.0f32; 32],
         factor_ip: [0.0f32; 32],
@@ -153,6 +154,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                     &code,
                     h0_vector,
                     h0_payload,
+                    extra,
                 );
                 if flag {
                     return;
@@ -165,6 +167,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                     &code,
                     h0_vector,
                     h0_payload,
+                    extra,
                 );
                 assert!(flag, "a put fails even on a fresh tuple");
                 return;
@@ -179,6 +182,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                         &code,
                         h0_vector,
                         h0_payload,
+                        extra,
                     );
                     assert!(flag, "a put fails even on a fresh tuple");
                     return;
