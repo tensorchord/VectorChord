@@ -22,11 +22,11 @@ pg17 = ["pgrx/pg17"]
 
 [dependencies]
 pgrx = { version = "=0.12.6", default-features = false, features = [] }
-base = { git = "ssh://git@github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
-common = { git = "ssh://git@github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
-detect = { git = "ssh://git@github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
-k_means = { git = "ssh://git@github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
-quantization = { git = "ssh://git@github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
+base = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
+common = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
+detect = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
+k_means = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
+quantization = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 paste = "1"
 serde = "1"
 toml = "0.8.19"
