@@ -1,61 +1,68 @@
-from os.path import join
-import time
+from time import perf_counter
 import argparse
 from pathlib import Path
-import pickle
+from sys import version_info
+
+if version_info >= (3, 12):
+    raise RuntimeError("h5py doesn't support 3.12")
 
 import h5py
-import faiss
+from faiss import Kmeans
 import numpy as np
 
-K = 4096
+DEFAULT_K = 4096
+N_ITER = 25
 SEED = 42
+MAX_POINTS_PER_CLUSTER = 256
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
-parser.add_argument("-k", help="K-means centroids or nlist, default: 4096", required=False, default=4096)
-args = parser.parse_args()
 
-K = args.k
+def build_arg_parse():
+    parser = argparse.ArgumentParser(description="Train K-means centroids")
+    parser.add_argument("-i", "--input", help="input filepath", required=True)
+    parser.add_argument("-o", "--output", help="output filepath", required=True)
+    parser.add_argument(
+        "-k",
+        help="K-means centroids or nlist",
+        type=int,
+        default=DEFAULT_K,
+    )
+    return parser
 
-HOME = Path.home()
-DATA_PATH = join(HOME, f"{args.name}/{args.name}.hdf5")
 
-dataset = h5py.File(DATA_PATH, "r")
+def reservoir_sampling(iterator, k: int):
+    """Reservoir sampling from an iterator."""
+    res = []
+    while len(res) < k:
+        res.append(next(iterator))
+    for i, vec in enumerate(iterator, k + 1):
+        j = np.random.randint(0, i)
+        if j < k:
+            res[j] = vec
+    return res
 
-if len(dataset["train"]) > 256 * K:
-    rs = np.random.RandomState(SEED)
-    idx = rs.choice(len(dataset["train"]), size=256 * K, replace=False)
-    train = dataset["train"][np.sort(idx)]
-else:
-    train = dataset["train"][:]
 
-test = dataset["test"][:]
+def kmeans_cluster(data, k, niter):
+    kmeans = Kmeans(data.shape[1], k, verbose=True, niter=niter, seed=SEED)
+    start_time = perf_counter()
+    kmeans.train(data)
+    print(f"K-means (k={k}): {perf_counter() - start_time:.2f}s")
+    return kmeans.centroids
 
-if np.shape(train)[0] > 256 * K:
-    rs = np.random.RandomState(SEED)
-    idx = rs.choice(np.shape(train)[0], size=256 * K, replace=False)
-    train = train[idx]
 
-answer = dataset["neighbors"][:]
-n, dims = np.shape(train)
-m = np.shape(test)[0]
+if __name__ == "__main__":
+    parser = build_arg_parse()
+    args = parser.parse_args()
+    print(args)
 
-start = time.perf_counter()
+    dataset = h5py.File(Path(args.input), "r")
+    n, dim = dataset["train"].shape
 
-index = faiss.IndexFlatL2(dims)
-clustering = faiss.Clustering(dims, K)
-clustering.verbose = True
-clustering.seed = 42
-clustering.niter = 10
-clustering.train(train, index)
-centroids = faiss.vector_float_to_array(clustering.centroids)
+    if n > MAX_POINTS_PER_CLUSTER * args.k:
+        train = np.array(
+            reservoir_sampling(iter(dataset["train"]), MAX_POINTS_PER_CLUSTER * args.k),
+        )
+    else:
+        train = dataset["train"][:]
 
-end = time.perf_counter()
-delta = end - start
-print(f"K-means time: {delta:.2f}s")
-
-centroids = centroids.reshape([K, -1])
-
-with open(f"{args.name}.pickle", "wb") as f:
-    pickle.dump(centroids, f)
+    centroids = kmeans_cluster(train, args.k, N_ITER)
+    np.save(Path(args.output), centroids, allow_pickle=False)

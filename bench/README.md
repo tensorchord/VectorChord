@@ -1,6 +1,9 @@
 ## Build Docker
 
 ```shell
+sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
+cargo install --locked cargo-pgrx
+cargo pgrx init
 cargo build --package rabbithole --lib --features pg16 --target x86_64-unknown-linux-gnu --release
 ./tools/schema.sh --features pg16 --target x86_64-unknown-linux-gnu --release | expand -t 4 > ./target/schema.sql
 
@@ -53,15 +56,12 @@ Options for `-n`:
 ```shell
 # pip install pgvector numpy faiss-cpu psycopg h5py
 
-# If you want to use internal k-means(slow)
-python internal.py -n sift -m l2
-
-# Or external k-means
+# external k-means
 ## K-means generate centroids
-python train.py -n sift
+python train.py -i sift.hdf5 -o sift_centroids_4096
 
-## Load centroids into PG and build index
-python load.py -n sift -m l2
+## Load external centroids into PG and build index
+python index.py -n sift -c sift_centroids_4096.npy -i sift.hdf5
 
 # Run bench
 python bench.py -n sift -m l2
