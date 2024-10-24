@@ -3,6 +3,7 @@ import argparse
 import h5py
 import numpy as np
 import psycopg
+from tqdm import tqdm
 from pgvector.psycopg import register_vector
 
 
@@ -14,7 +15,7 @@ def build_arg_parse():
     )
     parser.add_argument("-o", "--output", help="Output filepath", required=True)
     parser.add_argument("-c", "--column", help="Column name", default="embedding")
-    parser.add_argument("-d", "--dim", help="Dimension", required=True)
+    parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
     return parser
 
 
@@ -46,11 +47,17 @@ def extract_vectors(conn, name, column):
 
 def write_to_h5(filepath, vecs, dim):
     with h5py.File(filepath, "w") as file:
-        dataset = file.create_dataset("train", (0, dim), chunks=True, dtype=np.float32)
+        dataset = file.create_dataset(
+            "train", (0, dim), maxshape=(None, dim), chunks=True, dtype=np.float32
+        )
         current_size = 0
-        for vec in vecs:
-            dataset[current_size * dim : (current_size + 1) * dim] = vec
+        for vec in tqdm(vecs):
+            if dataset.shape[0] == current_size:
+                dataset.resize(current_size + 64, axis=0)
+            dataset[current_size] = vec
             current_size += 1
+        dataset.resize(current_size, axis=0)
+        dataset.flush()
 
 
 if __name__ == "__main__":

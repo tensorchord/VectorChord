@@ -56,6 +56,9 @@ Options for `-n`:
 ```shell
 # pip install pgvector numpy faiss-cpu psycopg h5py
 
+# dump table embedding column to a local h5 file["train"]
+python dump.py -n sift -o sift.h5 -c embedding -d 128
+
 # external k-means
 ## K-means generate centroids
 python train.py -i sift.hdf5 -o sift_centroids_4096
