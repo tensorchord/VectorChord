@@ -60,12 +60,11 @@ Options for `-n`:
 python dump.py -n sift -o sift.h5 -c embedding -d 128
 
 # external k-means
-## K-means generate centroids
 python train.py -i sift.hdf5 -o sift_centroids_4096
 
-## Load external centroids into PG and build index
+# build index (w/wo external centroids)
 python index.py -n sift -c sift_centroids_4096.npy -i sift.hdf5
 
-# Run bench
-python bench.py -n sift -m l2
+# bench
+python bench.py -n sift -i sift.hdf5
 ```

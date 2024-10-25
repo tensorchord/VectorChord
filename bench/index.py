@@ -26,6 +26,8 @@ def build_arg_parse():
     parser.add_argument(
         "-p", "--password", help="Database password", default="password"
     )
+    parser.add_argument("-k", help="Number of centroids", type=int, required=True)
+    parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
     return parser
 
 
@@ -118,16 +120,18 @@ if __name__ == "__main__":
     print(args)
 
     dataset = h5py.File(Path(args.input), "r")
-    centroids = np.load(args.centroid, allow_pickle=False)
-    k, dim = centroids.shape
-    metric_ops, ivf_config = get_ivf_ops_config(args.metric, k, args.name)
     conn = create_connection(args.password)
-    add_centroids(conn, args.name, centroids)
+    if args.centroids:
+        centroids = np.load(args.centroid, allow_pickle=False)
+        add_centroids(conn, args.name, centroids)
+    metric_ops, ivf_config = get_ivf_ops_config(
+        args.metric, args.k, args.name if args.centroids else None
+    )
     build_index(
         conn,
         args.name,
         metric_ops,
         ivf_config,
-        dim,
+        args.dim,
         dataset["train"],
     )
