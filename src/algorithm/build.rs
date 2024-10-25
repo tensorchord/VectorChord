@@ -5,8 +5,6 @@ use crate::postgres::BufferWriteGuard;
 use crate::postgres::Relation;
 use crate::types::ExternalCentroids;
 use crate::types::RabbitholeIndexingOptions;
-use base::always_equal::AlwaysEqual;
-use base::distance::Distance;
 use base::distance::DistanceKind;
 use base::index::VectorOptions;
 use base::scalar::ScalarLike;
@@ -14,8 +12,6 @@ use base::search::Pointer;
 use common::vec2::Vec2;
 use rand::Rng;
 use rkyv::ser::serializers::AllocSerializer;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -71,92 +67,58 @@ pub fn build<T: HeapRelation, R: Reporter>(
             Structure::compute(vector_options.clone(), rabbithole_options.clone(), samples)
         }
     };
-    let mut vectors_head;
-    {
-        let h2_len = structure.h2_len();
-        let h1_len = structure.h1_len();
-        let mut meta = Tape::create(&relation);
-        assert_eq!(meta.first(), 0);
-        let mut vectors = Tape::create(&relation);
-        assert_eq!(vectors.first(), 1);
-        let h2_means = (0..h2_len)
-            .map(|i| {
-                vectors.push(&VectorTuple {
-                    payload: None,
-                    vector: structure.h2_means(i).clone(),
-                })
+    let h2_len = structure.h2_len();
+    let h1_len = structure.h1_len();
+    let mut meta = Tape::create(&relation, false);
+    assert_eq!(meta.first(), 0);
+    let mut forwards = Tape::<std::convert::Infallible>::create(&relation, false);
+    assert_eq!(forwards.first(), 1);
+    let mut vectors = Tape::create(&relation, true);
+    assert_eq!(vectors.first(), 2);
+    let h2_means = (0..h2_len)
+        .map(|i| {
+            vectors.push(&VectorTuple {
+                payload: None,
+                vector: structure.h2_means(i).clone(),
             })
-            .collect::<Vec<_>>();
-        let h1_means = (0..h1_len)
-            .map(|i| {
-                vectors.push(&VectorTuple {
-                    payload: None,
-                    vector: structure.h1_means(i).clone(),
-                })
+        })
+        .collect::<Vec<_>>();
+    let h1_means = (0..h1_len)
+        .map(|i| {
+            vectors.push(&VectorTuple {
+                payload: None,
+                vector: structure.h1_means(i).clone(),
             })
-            .collect::<Vec<_>>();
-        let h1_firsts = (0..h1_len)
-            .map(|_| {
-                let tape = Tape::<Height0Tuple>::create(&relation);
-                tape.first()
-            })
-            .collect::<Vec<_>>();
-        let h2_firsts = (0..h2_len)
-            .map(|i| {
-                let mut tape = Tape::<Height1Tuple>::create(&relation);
-                let mut cache = Vec::new();
-                let h2_mean = structure.h2_means(i);
-                let children = structure.h2_children(i);
-                for child in children.iter().copied() {
-                    let h1_mean = structure.h1_means(child);
-                    let code = if is_residual {
-                        rabitq::code(dims, &f32::vector_sub(h1_mean, h2_mean))
-                    } else {
-                        rabitq::code(dims, h1_mean)
-                    };
-                    cache.push((child, code));
-                    if cache.len() == 32 {
-                        let group = std::mem::take(&mut cache);
-                        let code = std::array::from_fn(|i| group[i].1.clone());
-                        let packed = rabitq::pack_codes(dims, code);
-                        tape.push(&Height1Tuple {
-                            mask: [true; 32],
-                            mean: std::array::from_fn(|i| h1_means[group[i].0 as usize]),
-                            first: std::array::from_fn(|i| h1_firsts[group[i].0 as usize]),
-                            dis_u_2: packed.dis_u_2,
-                            factor_ppc: packed.factor_ppc,
-                            factor_ip: packed.factor_ip,
-                            factor_err: packed.factor_err,
-                            t: packed.t,
-                        });
-                    }
-                }
-                if !cache.is_empty() {
+        })
+        .collect::<Vec<_>>();
+    let h1_firsts = (0..h1_len)
+        .map(|_| {
+            let tape = Tape::<Height0Tuple>::create(&relation, false);
+            tape.first()
+        })
+        .collect::<Vec<_>>();
+    let h2_firsts = (0..h2_len)
+        .map(|i| {
+            let mut tape = Tape::<Height1Tuple>::create(&relation, false);
+            let mut cache = Vec::new();
+            let h2_mean = structure.h2_means(i);
+            let children = structure.h2_children(i);
+            for child in children.iter().copied() {
+                let h1_mean = structure.h1_means(child);
+                let code = if is_residual {
+                    rabitq::code(dims, &f32::vector_sub(h1_mean, h2_mean))
+                } else {
+                    rabitq::code(dims, h1_mean)
+                };
+                cache.push((child, code));
+                if cache.len() == 32 {
                     let group = std::mem::take(&mut cache);
-                    let codes = std::array::from_fn(|i| {
-                        if i < group.len() {
-                            group[i].1.clone()
-                        } else {
-                            rabitq::dummy_code(dims)
-                        }
-                    });
-                    let packed = rabitq::pack_codes(dims, codes);
+                    let code = std::array::from_fn(|i| group[i].1.clone());
+                    let packed = rabitq::pack_codes(dims, code);
                     tape.push(&Height1Tuple {
-                        mask: std::array::from_fn(|i| i < group.len()),
-                        mean: std::array::from_fn(|i| {
-                            if i < group.len() {
-                                h1_means[group[i].0 as usize]
-                            } else {
-                                Default::default()
-                            }
-                        }),
-                        first: std::array::from_fn(|i| {
-                            if i < group.len() {
-                                h1_firsts[group[i].0 as usize]
-                            } else {
-                                Default::default()
-                            }
-                        }),
+                        mask: [true; 32],
+                        mean: std::array::from_fn(|i| h1_means[group[i].0 as usize]),
+                        first: std::array::from_fn(|i| h1_firsts[group[i].0 as usize]),
                         dis_u_2: packed.dis_u_2,
                         factor_ppc: packed.factor_ppc,
                         factor_ip: packed.factor_ip,
@@ -164,231 +126,51 @@ pub fn build<T: HeapRelation, R: Reporter>(
                         t: packed.t,
                     });
                 }
-                tape.first()
-            })
-            .collect::<Vec<_>>();
-        meta.push(&MetaTuple {
-            dims,
-            is_residual,
-            vectors_first: vectors.first(),
-            mean: h2_means[0],
-            first: h2_firsts[0],
-        });
-        vectors_head = vectors.head.id();
-    }
-    let mut tuples_done = 0;
-    heap_relation.traverse(|(payload, vector)| {
-        pgrx::check_for_interrupts!();
-        tuples_done += 1;
-        reporter.tuples_done(tuples_done);
-        let meta_guard = relation.read(0);
-        let meta_tuple = meta_guard
-            .get()
-            .get(1)
-            .map(rkyv::check_archived_root::<MetaTuple>)
-            .expect("data corruption")
-            .expect("data corruption");
-        assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
-        let vector = rabitq::project(&vector);
-        let default_lut = if !is_residual {
-            Some(rabitq::fscan_preprocess(&vector))
-        } else {
-            None
-        };
-        let h0_vector = 'h0_vector: {
-            let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple {
-                vector: vector.clone(),
-                payload: Some(payload.as_u64()),
-            })
-            .unwrap();
-            let mut write = relation.write(vectors_head);
-            if let Some(i) = write.get_mut().alloc(&tuple) {
-                break 'h0_vector (vectors_head, i);
             }
-            let mut extend = relation.extend();
-            write.get_mut().get_opaque_mut().next = extend.id();
-            if let Some(i) = extend.get_mut().alloc(&tuple) {
-                vectors_head = extend.id();
-                break 'h0_vector (extend.id(), i);
-            } else {
-                panic!("a tuple cannot even be fit in a fresh page");
-            }
-        };
-        let h0_payload = payload.as_u64();
-        let list = (
-            meta_tuple.first,
-            if is_residual {
-                let vector_guard = relation.read(meta_tuple.mean.0);
-                let vector_tuple = vector_guard
-                    .get()
-                    .get(meta_tuple.mean.1)
-                    .map(rkyv::check_archived_root::<VectorTuple>)
-                    .expect("data corruption")
-                    .expect("data corruption");
-                Some(vector_tuple.vector.to_vec())
-            } else {
-                None
-            },
-        );
-        let list = {
-            let mut results = Vec::new();
-            {
-                let lut = if is_residual {
-                    &rabitq::fscan_preprocess(&f32::vector_sub(&vector, list.1.as_ref().unwrap()))
-                } else {
-                    default_lut.as_ref().unwrap()
-                };
-                let mut current = list.0;
-                while current != u32::MAX {
-                    let h1_guard = relation.read(current);
-                    for i in 1..=h1_guard.get().len() {
-                        let h1_tuple = h1_guard
-                            .get()
-                            .get(i)
-                            .map(rkyv::check_archived_root::<Height1Tuple>)
-                            .expect("data corruption")
-                            .expect("data corruption");
-                        let lowerbounds = rabitq::fscan_process_lowerbound(
-                            dims,
-                            lut,
-                            (
-                                &h1_tuple.dis_u_2,
-                                &h1_tuple.factor_ppc,
-                                &h1_tuple.factor_ip,
-                                &h1_tuple.factor_err,
-                                &h1_tuple.t,
-                            ),
-                        );
-                        for j in 0..32 {
-                            if h1_tuple.mask[j] {
-                                results.push((
-                                    Reverse(lowerbounds[j]),
-                                    AlwaysEqual(h1_tuple.mean[j]),
-                                    AlwaysEqual(h1_tuple.first[j]),
-                                ));
-                            }
-                        }
-                    }
-                    current = h1_guard.get().get_opaque().next;
-                }
-            }
-            let mut heap = BinaryHeap::from(results);
-            let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
-            {
-                while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-                    let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
-                    let vector_guard = relation.read(mean.0);
-                    let vector_tuple = vector_guard
-                        .get()
-                        .get(mean.1)
-                        .map(rkyv::check_archived_root::<VectorTuple>)
-                        .expect("data corruption")
-                        .expect("data corruption");
-                    let dis_u =
-                        Distance::from_f32(f32::reduce_sum_of_d2(&vector, &vector_tuple.vector));
-                    cache.push((
-                        Reverse(dis_u),
-                        AlwaysEqual(first),
-                        AlwaysEqual(if is_residual {
-                            Some(vector_tuple.vector.to_vec())
-                        } else {
-                            None
-                        }),
-                    ));
-                }
-                let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop().unwrap();
-                (first, mean)
-            }
-        };
-        let code = if is_residual {
-            rabitq::code(dims, &f32::vector_sub(&vector, list.1.as_ref().unwrap()))
-        } else {
-            rabitq::code(dims, &vector)
-        };
-        let dummy = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
-            mask: [false; 32],
-            mean: [(0, 0); 32],
-            payload: [0; 32],
-            dis_u_2: [0.0f32; 32],
-            factor_ppc: [0.0f32; 32],
-            factor_ip: [0.0f32; 32],
-            factor_err: [0.0f32; 32],
-            t: vec![0; (dims.div_ceil(4) * 16) as usize],
-        })
-        .unwrap();
-        let first = list.0;
-        assert!(first != u32::MAX);
-        let mut current = first;
-        loop {
-            let read = relation.read(current);
-            let flag = 'flag: {
-                for i in 1..=read.get().len() {
-                    let h0_tuple = read
-                        .get()
-                        .get(i)
-                        .map(rkyv::check_archived_root::<Height0Tuple>)
-                        .expect("data corruption")
-                        .expect("data corruption");
-                    if h0_tuple.mask.iter().any(|x| *x) {
-                        break 'flag true;
-                    }
-                }
-                if read.get().freespace() as usize >= dummy.len() {
-                    break 'flag true;
-                }
-                if read.get().get_opaque().next == u32::MAX {
-                    break 'flag true;
-                }
-                false
-            };
-            if flag {
-                drop(read);
-                let mut write = relation.write(current);
-                for i in 1..=write.get().len() {
-                    let flag = put(
-                        write.get_mut().get_mut(i).expect("data corruption"),
-                        dims,
-                        &code,
-                        h0_vector,
-                        h0_payload,
-                    );
-                    if flag {
-                        return;
-                    }
-                }
-                if let Some(i) = write.get_mut().alloc(&dummy) {
-                    let flag = put(
-                        write.get_mut().get_mut(i).expect("data corruption"),
-                        dims,
-                        &code,
-                        h0_vector,
-                        h0_payload,
-                    );
-                    assert!(flag, "a put fails even on a fresh tuple");
-                    return;
-                }
-                if write.get().get_opaque().next == u32::MAX {
-                    let mut extend = relation.extend();
-                    write.get_mut().get_opaque_mut().next = extend.id();
-                    if let Some(i) = extend.get_mut().alloc(&dummy) {
-                        let flag = put(
-                            extend.get_mut().get_mut(i).expect("data corruption"),
-                            dims,
-                            &code,
-                            h0_vector,
-                            h0_payload,
-                        );
-                        assert!(flag, "a put fails even on a fresh tuple");
-                        return;
+            if !cache.is_empty() {
+                let group = std::mem::take(&mut cache);
+                let codes = std::array::from_fn(|i| {
+                    if i < group.len() {
+                        group[i].1.clone()
                     } else {
-                        panic!("a tuple cannot even be fit in a fresh page");
+                        rabitq::dummy_code(dims)
                     }
-                }
-                current = write.get().get_opaque().next;
-            } else {
-                current = read.get().get_opaque().next;
+                });
+                let packed = rabitq::pack_codes(dims, codes);
+                tape.push(&Height1Tuple {
+                    mask: std::array::from_fn(|i| i < group.len()),
+                    mean: std::array::from_fn(|i| {
+                        if i < group.len() {
+                            h1_means[group[i].0 as usize]
+                        } else {
+                            Default::default()
+                        }
+                    }),
+                    first: std::array::from_fn(|i| {
+                        if i < group.len() {
+                            h1_firsts[group[i].0 as usize]
+                        } else {
+                            Default::default()
+                        }
+                    }),
+                    dis_u_2: packed.dis_u_2,
+                    factor_ppc: packed.factor_ppc,
+                    factor_ip: packed.factor_ip,
+                    factor_err: packed.factor_err,
+                    t: packed.t,
+                });
             }
-        }
+            tape.first()
+        })
+        .collect::<Vec<_>>();
+    forwards.head.get_mut().get_opaque_mut().fast_forward = vectors.first();
+    meta.push(&MetaTuple {
+        dims,
+        is_residual,
+        vectors_first: vectors.first(),
+        forwards_first: forwards.first(),
+        mean: h2_means[0],
+        first: h2_firsts[0],
     });
 }
 
@@ -535,17 +317,19 @@ struct Tape<'a, T> {
     relation: &'a Relation,
     head: BufferWriteGuard,
     first: u32,
+    tracking_freespace: bool,
     _phantom: PhantomData<fn(T) -> T>,
 }
 
 impl<'a, T> Tape<'a, T> {
-    fn create(relation: &'a Relation) -> Self {
-        let head = relation.extend();
+    fn create(relation: &'a Relation, tracking_freespace: bool) -> Self {
+        let head = relation.extend(tracking_freespace);
         let first = head.id();
         Self {
             relation,
             head,
             first,
+            tracking_freespace,
             _phantom: PhantomData,
         }
     }
@@ -563,7 +347,7 @@ where
         if let Some(i) = self.head.get_mut().alloc(&bytes) {
             (self.head.id(), i)
         } else {
-            let next = self.relation.extend();
+            let next = self.relation.extend(self.tracking_freespace);
             self.head.get_mut().get_opaque_mut().next = next.id();
             self.head = next;
             if let Some(i) = self.head.get_mut().alloc(&bytes) {

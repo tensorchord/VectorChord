@@ -25,13 +25,18 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
     } else {
         None
     };
-    let h0_vector = {
+    let h0_vector = 'h0_vector: {
         let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple {
             vector: vector.clone(),
             payload: Some(payload.as_u64()),
         })
         .unwrap();
-        let mut current = meta_tuple.vectors_first;
+        if let Some(mut write) = relation.search(tuple.len()) {
+            let i = write.get_mut().alloc(&tuple).unwrap();
+            break 'h0_vector (write.id(), i);
+        }
+        let mut current = relation.read(1).get().get_opaque().fast_forward;
+        let mut changed = false;
         loop {
             let read = relation.read(current);
             let flag = 'flag: {
@@ -50,7 +55,10 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                     break (current, i);
                 }
                 if write.get().get_opaque().next == u32::MAX {
-                    let mut extend = relation.extend();
+                    if changed {
+                        relation.write(1).get_mut().get_opaque_mut().fast_forward = write.id();
+                    }
+                    let mut extend = relation.extend(true);
                     write.get_mut().get_opaque_mut().next = extend.id();
                     if let Some(i) = extend.get_mut().alloc(&tuple) {
                         break (extend.id(), i);
@@ -62,6 +70,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
             } else {
                 current = read.get().get_opaque().next;
             }
+            changed = true;
         }
     };
     let h0_payload = payload.as_u64();
@@ -218,7 +227,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                 return;
             }
             if write.get().get_opaque().next == u32::MAX {
-                let mut extend = relation.extend();
+                let mut extend = relation.extend(false);
                 write.get_mut().get_opaque_mut().next = extend.id();
                 if let Some(i) = extend.get_mut().alloc(&dummy) {
                     let flag = put(
