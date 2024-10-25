@@ -27,7 +27,7 @@ def build_arg_parse():
         type=int,
         default=DEFAULT_K,
     )
-    parser.add_argument("--child-k", help="lower layer nlist (if enabled)")
+    parser.add_argument("--child-k", type=int, help="lower layer nlist (if enabled)")
     parser.add_argument(
         "--niter", help="number of iterations", type=int, default=N_ITER
     )
@@ -39,7 +39,10 @@ def reservoir_sampling(iterator, k: int):
     """Reservoir sampling from an iterator."""
     res = []
     while len(res) < k:
-        res.append(next(iterator))
+        try:
+            res.append(next(iterator))
+        except StopIteration:
+            return np.vstack(res)
     for i, vec in enumerate(iterator, k + 1):
         j = np.random.randint(0, i)
         if j < k:
@@ -70,12 +73,14 @@ def kmeans_cluster(data, k, child_k, niter, metric):
     labels = np.zeros(n, dtype=np.uint32)
     for i, vec in tqdm(enumerate(data), desc="Assigning labels"):
         _, label = kmeans.assign(vec.reshape((1, -1)))
-        labels[i] = label
+        labels[i] = label[0]
 
     centroids = []
+    total_k = k * child_k
     for i in tqdm(range(k), desc="training k-means for child layers"):
+        samples = np.sum(labels == i) / n * total_k * MAX_POINTS_PER_CLUSTER
         child_train = reservoir_sampling(
-            filter_by_label(iter(data), labels, i), child_k
+            filter_by_label(iter(data), labels, i), samples
         )
         child_kmeans = Kmeans(
             dim,
