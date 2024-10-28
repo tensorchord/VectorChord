@@ -21,7 +21,7 @@ Or you can use `starkind/rabbithole:pg16-latest` to run the bench.
 ## Run Instance
 
 ```shell
-docker run --name rabbithole -e POSTGRES_PASSWORD=123 -p 5432:5432 -d rabbithole:pg16-latest --volume /data:/var/lib/postgresql/data
+docker run --name rabbithole -e POSTGRES_PASSWORD=123 -p 5432:5432 -d rabbithole:pg16-latest
 
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "CREATE USER bench WITH PASSWORD '123';"
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "ALTER ROLE bench SUPERUSER;"

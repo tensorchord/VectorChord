@@ -1,6 +1,7 @@
 use crate::algorithm::rabitq;
-use crate::algorithm::rabitq::FScanProcess;
+use crate::algorithm::rabitq::fscan_process_lowerbound;
 use crate::algorithm::tuples::*;
+use crate::index::utils::distance;
 use crate::postgres::Relation;
 use base::always_equal::AlwaysEqual;
 use base::distance::Distance;
@@ -66,7 +67,8 @@ pub fn scan(
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = distance_kind.fscan_process_lowerbound(
+                    let lowerbounds = fscan_process_lowerbound(
+                        distance_kind,
                         dims,
                         lut,
                         (
@@ -102,16 +104,7 @@ pub fn scan(
                     .map(rkyv::check_archived_root::<VectorTuple>)
                     .expect("data corruption")
                     .expect("data corruption");
-                let dis_u = match distance_kind {
-                    DistanceKind::L2 => {
-                        Distance::from_f32(f32::reduce_sum_of_d2(&vector, &vector_tuple.vector))
-                    }
-                    DistanceKind::Dot => {
-                        Distance::from_f32(-f32::reduce_sum_of_xy(&vector, &vector_tuple.vector))
-                    }
-                    DistanceKind::Hamming => unreachable!(),
-                    DistanceKind::Jaccard => unreachable!(),
-                };
+                let dis_u = distance(distance_kind, &vector, &vector_tuple.vector);
                 cache.push((
                     Reverse(dis_u),
                     AlwaysEqual(first),
@@ -146,7 +139,8 @@ pub fn scan(
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = distance_kind.fscan_process_lowerbound(
+                    let lowerbounds = fscan_process_lowerbound(
+                        distance_kind,
                         dims,
                         lut,
                         (
@@ -186,16 +180,7 @@ pub fn scan(
                     // fails consistency check
                     continue;
                 }
-                let dis_u = match distance_kind {
-                    DistanceKind::L2 => {
-                        Distance::from_f32(f32::reduce_sum_of_d2(&vector, &vector_tuple.vector))
-                    }
-                    DistanceKind::Dot => {
-                        Distance::from_f32(-f32::reduce_sum_of_xy(&vector, &vector_tuple.vector))
-                    }
-                    DistanceKind::Hamming => unreachable!(),
-                    DistanceKind::Jaccard => unreachable!(),
-                };
+                let dis_u = distance(distance_kind, &vector, &vector_tuple.vector);
                 cache.push((Reverse(dis_u), AlwaysEqual(pay_u)));
             }
             let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;

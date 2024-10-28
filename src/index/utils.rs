@@ -1,3 +1,5 @@
+use base::distance::{Distance, DistanceKind};
+use base::scalar::ScalarLike;
 use base::search::*;
 use base::vector::{VectBorrowed, VectorBorrowed};
 use pgrx::pg_sys::panic::ErrorReportable;
@@ -29,7 +31,7 @@ pub fn load_table_vectors<F>(
     column_name: &str,
     rows: u32,
     dims: u32,
-    preprocess: Option<F>,
+    preprocess: F,
 ) -> Vec<Vec<f32>>
 where
     F: Fn(VectBorrowed<f32>) -> Vec<f32>,
@@ -46,15 +48,20 @@ where
             if let Ok(Some(v)) = vector {
                 let borrowed = v.as_borrowed();
                 assert_eq!(borrowed.dims(), dims);
-                if let Some(ref f) = preprocess{
-                    centroids.push(f(borrowed));
-                }else{
-                    centroids.push(borrowed.slice().to_vec());
-                }
+                centroids.push(preprocess(borrowed));
             } else {
                 error!("load vectors from column is not valid")
             }
         }
         centroids
     })
+}
+
+pub fn distance(d: DistanceKind, lhs: &[f32], rhs: &[f32]) -> Distance {
+    match d {
+        DistanceKind::L2 => Distance::from_f32(f32::reduce_sum_of_d2(lhs, rhs)),
+        DistanceKind::Dot => Distance::from_f32(-f32::reduce_sum_of_xy(lhs, rhs)),
+        DistanceKind::Hamming => unimplemented!(),
+        DistanceKind::Jaccard => unimplemented!(),
+    }
 }
