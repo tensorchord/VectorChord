@@ -45,7 +45,6 @@ pub struct Height0Tuple {
     pub mean: [(u32, u16); 32],
     // for height 0 tuple, it's pointers to heap relation
     pub payload: [u64; 32],
-    pub extra: [Option<u32>; 32],
     // RaBitQ algoithm
     pub dis_u_2: [f32; 32],
     pub factor_ppc: [f32; 32],
@@ -60,7 +59,6 @@ pub fn put(
     code: &rabitq::Code,
     vector: (u32, u16),
     payload: u64,
-    extra: Option<u32>,
 ) -> bool {
     // todo: use mutable api
     let mut x = rkyv::from_bytes::<Height0Tuple>(bytes).expect("data corruption");
@@ -68,7 +66,6 @@ pub fn put(
         if !x.mask[j] {
             x.mean[j] = vector;
             x.payload[j] = payload;
-            x.extra[j] = extra;
             x.mask[j] = true;
             x.dis_u_2[j] = code.dis_u_2;
             x.factor_ppc[j] = code.factor_ppc;

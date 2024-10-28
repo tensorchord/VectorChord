@@ -12,7 +12,6 @@ pub fn scan(
     relation: Relation,
     vector: Vec<f32>,
     h1_nprobe: u32,
-    filters: Vec<u32>,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
     assert!(h1_nprobe >= 1);
     let meta_guard = relation.read(0);
@@ -148,12 +147,7 @@ pub fn scan(
                         ),
                     );
                     for j in 0..32 {
-                        if h0_tuple.mask[j]
-                            && filters
-                                .iter()
-                                .copied()
-                                .all(|x| Some(x) == h0_tuple.extra[j])
-                        {
+                        if h0_tuple.mask[j] {
                             results.push((
                                 Reverse(lowerbounds[j]),
                                 AlwaysEqual(h0_tuple.mean[j]),

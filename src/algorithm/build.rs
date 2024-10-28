@@ -23,7 +23,7 @@ use std::sync::Arc;
 pub trait HeapRelation {
     fn traverse<F>(&self, callback: F)
     where
-        F: FnMut((Pointer, Option<u32>, Vec<f32>));
+        F: FnMut((Pointer, Vec<f32>));
 }
 
 pub trait Reporter {
@@ -50,7 +50,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
                 let max_number_of_samples = rabbithole_options.nlist.saturating_mul(256);
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
-                heap_relation.traverse(|(_, _, vector)| {
+                heap_relation.traverse(|(_, vector)| {
                     pgrx::check_for_interrupts!();
                     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions",);
                     let vector = rabitq::project(&vector);
@@ -177,7 +177,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
         vectors_head = vectors.head.id();
     }
     let mut tuples_done = 0;
-    heap_relation.traverse(|(payload, extra, vector)| {
+    heap_relation.traverse(|(payload, vector)| {
         pgrx::check_for_interrupts!();
         tuples_done += 1;
         reporter.tuples_done(tuples_done);
@@ -309,7 +309,6 @@ pub fn build<T: HeapRelation, R: Reporter>(
             mask: [false; 32],
             mean: [(0, 0); 32],
             payload: [0; 32],
-            extra: [None; 32],
             dis_u_2: [0.0f32; 32],
             factor_ppc: [0.0f32; 32],
             factor_ip: [0.0f32; 32],
@@ -352,7 +351,6 @@ pub fn build<T: HeapRelation, R: Reporter>(
                         &code,
                         h0_vector,
                         h0_payload,
-                        extra,
                     );
                     if flag {
                         return;
@@ -365,7 +363,6 @@ pub fn build<T: HeapRelation, R: Reporter>(
                         &code,
                         h0_vector,
                         h0_payload,
-                        extra,
                     );
                     assert!(flag, "a put fails even on a fresh tuple");
                     return;
@@ -380,7 +377,6 @@ pub fn build<T: HeapRelation, R: Reporter>(
                             &code,
                             h0_vector,
                             h0_payload,
-                            extra,
                         );
                         assert!(flag, "a put fails even on a fresh tuple");
                         return;

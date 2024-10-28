@@ -10,7 +10,6 @@ pub enum Scanner {
     Initial {
         vector: Option<(OwnedVector, Opfamily)>,
         threshold: Option<f32>,
-        filters: Vec<u32>,
         recheck: bool,
     },
     Vbase {
@@ -25,9 +24,8 @@ pub enum Scanner {
 pub fn scan_build(
     orderbys: Vec<Option<OwnedVector>>,
     spheres: Vec<(Option<OwnedVector>, Option<f32>)>,
-    filters: Vec<u32>,
     opfamily: Opfamily,
-) -> (Option<(OwnedVector, Opfamily)>, Option<f32>, Vec<u32>, bool) {
+) -> (Option<(OwnedVector, Opfamily)>, Option<f32>, bool) {
     let mut pair = None;
     let mut threshold = None;
     let mut recheck = false;
@@ -51,19 +49,17 @@ pub fn scan_build(
             break;
         }
     }
-    (pair.map(|x| (x, opfamily)), threshold, filters, recheck)
+    (pair.map(|x| (x, opfamily)), threshold, recheck)
 }
 
 pub fn scan_make(
     vector: Option<(OwnedVector, Opfamily)>,
     threshold: Option<f32>,
-    filters: Vec<u32>,
     recheck: bool,
 ) -> Scanner {
     Scanner::Initial {
         vector,
         threshold,
-        filters,
         recheck,
     }
 }
@@ -72,7 +68,6 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
     if let Scanner::Initial {
         vector,
         threshold,
-        filters,
         recheck,
     } = scanner
     {
@@ -86,7 +81,6 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                     OwnedVector::BVector(_) => unreachable!(),
                 },
                 nprobe(),
-                filters.clone(),
             );
             *scanner = Scanner::Vbase {
                 vbase: Box::new(vbase),

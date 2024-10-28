@@ -54,7 +54,6 @@ const AM_HANDLER: pgrx::pg_sys::IndexAmRoutine = {
     // for vector index scans without `ORDER BY` clauses a large number
     // and throw errors if someone really wants such a path.
     am_routine.amoptionalkey = true;
-    am_routine.amcanmulticol = true;
 
     am_routine.amvalidate = Some(amvalidate);
     am_routine.amoptions = Some(amoptions);
@@ -142,7 +141,7 @@ pub unsafe extern "C" fn ambuild(
     impl HeapRelation for Heap {
         fn traverse<F>(&self, callback: F)
         where
-            F: FnMut((Pointer, Option<u32>, Vec<f32>)),
+            F: FnMut((Pointer, Vec<f32>)),
         {
             pub struct State<'a, F> {
                 pub this: &'a Heap,
@@ -150,14 +149,14 @@ pub unsafe extern "C" fn ambuild(
             }
             #[pgrx::pg_guard]
             unsafe extern "C" fn call<F>(
-                index: pgrx::pg_sys::Relation,
+                _index: pgrx::pg_sys::Relation,
                 ctid: pgrx::pg_sys::ItemPointer,
                 values: *mut Datum,
                 is_null: *mut bool,
                 _tuple_is_alive: bool,
                 state: *mut core::ffi::c_void,
             ) where
-                F: FnMut((Pointer, Option<u32>, Vec<f32>)),
+                F: FnMut((Pointer, Vec<f32>)),
             {
                 pgrx::check_for_interrupts!();
                 use base::vector::OwnedVector;
@@ -168,28 +167,15 @@ pub unsafe extern "C" fn ambuild(
                         .opfamily
                         .datum_to_vector(*values.add(0), *is_null.add(0))
                 };
+                let pointer = unsafe { ctid_to_pointer(ctid.read()) };
                 if let Some(vector) = vector {
-                    let pointer = unsafe { ctid_to_pointer(ctid.read()) };
-                    let extra = unsafe {
-                        match (*(*index).rd_att).natts {
-                            1 => None,
-                            2 => {
-                                if !is_null.add(1).read() {
-                                    Some(values.add(1).read().value() as u32)
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => unreachable!(),
-                        }
-                    };
                     let vector = match vector {
                         OwnedVector::Vecf32(x) => x,
                         OwnedVector::Vecf16(_) => unreachable!(),
                         OwnedVector::SVecf32(_) => unreachable!(),
                         OwnedVector::BVector(_) => unreachable!(),
                     };
-                    (state.callback)((pointer, extra, vector.into_vec()));
+                    (state.callback)((pointer, vector.into_vec()));
                 }
             }
             let table_am = unsafe { &*(*self.heap).rd_tableam };
@@ -271,32 +257,14 @@ pub unsafe extern "C" fn aminsert(
     let opfamily = unsafe { am_options::opfamily(index) };
     let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
     if let Some(vector) = vector {
-        let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
-        let extra = unsafe {
-            match (*(*index).rd_att).natts {
-                1 => None,
-                2 => {
-                    if !is_null.add(1).read() {
-                        Some(values.add(1).read().value() as u32)
-                    } else {
-                        None
-                    }
-                }
-                _ => unreachable!(),
-            }
-        };
         let vector = match vector {
             OwnedVector::Vecf32(x) => x,
             OwnedVector::Vecf16(_) => unreachable!(),
             OwnedVector::SVecf32(_) => unreachable!(),
             OwnedVector::BVector(_) => unreachable!(),
         };
-        algorithm::insert::insert(
-            unsafe { Relation::new(index) },
-            pointer,
-            extra,
-            vector.into_vec(),
-        );
+        let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
+        algorithm::insert::insert(unsafe { Relation::new(index) }, pointer, vector.into_vec());
     }
     false
 }
@@ -311,7 +279,7 @@ pub unsafe extern "C" fn ambeginscan(
 
     let scan = unsafe { pgrx::pg_sys::RelationGetIndexScan(index, n_keys, n_orderbys) };
     unsafe {
-        let scanner = am_scan::scan_make(None, None, Vec::new(), false);
+        let scanner = am_scan::scan_make(None, None, false);
         (*scan).opaque = CurrentMemoryContext.leak_and_drop_on_delete(scanner).cast();
     }
     scan
@@ -333,10 +301,9 @@ pub unsafe extern "C" fn amrescan(
             std::ptr::copy(orderbys, (*scan).orderByData, (*scan).numberOfOrderBys as _);
         }
         let opfamily = am_options::opfamily((*scan).indexRelation);
-        let (orderbys, spheres, filters) = {
+        let (orderbys, spheres) = {
             let mut orderbys = Vec::new();
             let mut spheres = Vec::new();
-            let mut filters = Vec::new();
             if (*scan).numberOfOrderBys == 0 && (*scan).numberOfKeys == 0 {
                 pgrx::error!(
                     "vector search with no WHERE clause and no ORDER BY clause is not supported"
@@ -357,26 +324,14 @@ pub unsafe extern "C" fn amrescan(
                 let is_null = ((*data).sk_flags & pgrx::pg_sys::SK_ISNULL as i32) != 0;
                 match (*data).sk_strategy {
                     2 => spheres.push(opfamily.datum_to_sphere(value, is_null)),
-                    11 => {
-                        if is_null {
-                            filters.push(0);
-                            filters.push(1);
-                        } else {
-                            filters.push(value.value() as u32);
-                        }
-                    }
                     _ => unreachable!(),
                 }
             }
-            (orderbys, spheres, filters)
+            (orderbys, spheres)
         };
-        let (vector, threshold, filters, recheck) =
-            am_scan::scan_build(orderbys, spheres, filters, opfamily);
+        let (vector, threshold, recheck) = am_scan::scan_build(orderbys, spheres, opfamily);
         let scanner = (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked();
-        let scanner = std::mem::replace(
-            scanner,
-            am_scan::scan_make(vector, threshold, filters, recheck),
-        );
+        let scanner = std::mem::replace(scanner, am_scan::scan_make(vector, threshold, recheck));
         am_scan::scan_release(scanner);
     }
 }
@@ -416,7 +371,7 @@ pub unsafe extern "C" fn amgettuple(
 pub unsafe extern "C" fn amendscan(scan: pgrx::pg_sys::IndexScanDesc) {
     unsafe {
         let scanner = (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked();
-        let scanner = std::mem::replace(scanner, am_scan::scan_make(None, None, Vec::new(), false));
+        let scanner = std::mem::replace(scanner, am_scan::scan_make(None, None, false));
         am_scan::scan_release(scanner);
     }
 }

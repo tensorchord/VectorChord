@@ -116,8 +116,8 @@ pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, Rabbitho
     if atts.is_empty() {
         pgrx::error!("indexing on no columns is not supported");
     }
-    if atts.len() > 2 {
-        pgrx::error!("indexing on many columns is not supported");
+    if atts.len() != 1 {
+        pgrx::error!("multicolumn index is not supported");
     }
     // get dims
     let typmod = Typmod::parse_from_i32(atts[0].type_mod()).unwrap();

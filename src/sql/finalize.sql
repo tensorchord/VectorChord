@@ -27,7 +27,6 @@ COMMENT ON ACCESS METHOD rabbithole IS 'rabbithole index access method';
 -- List of operator families
 
 CREATE OPERATOR FAMILY vector_l2_ops USING rabbithole;
-CREATE OPERATOR FAMILY int4_eq_ops USING rabbithole;
 
 -- List of operator classes
 
@@ -35,7 +34,3 @@ CREATE OPERATOR CLASS vector_l2_ops
     FOR TYPE vector USING rabbithole FAMILY vector_l2_ops AS
     OPERATOR 1 <-> (vector, vector) FOR ORDER BY float_ops,
     OPERATOR 2 <<->> (vector, sphere_vector) FOR SEARCH;
-
-CREATE OPERATOR CLASS int4_eq_ops
-    FOR TYPE int4 USING rabbithole FAMILY int4_eq_ops AS
-    OPERATOR 11 = (int4, int4) FOR SEARCH;
