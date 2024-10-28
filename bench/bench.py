@@ -14,7 +14,7 @@ def build_arg_parse():
         "-m",
         "--metric",
         help="Metric to pick, in l2 or cos",
-        choices=["l2", "cos"],
+        choices=["l2", "cos", "dot"],
         default="l2",
     )
     parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
@@ -74,7 +74,15 @@ if __name__ == "__main__":
     dataset = h5py.File(Path(args.input), "r")
     test = dataset["test"][:]
     answer = dataset["neighbors"][:]
-    metric_ops = "<->" if args.metric == "l2" else "<=>"
+
+    if args.metric == "l2":
+        metric_ops = "<->"
+    elif args.metric == "cos":
+        metric_ops = "<=>"
+    elif args.metric == "dot":
+        metric_ops = "<#>"
+    else:
+        raise ValueError
     conn = create_connection(args.password)
     conn.execute("SET rabbithole.nprobe=300")
 
