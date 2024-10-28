@@ -2,7 +2,7 @@ use crate::algorithm::tuples::*;
 use crate::postgres::Relation;
 use base::search::Pointer;
 
-pub fn vacuum(relation: Relation, callback: impl Fn(Pointer) -> bool) {
+pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -> bool) {
     // step 1: vacuum height_0_tuple
     {
         let h1_firsts = {
@@ -42,6 +42,7 @@ pub fn vacuum(relation: Relation, callback: impl Fn(Pointer) -> bool) {
         for first in h0_firsts {
             let mut current = first;
             while current != u32::MAX {
+                delay();
                 let mut h0_guard = relation.write(current);
                 for i in 1..=h0_guard.get().len() {
                     let h0_tuple = h0_guard
@@ -97,6 +98,7 @@ pub fn vacuum(relation: Relation, callback: impl Fn(Pointer) -> bool) {
             meta_tuple.vectors_first
         };
         while current != u32::MAX {
+            delay();
             let read = relation.read(current);
             let flag = 'flag: {
                 for i in 1..=read.get().len() {

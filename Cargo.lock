@@ -66,7 +66,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 [[package]]
 name = "base"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "base_macros",
  "detect",
@@ -84,7 +84,7 @@ dependencies = [
 [[package]]
 name = "base_macros"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -226,7 +226,7 @@ dependencies = [
 [[package]]
 name = "common"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "base",
  "log",
@@ -315,7 +315,7 @@ dependencies = [
 [[package]]
 name = "detect"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "detect_macros",
 ]
@@ -323,7 +323,7 @@ dependencies = [
 [[package]]
 name = "detect_macros"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -561,7 +561,7 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 [[package]]
 name = "k_means"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "base",
  "common",
@@ -943,7 +943,7 @@ dependencies = [
 [[package]]
 name = "quantization"
 version = "0.0.0"
-source = "git+ssh://git@github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
+source = "git+https://github.com/tensorchord/pgvecto.rs.git?branch=rabbithole-2#29df8b43d45861fc741034bc7f8f304ca18822ca"
 dependencies = [
  "base",
  "common",

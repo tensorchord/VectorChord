@@ -732,7 +732,13 @@ pub unsafe extern "C" fn ambulkdelete(
     }
     let callback = callback.unwrap();
     let callback = |p: Pointer| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
-    algorithm::vacuum::vacuum(unsafe { Relation::new((*info).index) }, callback);
+    algorithm::vacuum::vacuum(
+        unsafe { Relation::new((*info).index) },
+        || unsafe {
+            pgrx::pg_sys::vacuum_delay_point();
+        },
+        callback,
+    );
     stats
 }
 
