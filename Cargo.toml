@@ -21,7 +21,7 @@ pg16 = ["pgrx/pg16"]
 pg17 = ["pgrx/pg17"]
 
 [dependencies]
-pgrx = { version = "=0.12.6", default-features = false, features = [] }
+pgrx = { version = "=0.12.6", default-features = false, features = ["cshim"] }
 base = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 common = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 detect = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }

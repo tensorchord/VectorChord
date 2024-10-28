@@ -25,7 +25,12 @@ pub fn ctid_to_pointer(ctid: pgrx::pg_sys::ItemPointerData) -> Pointer {
     Pointer::new(value)
 }
 
-pub fn load_proj_vectors(table_name: &str, column_name: &str, rows: u32, dims: u32) -> Vec<Vec<f32>> {
+pub fn load_proj_vectors(
+    table_name: &str,
+    column_name: &str,
+    rows: u32,
+    dims: u32,
+) -> Vec<Vec<f32>> {
     let query = format!("SELECT {column_name} FROM {table_name};");
     let mut centroids = Vec::new();
 

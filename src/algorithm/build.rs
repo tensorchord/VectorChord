@@ -31,7 +31,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
     vector_options: VectorOptions,
     rabbithole_options: RabbitholeIndexingOptions,
     heap_relation: T,
-    index_relation: Relation,
+    relation: Relation,
     mut reporter: R,
 ) {
     let dims = vector_options.dims;
@@ -69,10 +69,12 @@ pub fn build<T: HeapRelation, R: Reporter>(
     };
     let h2_len = structure.h2_len();
     let h1_len = structure.h1_len();
-    let mut meta = Tape::create(&index_relation);
+    let mut meta = Tape::create(&relation, false);
     assert_eq!(meta.first(), 0);
-    let mut vectors = Tape::create(&index_relation);
-    assert_eq!(vectors.first(), 1);
+    let mut forwards = Tape::<std::convert::Infallible>::create(&relation, false);
+    assert_eq!(forwards.first(), 1);
+    let mut vectors = Tape::create(&relation, true);
+    assert_eq!(vectors.first(), 2);
     let h2_means = (0..h2_len)
         .map(|i| {
             vectors.push(&VectorTuple {
@@ -91,13 +93,13 @@ pub fn build<T: HeapRelation, R: Reporter>(
         .collect::<Vec<_>>();
     let h1_firsts = (0..h1_len)
         .map(|_| {
-            let tape = Tape::<Height0Tuple>::create(&index_relation);
+            let tape = Tape::<Height0Tuple>::create(&relation, false);
             tape.first()
         })
         .collect::<Vec<_>>();
     let h2_firsts = (0..h2_len)
         .map(|i| {
-            let mut tape = Tape::<Height1Tuple>::create(&index_relation);
+            let mut tape = Tape::<Height1Tuple>::create(&relation, false);
             let mut cache = Vec::new();
             let h2_mean = structure.h2_means(i);
             let children = structure.h2_children(i);
@@ -161,98 +163,14 @@ pub fn build<T: HeapRelation, R: Reporter>(
             tape.first()
         })
         .collect::<Vec<_>>();
+    forwards.head.get_mut().get_opaque_mut().fast_forward = vectors.first();
     meta.push(&MetaTuple {
         dims,
         is_residual,
         vectors_first: vectors.first(),
+        forwards_first: forwards.first(),
         mean: h2_means[0],
         first: h2_firsts[0],
-    });
-    drop(meta);
-    let mut heads = Vec::new();
-    for i in 0..structure.h1_len() {
-        heads.push(h1_firsts[i as usize]);
-    }
-    let mut tuples_done = 0;
-    heap_relation.traverse(|(payload, vector)| {
-        pgrx::check_for_interrupts!();
-        tuples_done += 1;
-        reporter.tuples_done(tuples_done);
-        assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
-        let vector = rabitq::project(&vector);
-        let h0_vector = vectors.push(&VectorTuple {
-            vector: vector.clone(),
-            payload: Some(payload.as_u64()),
-        });
-        let h0_payload = payload.as_u64();
-        let h2_id = 0_u32;
-        let h1_id = {
-            let mut target = (0_u32, f32::INFINITY);
-            for &i in structure.h2_children(h2_id) {
-                let dis = f32::reduce_sum_of_d2(&vector, structure.h1_means(i));
-                if dis < target.1 {
-                    target = (i, dis);
-                }
-            }
-            target.0
-        };
-        let code = if is_residual {
-            rabitq::code(dims, &f32::vector_sub(&vector, structure.h1_means(h1_id)))
-        } else {
-            rabitq::code(dims, &vector)
-        };
-        let mut write = index_relation.write(heads[h1_id as usize]);
-        let page = write.get_mut();
-        if page.len() != 0 {
-            let flag = put(
-                page.get_mut(page.len()).expect("data corruption"),
-                dims,
-                &code,
-                h0_vector,
-                h0_payload,
-            );
-            if flag {
-                return;
-            }
-        }
-        let tuple = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
-            mask: [false; 32],
-            mean: [(0, 0); 32],
-            payload: [0; 32],
-            dis_u_2: [0.0; 32],
-            factor_ppc: [0.0; 32],
-            factor_ip: [0.0; 32],
-            factor_err: [0.0; 32],
-            t: vec![0; (dims.div_ceil(4) * 16) as usize],
-        })
-        .unwrap();
-        if let Some(i) = page.alloc(&tuple) {
-            let flag = put(
-                page.get_mut(i).expect("data corruption"),
-                dims,
-                &code,
-                h0_vector,
-                h0_payload,
-            );
-            assert!(flag, "a put fails even on a fresh tuple");
-            return;
-        }
-        let mut extend = index_relation.extend();
-        heads[h1_id as usize] = extend.id();
-        page.get_opaque_mut().next = extend.id();
-        let page = extend.get_mut();
-        if let Some(i) = page.alloc(&tuple) {
-            let flag = put(
-                page.get_mut(i).expect("data corruption"),
-                dims,
-                &code,
-                h0_vector,
-                h0_payload,
-            );
-            assert!(flag, "a put fails even on a fresh tuple");
-            return;
-        }
-        panic!("a tuple cannot even be fit in a fresh page")
     });
 }
 
@@ -399,17 +317,19 @@ struct Tape<'a, T> {
     relation: &'a Relation,
     head: BufferWriteGuard,
     first: u32,
+    tracking_freespace: bool,
     _phantom: PhantomData<fn(T) -> T>,
 }
 
 impl<'a, T> Tape<'a, T> {
-    fn create(relation: &'a Relation) -> Self {
-        let head = relation.extend();
+    fn create(relation: &'a Relation, tracking_freespace: bool) -> Self {
+        let head = relation.extend(tracking_freespace);
         let first = head.id();
         Self {
             relation,
             head,
             first,
+            tracking_freespace,
             _phantom: PhantomData,
         }
     }
@@ -427,7 +347,7 @@ where
         if let Some(i) = self.head.get_mut().alloc(&bytes) {
             (self.head.id(), i)
         } else {
-            let next = self.relation.extend();
+            let next = self.relation.extend(self.tracking_freespace);
             self.head.get_mut().get_opaque_mut().next = next.id();
             self.head = next;
             if let Some(i) = self.head.get_mut().alloc(&bytes) {

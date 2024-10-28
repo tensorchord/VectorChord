@@ -46,6 +46,11 @@ const AM_HANDLER: pgrx::pg_sys::IndexAmRoutine = {
 
     am_routine.amcanorderbyop = true;
 
+    #[cfg(feature = "pg17")]
+    {
+        am_routine.amcanbuildparallel = true;
+    }
+
     // Index access methods that set `amoptionalkey` to `false`
     // must index all tuples, even if the first column is `NULL`.
     // However, PostgreSQL does not generate a path if there is no
@@ -132,6 +137,7 @@ pub unsafe extern "C" fn ambuild(
     index: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
 ) -> *mut pgrx::pg_sys::IndexBuildResult {
+    #[derive(Debug, Clone)]
     pub struct Heap {
         heap: pgrx::pg_sys::Relation,
         index: pgrx::pg_sys::Relation,
@@ -200,6 +206,7 @@ pub unsafe extern "C" fn ambuild(
             }
         }
     }
+    #[derive(Debug, Clone)]
     pub struct PgReporter {}
     impl Reporter for PgReporter {
         fn tuples_total(&mut self, tuples_total: usize) {
@@ -226,15 +233,349 @@ pub unsafe extern "C" fn ambuild(
         index_info,
         opfamily: unsafe { am_options::opfamily(index) },
     };
+    let mut reporter = PgReporter {};
     let index_relation = unsafe { Relation::new(index) };
     algorithm::build::build(
         vector_options,
         rabbithole_options,
-        heap_relation,
-        index_relation,
-        PgReporter {},
+        heap_relation.clone(),
+        index_relation.clone(),
+        reporter.clone(),
     );
+    if let Some(leader) =
+        unsafe { RabbitholeLeader::enter(heap, index, (*index_info).ii_Concurrent) }
+    {
+        unsafe {
+            let nparticipanttuplesorts = leader.nparticipanttuplesorts;
+            loop {
+                pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.rabbitholeshared).mutex);
+                if (*leader.rabbitholeshared).nparticipantsdone == nparticipanttuplesorts {
+                    pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.rabbitholeshared).mutex);
+                    break;
+                }
+                pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.rabbitholeshared).mutex);
+                pgrx::pg_sys::ConditionVariableSleep(
+                    &raw mut (*leader.rabbitholeshared).workersdonecv,
+                    pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN,
+                );
+            }
+            pgrx::pg_sys::ConditionVariableCancelSleep();
+        }
+    } else {
+        let mut tuples_done = 0;
+        reporter.tuples_done(tuples_done);
+        heap_relation.traverse(|(payload, vector)| {
+            pgrx::check_for_interrupts!();
+            algorithm::insert::insert(index_relation.clone(), payload, vector);
+            tuples_done += 1;
+            reporter.tuples_done(tuples_done);
+        });
+    }
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
+}
+
+struct RabbitholeShared {
+    /* Immutable state */
+    heaprelid: pgrx::pg_sys::Oid,
+    indexrelid: pgrx::pg_sys::Oid,
+    isconcurrent: bool,
+
+    /* Worker progress */
+    workersdonecv: pgrx::pg_sys::ConditionVariable,
+
+    /* Mutex for mutable state */
+    mutex: pgrx::pg_sys::slock_t,
+
+    /* Mutable state */
+    nparticipantsdone: i32,
+}
+
+fn is_mvcc_snapshot(snapshot: *mut pgrx::pg_sys::SnapshotData) -> bool {
+    matches!(
+        unsafe { (*snapshot).snapshot_type },
+        pgrx::pg_sys::SnapshotType::SNAPSHOT_MVCC
+            | pgrx::pg_sys::SnapshotType::SNAPSHOT_HISTORIC_MVCC
+    )
+}
+
+struct RabbitholeLeader {
+    pcxt: *mut pgrx::pg_sys::ParallelContext,
+    nparticipanttuplesorts: i32,
+    rabbitholeshared: *mut RabbitholeShared,
+    snapshot: pgrx::pg_sys::Snapshot,
+}
+
+impl RabbitholeLeader {
+    pub unsafe fn enter(
+        heap: pgrx::pg_sys::Relation,
+        index: pgrx::pg_sys::Relation,
+        isconcurrent: bool,
+    ) -> Option<Self> {
+        unsafe fn compute_parallel_workers(
+            heap: pgrx::pg_sys::Relation,
+            index: pgrx::pg_sys::Relation,
+        ) -> i32 {
+            unsafe {
+                if pgrx::pg_sys::plan_create_index_workers((*heap).rd_id, (*index).rd_id) == 0 {
+                    return 0;
+                }
+                if !(*heap).rd_options.is_null() {
+                    let std_options = (*heap).rd_options.cast::<pgrx::pg_sys::StdRdOptions>();
+                    std::cmp::min(
+                        (*std_options).parallel_workers,
+                        pgrx::pg_sys::max_parallel_maintenance_workers,
+                    )
+                } else {
+                    pgrx::pg_sys::max_parallel_maintenance_workers
+                }
+            }
+        }
+
+        let request = unsafe { compute_parallel_workers(heap, index) };
+        if request <= 0 {
+            return None;
+        }
+
+        unsafe {
+            pgrx::pg_sys::EnterParallelMode();
+        }
+        let pcxt = unsafe {
+            pgrx::pg_sys::CreateParallelContext(
+                c"rabbithole".as_ptr(),
+                c"rabbithole_parallel_build_main".as_ptr(),
+                request,
+            )
+        };
+
+        let snapshot = if isconcurrent {
+            unsafe { pgrx::pg_sys::RegisterSnapshot(pgrx::pg_sys::GetTransactionSnapshot()) }
+        } else {
+            &raw mut pgrx::pg_sys::SnapshotAnyData
+        };
+
+        fn estimate_chunk(e: &mut pgrx::pg_sys::shm_toc_estimator, x: usize) {
+            e.space_for_chunks += x.next_multiple_of(pgrx::pg_sys::ALIGNOF_BUFFER as _);
+        }
+        fn estimate_keys(e: &mut pgrx::pg_sys::shm_toc_estimator, x: usize) {
+            e.number_of_keys += x;
+        }
+        let est_tablescandesc =
+            unsafe { pgrx::pg_sys::table_parallelscan_estimate(heap, snapshot) };
+        unsafe {
+            estimate_chunk(&mut (*pcxt).estimator, size_of::<RabbitholeShared>());
+            estimate_keys(&mut (*pcxt).estimator, 1);
+            estimate_chunk(&mut (*pcxt).estimator, est_tablescandesc);
+            estimate_keys(&mut (*pcxt).estimator, 1);
+        }
+
+        unsafe {
+            pgrx::pg_sys::InitializeParallelDSM(pcxt);
+            if (*pcxt).seg.is_null() {
+                if is_mvcc_snapshot(snapshot) {
+                    pgrx::pg_sys::UnregisterSnapshot(snapshot);
+                }
+                pgrx::pg_sys::DestroyParallelContext(pcxt);
+                pgrx::pg_sys::ExitParallelMode();
+                return None;
+            }
+        }
+
+        let rabbitholeshared = unsafe {
+            let rabbitholeshared =
+                pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<RabbitholeShared>())
+                    .cast::<RabbitholeShared>();
+            rabbitholeshared.write(RabbitholeShared {
+                heaprelid: (*heap).rd_id,
+                indexrelid: (*index).rd_id,
+                isconcurrent,
+                workersdonecv: std::mem::zeroed(),
+                mutex: std::mem::zeroed(),
+                nparticipantsdone: 0,
+            });
+            pgrx::pg_sys::ConditionVariableInit(&raw mut (*rabbitholeshared).workersdonecv);
+            pgrx::pg_sys::SpinLockInit(&raw mut (*rabbitholeshared).mutex);
+            rabbitholeshared
+        };
+
+        let tablescandesc = unsafe {
+            let tablescandesc = pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, est_tablescandesc)
+                .cast::<pgrx::pg_sys::ParallelTableScanDescData>();
+            pgrx::pg_sys::table_parallelscan_initialize(heap, tablescandesc, snapshot);
+            tablescandesc
+        };
+
+        unsafe {
+            pgrx::pg_sys::shm_toc_insert((*pcxt).toc, 0xA000000000000001, rabbitholeshared.cast());
+            pgrx::pg_sys::shm_toc_insert((*pcxt).toc, 0xA000000000000002, tablescandesc.cast());
+        }
+
+        unsafe {
+            pgrx::pg_sys::LaunchParallelWorkers(pcxt);
+        }
+
+        let nparticipanttuplesorts = unsafe { (*pcxt).nworkers_launched };
+
+        unsafe {
+            if nparticipanttuplesorts == 0 {
+                pgrx::pg_sys::WaitForParallelWorkersToFinish(pcxt);
+                if is_mvcc_snapshot(snapshot) {
+                    pgrx::pg_sys::UnregisterSnapshot(snapshot);
+                }
+                pgrx::pg_sys::DestroyParallelContext(pcxt);
+                pgrx::pg_sys::ExitParallelMode();
+                return None;
+            }
+        }
+        unsafe {
+            pgrx::pg_sys::WaitForParallelWorkersToAttach(pcxt);
+        }
+        Some(Self {
+            pcxt,
+            nparticipanttuplesorts,
+            rabbitholeshared,
+            snapshot,
+        })
+    }
+}
+
+impl Drop for RabbitholeLeader {
+    fn drop(&mut self) {
+        unsafe {
+            pgrx::pg_sys::WaitForParallelWorkersToFinish(self.pcxt);
+            if is_mvcc_snapshot(self.snapshot) {
+                pgrx::pg_sys::UnregisterSnapshot(self.snapshot);
+            }
+            pgrx::pg_sys::DestroyParallelContext(self.pcxt);
+            pgrx::pg_sys::ExitParallelMode();
+        }
+    }
+}
+
+#[pgrx::pg_guard]
+#[no_mangle]
+pub unsafe extern "C" fn rabbithole_parallel_build_main(
+    _seg: *mut pgrx::pg_sys::dsm_segment,
+    toc: *mut pgrx::pg_sys::shm_toc,
+) {
+    let rabbitholeshared = unsafe {
+        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<RabbitholeShared>()
+    };
+    let tablescandesc = unsafe {
+        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000002, false)
+            .cast::<pgrx::pg_sys::ParallelTableScanDescData>()
+    };
+    let heap_lockmode;
+    let index_lockmode;
+    if unsafe { !(*rabbitholeshared).isconcurrent } {
+        heap_lockmode = pgrx::pg_sys::ShareLock as pgrx::pg_sys::LOCKMODE;
+        index_lockmode = pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE;
+    } else {
+        heap_lockmode = pgrx::pg_sys::ShareUpdateExclusiveLock as pgrx::pg_sys::LOCKMODE;
+        index_lockmode = pgrx::pg_sys::RowExclusiveLock as pgrx::pg_sys::LOCKMODE;
+    }
+    let heap = unsafe { pgrx::pg_sys::table_open((*rabbitholeshared).heaprelid, heap_lockmode) };
+    let index = unsafe { pgrx::pg_sys::index_open((*rabbitholeshared).indexrelid, index_lockmode) };
+    let index_info = unsafe { pgrx::pg_sys::BuildIndexInfo(index) };
+    unsafe {
+        (*index_info).ii_Concurrent = (*rabbitholeshared).isconcurrent;
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct Heap {
+        heap: pgrx::pg_sys::Relation,
+        index: pgrx::pg_sys::Relation,
+        index_info: *mut pgrx::pg_sys::IndexInfo,
+        opfamily: Opfamily,
+        scan: *mut pgrx::pg_sys::TableScanDescData,
+    }
+    impl HeapRelation for Heap {
+        fn traverse<F>(&self, callback: F)
+        where
+            F: FnMut((Pointer, Vec<f32>)),
+        {
+            pub struct State<'a, F> {
+                pub this: &'a Heap,
+                pub callback: F,
+            }
+            #[pgrx::pg_guard]
+            unsafe extern "C" fn call<F>(
+                _index: pgrx::pg_sys::Relation,
+                ctid: pgrx::pg_sys::ItemPointer,
+                values: *mut Datum,
+                is_null: *mut bool,
+                _tuple_is_alive: bool,
+                state: *mut core::ffi::c_void,
+            ) where
+                F: FnMut((Pointer, Vec<f32>)),
+            {
+                pgrx::check_for_interrupts!();
+                use base::vector::OwnedVector;
+                let state = unsafe { &mut *state.cast::<State<F>>() };
+                let vector = unsafe {
+                    state
+                        .this
+                        .opfamily
+                        .datum_to_vector(*values.add(0), *is_null.add(0))
+                };
+                let pointer = unsafe { ctid_to_pointer(ctid.read()) };
+                if let Some(vector) = vector {
+                    let vector = match vector {
+                        OwnedVector::Vecf32(x) => x,
+                        OwnedVector::Vecf16(_) => unreachable!(),
+                        OwnedVector::SVecf32(_) => unreachable!(),
+                        OwnedVector::BVector(_) => unreachable!(),
+                    };
+                    (state.callback)((pointer, vector.into_vec()));
+                }
+            }
+            let table_am = unsafe { &*(*self.heap).rd_tableam };
+            let mut state = State {
+                this: self,
+                callback,
+            };
+            unsafe {
+                table_am.index_build_range_scan.unwrap()(
+                    self.heap,
+                    self.index,
+                    self.index_info,
+                    true,
+                    false,
+                    false,
+                    0,
+                    pgrx::pg_sys::InvalidBlockNumber,
+                    Some(call::<F>),
+                    (&mut state) as *mut State<F> as *mut _,
+                    self.scan,
+                );
+            }
+        }
+    }
+
+    let index_relation = unsafe { Relation::new(index) };
+    let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap, tablescandesc) };
+    let heap_relation = Heap {
+        heap,
+        index,
+        index_info,
+        opfamily: unsafe { am_options::opfamily(index) },
+        scan,
+    };
+    heap_relation.traverse(|(payload, vector)| {
+        pgrx::check_for_interrupts!();
+        algorithm::insert::insert(index_relation.clone(), payload, vector);
+    });
+
+    unsafe {
+        pgrx::pg_sys::SpinLockAcquire(&raw mut (*rabbitholeshared).mutex);
+        (*rabbitholeshared).nparticipantsdone += 1;
+        pgrx::pg_sys::SpinLockRelease(&raw mut (*rabbitholeshared).mutex);
+        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*rabbitholeshared).workersdonecv);
+    }
+
+    unsafe {
+        pgrx::pg_sys::index_close(index, index_lockmode);
+        pgrx::pg_sys::table_close(heap, heap_lockmode);
+    }
 }
 
 #[pgrx::pg_guard]

@@ -100,11 +100,10 @@ pub fn vacuum(relation: Relation, callback: impl Fn(Pointer) -> bool) {
             let read = relation.read(current);
             let flag = 'flag: {
                 for i in 1..=read.get().len() {
-                    let vector_tuple = read
-                        .get()
-                        .get(i)
-                        .map(rkyv::check_archived_root::<VectorTuple>)
-                        .expect("data corruption")
+                    let Some(vector_tuple) = read.get().get(i) else {
+                        continue;
+                    };
+                    let vector_tuple = rkyv::check_archived_root::<VectorTuple>(vector_tuple)
                         .expect("data corruption");
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
                         if callback(Pointer::new(payload)) {

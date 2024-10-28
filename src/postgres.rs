@@ -24,14 +24,18 @@ const _: () = assert!(align_of::<Page>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usi
 const _: () = assert!(size_of::<Page>() == pgrx::pg_sys::BLCKSZ as usize);
 
 impl Page {
-    pub fn init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
+    pub fn init_mut(this: &mut MaybeUninit<Self>, tracking_freespace: bool) -> &mut Self {
         unsafe {
             pgrx::pg_sys::PageInit(
                 this.as_mut_ptr() as pgrx::pg_sys::Page,
                 pgrx::pg_sys::BLCKSZ as usize,
                 size_of::<Opaque>(),
             );
-            (&raw mut (*this.as_mut_ptr()).opaque).write(Opaque::default());
+            (&raw mut (*this.as_mut_ptr()).opaque).write(Opaque {
+                next: u32::MAX,
+                tracking_freespace,
+                fast_forward: u32::MAX,
+            });
         }
         let this = unsafe { MaybeUninit::assume_init_mut(this) };
         assert_eq!(offset_of!(Self, opaque), this.header.pd_special as usize);
@@ -138,12 +142,8 @@ impl Page {
 #[repr(C, align(8))]
 pub struct Opaque {
     pub next: u32,
-}
-
-impl Default for Opaque {
-    fn default() -> Self {
-        Self { next: u32::MAX }
-    }
+    pub tracking_freespace: bool,
+    pub fast_forward: u32,
 }
 
 const _: () = assert!(align_of::<Opaque>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
@@ -173,6 +173,7 @@ impl Drop for BufferReadGuard {
 }
 
 pub struct BufferWriteGuard {
+    raw: pgrx::pg_sys::Relation,
     buf: i32,
     page: NonNull<Page>,
     state: *mut pgrx::pg_sys::GenericXLogState,
@@ -197,6 +198,14 @@ impl Drop for BufferWriteGuard {
             if std::thread::panicking() {
                 pgrx::pg_sys::GenericXLogAbort(self.state);
             } else {
+                if self.get().get_opaque().tracking_freespace {
+                    pgrx::pg_sys::RecordPageWithFreeSpace(
+                        self.raw,
+                        self.id,
+                        self.get().freespace() as _,
+                    );
+                    pgrx::pg_sys::FreeSpaceMapVacuumRange(self.raw, self.id, self.id + 1);
+                }
                 pgrx::pg_sys::GenericXLogFinish(self.state);
             }
             pgrx::pg_sys::UnlockReleaseBuffer(self.buf);
@@ -204,7 +213,7 @@ impl Drop for BufferWriteGuard {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Relation {
     raw: pgrx::pg_sys::Relation,
 }
@@ -253,6 +262,7 @@ impl Relation {
             )
             .expect("failed to get page");
             BufferWriteGuard {
+                raw: self.raw,
                 buf,
                 page: page.cast(),
                 state,
@@ -260,7 +270,7 @@ impl Relation {
             }
         }
     }
-    pub fn extend(&self) -> BufferWriteGuard {
+    pub fn extend(&self, tracking_freespace: bool) -> BufferWriteGuard {
         unsafe {
             use pgrx::pg_sys::{
                 ExclusiveLock, ForkNumber, GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer,
@@ -283,12 +293,36 @@ impl Relation {
                     .cast::<MaybeUninit<Page>>(),
             )
             .expect("failed to get page");
-            Page::init_mut(page.as_mut());
+            Page::init_mut(page.as_mut(), tracking_freespace);
             BufferWriteGuard {
+                raw: self.raw,
                 buf,
                 page: page.cast(),
                 state,
                 id: pgrx::pg_sys::BufferGetBlockNumber(buf),
+            }
+        }
+    }
+    pub fn search(&self, freespace: usize) -> Option<BufferWriteGuard> {
+        unsafe {
+            loop {
+                let id = pgrx::pg_sys::GetPageWithFreeSpace(self.raw, freespace);
+                if id == u32::MAX {
+                    return None;
+                }
+                let write = self.write(id);
+                assert!(write.get().get_opaque().tracking_freespace);
+                if write.get().freespace() < freespace as _ {
+                    // the free space is recorded incorrectly
+                    pgrx::pg_sys::RecordPageWithFreeSpace(
+                        self.raw,
+                        id,
+                        write.get().freespace() as _,
+                    );
+                    pgrx::pg_sys::FreeSpaceMapVacuumRange(self.raw, id, id + 1);
+                    continue;
+                }
+                return Some(write);
             }
         }
     }

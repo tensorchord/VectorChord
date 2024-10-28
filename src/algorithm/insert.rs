@@ -1,9 +1,12 @@
 use crate::algorithm::rabitq;
 use crate::algorithm::tuples::*;
 use crate::postgres::Relation;
+use base::always_equal::AlwaysEqual;
 use base::distance::Distance;
 use base::scalar::ScalarLike;
 use base::search::Pointer;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 
 pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
     let meta_guard = relation.read(0);
@@ -17,13 +20,23 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
     let vector = rabitq::project(&vector);
     let is_residual = meta_tuple.is_residual;
-    let h0_vector = {
+    let default_lut = if !is_residual {
+        Some(rabitq::fscan_preprocess(&vector))
+    } else {
+        None
+    };
+    let h0_vector = 'h0_vector: {
         let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple {
             vector: vector.clone(),
             payload: Some(payload.as_u64()),
         })
         .unwrap();
-        let mut current = meta_tuple.vectors_first;
+        if let Some(mut write) = relation.search(tuple.len()) {
+            let i = write.get_mut().alloc(&tuple).unwrap();
+            break 'h0_vector (write.id(), i);
+        }
+        let mut current = relation.read(1).get().get_opaque().fast_forward;
+        let mut changed = false;
         loop {
             let read = relation.read(current);
             let flag = 'flag: {
@@ -42,7 +55,10 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                     break (current, i);
                 }
                 if write.get().get_opaque().next == u32::MAX {
-                    let mut extend = relation.extend();
+                    if changed {
+                        relation.write(1).get_mut().get_opaque_mut().fast_forward = write.id();
+                    }
+                    let mut extend = relation.extend(true);
                     write.get_mut().get_opaque_mut().next = extend.id();
                     if let Some(i) = extend.get_mut().alloc(&tuple) {
                         break (extend.id(), i);
@@ -54,53 +70,94 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
             } else {
                 current = read.get().get_opaque().next;
             }
+            changed = true;
         }
     };
     let h0_payload = payload.as_u64();
-    let list = (meta_tuple.first,);
+    let list = (
+        meta_tuple.first,
+        if is_residual {
+            let vector_guard = relation.read(meta_tuple.mean.0);
+            let vector_tuple = vector_guard
+                .get()
+                .get(meta_tuple.mean.1)
+                .map(rkyv::check_archived_root::<VectorTuple>)
+                .expect("data corruption")
+                .expect("data corruption");
+            Some(vector_tuple.vector.to_vec())
+        } else {
+            None
+        },
+    );
     let list = {
-        let mut result = None::<(Distance, u32, Option<Vec<_>>)>;
-        let mut current = list.0;
-        while current != u32::MAX {
-            let h1_guard = relation.read(current);
-            for i in 1..=h1_guard.get().len() {
-                let h1_tuple = h1_guard
-                    .get()
-                    .get(i)
-                    .map(rkyv::check_archived_root::<Height1Tuple>)
-                    .expect("data corruption")
-                    .expect("data corruption");
-                for j in 0..32 {
-                    if h1_tuple.mask[j] {
-                        let vector_guard = relation.read(h1_tuple.mean[j].0);
-                        let vector_tuple = vector_guard
-                            .get()
-                            .get(h1_tuple.mean[j].1)
-                            .map(rkyv::check_archived_root::<VectorTuple>)
-                            .expect("data corruption")
-                            .expect("data corruption");
-                        let dis = Distance::from_f32(f32::reduce_sum_of_d2(
-                            &vector,
-                            &vector_tuple.vector,
-                        ));
-                        if result.is_none() || dis < result.as_ref().unwrap().0 {
-                            result = Some((
-                                dis,
-                                h1_tuple.first[j],
-                                if is_residual {
-                                    Some(vector_tuple.vector.to_vec())
-                                } else {
-                                    None
-                                },
+        let mut results = Vec::new();
+        {
+            let lut = if is_residual {
+                &rabitq::fscan_preprocess(&f32::vector_sub(&vector, list.1.as_ref().unwrap()))
+            } else {
+                default_lut.as_ref().unwrap()
+            };
+            let mut current = list.0;
+            while current != u32::MAX {
+                let h1_guard = relation.read(current);
+                for i in 1..=h1_guard.get().len() {
+                    let h1_tuple = h1_guard
+                        .get()
+                        .get(i)
+                        .map(rkyv::check_archived_root::<Height1Tuple>)
+                        .expect("data corruption")
+                        .expect("data corruption");
+                    let lowerbounds = rabitq::fscan_process_lowerbound(
+                        dims,
+                        lut,
+                        (
+                            &h1_tuple.dis_u_2,
+                            &h1_tuple.factor_ppc,
+                            &h1_tuple.factor_ip,
+                            &h1_tuple.factor_err,
+                            &h1_tuple.t,
+                        ),
+                    );
+                    for j in 0..32 {
+                        if h1_tuple.mask[j] {
+                            results.push((
+                                Reverse(lowerbounds[j]),
+                                AlwaysEqual(h1_tuple.mean[j]),
+                                AlwaysEqual(h1_tuple.first[j]),
                             ));
                         }
                     }
                 }
+                current = h1_guard.get().get_opaque().next;
             }
-            current = h1_guard.get().get_opaque().next;
         }
-        let result = result.unwrap();
-        (result.1, result.2)
+        let mut heap = BinaryHeap::from(results);
+        let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
+        {
+            while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
+                let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
+                let vector_guard = relation.read(mean.0);
+                let vector_tuple = vector_guard
+                    .get()
+                    .get(mean.1)
+                    .map(rkyv::check_archived_root::<VectorTuple>)
+                    .expect("data corruption")
+                    .expect("data corruption");
+                let dis_u =
+                    Distance::from_f32(f32::reduce_sum_of_d2(&vector, &vector_tuple.vector));
+                cache.push((
+                    Reverse(dis_u),
+                    AlwaysEqual(first),
+                    AlwaysEqual(if is_residual {
+                        Some(vector_tuple.vector.to_vec())
+                    } else {
+                        None
+                    }),
+                ));
+            }
+            let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop().unwrap();
+            (first, mean)
+        }
     };
     let code = if is_residual {
         rabitq::code(dims, &f32::vector_sub(&vector, list.1.as_ref().unwrap()))
@@ -170,7 +227,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>) {
                 return;
             }
             if write.get().get_opaque().next == u32::MAX {
-                let mut extend = relation.extend();
+                let mut extend = relation.extend(false);
                 write.get_mut().get_opaque_mut().next = extend.id();
                 if let Some(i) = extend.get_mut().alloc(&dummy) {
                     let flag = put(

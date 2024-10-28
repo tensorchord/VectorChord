@@ -1,61 +1,112 @@
-from os.path import join
-import time
+from time import perf_counter
 import argparse
 from pathlib import Path
-import pickle
+from sys import version_info
+
+if version_info >= (3, 12):
+    raise RuntimeError("h5py doesn't support 3.12")
 
 import h5py
-import faiss
+from faiss import Kmeans
 import numpy as np
+from tqdm import tqdm
 
-K = 4096
+DEFAULT_K = 4096
+N_ITER = 25
 SEED = 42
+MAX_POINTS_PER_CLUSTER = 256
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
-parser.add_argument("-k", help="K-means centroids or nlist, default: 4096", required=False, default=4096)
-args = parser.parse_args()
 
-K = args.k
+def build_arg_parse():
+    parser = argparse.ArgumentParser(description="Train K-means centroids")
+    parser.add_argument("-i", "--input", help="input filepath", required=True)
+    parser.add_argument("-o", "--output", help="output filepath", required=True)
+    parser.add_argument(
+        "-k",
+        help="K-means centroids or nlist",
+        type=int,
+        default=DEFAULT_K,
+    )
+    parser.add_argument("--child-k", type=int, help="lower layer nlist (if enabled)")
+    parser.add_argument(
+        "--niter", help="number of iterations", type=int, default=N_ITER
+    )
+    parser.add_argument("-m", "--metric", choices=["l2", "cos"], default="l2")
+    return parser
 
-HOME = Path.home()
-DATA_PATH = join(HOME, f"{args.name}/{args.name}.hdf5")
 
-dataset = h5py.File(DATA_PATH, "r")
+def reservoir_sampling(iterator, k: int):
+    """Reservoir sampling from an iterator."""
+    res = []
+    while len(res) < k:
+        try:
+            res.append(next(iterator))
+        except StopIteration:
+            return np.vstack(res)
+    for i, vec in enumerate(iterator, k + 1):
+        j = np.random.randint(0, i)
+        if j < k:
+            res[j] = vec
+    return np.vstack(res)
 
-if len(dataset["train"]) > 256 * K:
-    rs = np.random.RandomState(SEED)
-    idx = rs.choice(len(dataset["train"]), size=256 * K, replace=False)
-    train = dataset["train"][np.sort(idx)]
-else:
-    train = dataset["train"][:]
 
-test = dataset["test"][:]
+def filter_by_label(iter, labels, target):
+    for i, vec in enumerate(iter):
+        if labels[i] == target:
+            yield vec
 
-if np.shape(train)[0] > 256 * K:
-    rs = np.random.RandomState(SEED)
-    idx = rs.choice(np.shape(train)[0], size=256 * K, replace=False)
-    train = train[idx]
 
-answer = dataset["neighbors"][:]
-n, dims = np.shape(train)
-m = np.shape(test)[0]
+def kmeans_cluster(data, k, child_k, niter, metric):
+    n, dim = data.shape
+    if n > MAX_POINTS_PER_CLUSTER * k:
+        train = reservoir_sampling(iter(data), MAX_POINTS_PER_CLUSTER * args.k)
+    else:
+        train = data[:]
+    kmeans = Kmeans(
+        dim, k, verbose=True, niter=niter, seed=SEED, spherical=metric == "cos"
+    )
+    kmeans.train(train)
+    if not child_k:
+        return kmeans.centroids
 
-start = time.perf_counter()
+    # train the lower layer k-means
+    labels = np.zeros(n, dtype=np.uint32)
+    for i, vec in tqdm(enumerate(data), desc="Assigning labels"):
+        _, label = kmeans.assign(vec.reshape((1, -1)))
+        labels[i] = label[0]
 
-index = faiss.IndexFlatL2(dims)
-clustering = faiss.Clustering(dims, K)
-clustering.verbose = True
-clustering.seed = 42
-clustering.niter = 10
-clustering.train(train, index)
-centroids = faiss.vector_float_to_array(clustering.centroids)
+    centroids = []
+    total_k = k * child_k
+    for i in tqdm(range(k), desc="training k-means for child layers"):
+        samples = np.sum(labels == i) / n * total_k * MAX_POINTS_PER_CLUSTER
+        child_train = reservoir_sampling(
+            filter_by_label(iter(data), labels, i), samples
+        )
+        child_kmeans = Kmeans(
+            dim,
+            child_k,
+            verbose=True,
+            niter=niter,
+            seed=SEED,
+            spherical=metric == "cos",
+        )
+        child_kmeans.train(child_train)
+        centroids.append(child_kmeans.centroids)
+    return np.vstack(centroids)
 
-end = time.perf_counter()
-delta = end - start
-print(f"K-means time: {delta:.2f}s")
 
-centroids = centroids.reshape([K, -1])
+if __name__ == "__main__":
+    parser = build_arg_parse()
+    args = parser.parse_args()
+    print(args)
 
-with open(f"{args.name}.pickle", "wb") as f:
-    pickle.dump(centroids, f)
+    dataset = h5py.File(Path(args.input), "r")
+    n, dim = dataset["train"].shape
+
+    start_time = perf_counter()
+    centroids = kmeans_cluster(
+        dataset["train"], args.k, args.child_k, args.niter, args.metric
+    )
+    print(f"K-means (k=({args.k}, {args.child_k})): {perf_counter() - start_time:.2f}s")
+
+    np.save(Path(args.output), centroids, allow_pickle=False)

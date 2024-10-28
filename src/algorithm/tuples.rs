@@ -7,6 +7,7 @@ pub struct MetaTuple {
     pub dims: u32,
     pub is_residual: bool,
     pub vectors_first: u32,
+    pub forwards_first: u32,
     // raw vector
     pub mean: (u32, u16),
     // for meta tuple, it's pointers to next level
@@ -29,7 +30,7 @@ pub struct Height1Tuple {
     pub mean: [(u32, u16); 32],
     // for height 1 tuple, it's pointers to next level
     pub first: [u32; 32],
-    // RaBitQ algoithm
+    // RaBitQ algorithm
     pub dis_u_2: [f32; 32],
     pub factor_ppc: [f32; 32],
     pub factor_ip: [f32; 32],
@@ -45,7 +46,7 @@ pub struct Height0Tuple {
     pub mean: [(u32, u16); 32],
     // for height 0 tuple, it's pointers to heap relation
     pub payload: [u64; 32],
-    // RaBitQ algoithm
+    // RaBitQ algorithm
     pub dis_u_2: [f32; 32],
     pub factor_ppc: [f32; 32],
     pub factor_ip: [f32; 32],
