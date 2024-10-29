@@ -1,8 +1,6 @@
 use crate::algorithm::rabitq;
-use crate::algorithm::rabitq::fscan_process_lowerbound;
 use crate::algorithm::tuples::*;
 use crate::index::am_options::PgDistanceKind;
-use crate::index::utils::distance;
 use crate::index::utils::load_table_vectors;
 use crate::postgres::BufferWriteGuard;
 use crate::postgres::Relation;

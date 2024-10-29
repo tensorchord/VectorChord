@@ -1,5 +1,6 @@
 use crate::datatype::memory_pgvector_vector::*;
 use base::scalar::ScalarLike;
+use base::vector::{VectBorrowed, VectorBorrowed};
 use std::num::NonZero;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
@@ -62,8 +63,5 @@ fn _rabbithole_pgvector_vector_sphere_cos_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    let xy = f32::reduce_sum_of_xy(lhs.slice(), center.slice());
-    let x2 = f32::reduce_sum_of_x2(lhs.slice());
-    let y2 = f32::reduce_sum_of_x2(center.slice());
-    1.0 - xy / (x2 * y2).sqrt() < radius
+    VectBorrowed::operator_cos(lhs.as_borrowed(), center.as_borrowed()).to_f32() < radius
 }

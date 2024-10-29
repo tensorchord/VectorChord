@@ -240,6 +240,7 @@ pub unsafe extern "C" fn ambuild(
         rabbithole_options,
         heap_relation.clone(),
         index_relation.clone(),
+        pg_distance,
         reporter.clone(),
     );
     if let Some(leader) =
@@ -266,7 +267,12 @@ pub unsafe extern "C" fn ambuild(
         reporter.tuples_done(tuples_done);
         heap_relation.traverse(|(payload, vector)| {
             pgrx::check_for_interrupts!();
-            algorithm::insert::insert(index_relation.clone(), payload, vector);
+            algorithm::insert::insert(
+                index_relation.clone(),
+                payload,
+                vector,
+                pg_distance.to_distance(),
+            );
             tuples_done += 1;
             reporter.tuples_done(tuples_done);
         });
@@ -553,16 +559,22 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
 
     let index_relation = unsafe { Relation::new(index) };
     let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap, tablescandesc) };
+    let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
         heap,
         index,
         index_info,
-        opfamily: unsafe { am_options::opfamily(index) },
+        opfamily,
         scan,
     };
     heap_relation.traverse(|(payload, vector)| {
         pgrx::check_for_interrupts!();
-        algorithm::insert::insert(index_relation.clone(), payload, vector);
+        algorithm::insert::insert(
+            index_relation.clone(),
+            payload,
+            vector,
+            opfamily.distance_kind(),
+        );
     });
 
     unsafe {
