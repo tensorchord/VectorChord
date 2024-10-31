@@ -546,7 +546,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
                     self.index_info,
                     true,
                     false,
-                    false,
+                    true,
                     0,
                     pgrx::pg_sys::InvalidBlockNumber,
                     Some(call::<F>),
