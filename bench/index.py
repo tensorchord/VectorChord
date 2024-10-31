@@ -1,12 +1,8 @@
 import asyncio
-from sys import version_info
 from time import perf_counter
 import argparse
 from pathlib import Path
 import multiprocessing
-
-if version_info >= (3, 12):
-    raise RuntimeError("h5py doesn't support 3.12")
 
 import psycopg
 import h5py
@@ -47,7 +43,7 @@ def build_arg_parse():
         help="Workers to build index",
         type=int,
         required=False,
-        default=max(multiprocessing.cpu_count() - 2, 1),
+        default=max(multiprocessing.cpu_count() - 1, 1),
     )
     return parser
 
@@ -87,9 +83,9 @@ def get_ivf_ops_config(metric, k, name=None):
     return metric_ops, ivf_config
 
 
-async def create_connection(password):
+async def create_connection(url):
     conn = await psycopg.AsyncConnection.connect(
-        conninfo=f"postgresql://postgres:{password}@localhost:5432/postgres",
+        conninfo=url,
         dbname="postgres",
         autocommit=True,
         **KEEPALIVE_KWARGS,
@@ -113,8 +109,8 @@ async def add_centroids(conn, name, centroids):
         copy.set_types(["vector"])
         for centroid in tqdm(centroids, desc="Adding centroids"):
             await copy.write_row((centroid,))
-            while conn.pgconn.flush() == 1:
-                pass
+        while conn.pgconn.flush() == 1:
+            await asyncio.sleep(0)
 
 
 async def add_embeddings(conn, name, dim, train):
@@ -130,8 +126,8 @@ async def add_embeddings(conn, name, dim, train):
             enumerate(train), desc="Adding embeddings", total=len(train)
         ):
             await copy.write_row((i, vec))
-            while conn.pgconn.flush() == 1:
-                pass
+        while conn.pgconn.flush() == 1:
+            await asyncio.sleep(0)
 
 
 async def build_index(
@@ -139,6 +135,7 @@ async def build_index(
 ):
     start_time = perf_counter()
     await conn.execute(f"SET max_parallel_maintenance_workers TO {workers}")
+    await conn.execute(f"SET max_parallel_workers TO {workers}")
     await conn.execute(
         f"CREATE INDEX ON {name} USING rabbithole (embedding {metric_ops}) WITH (options = $${ivf_config}$$)"
     )
@@ -146,28 +143,33 @@ async def build_index(
     finish.set()
 
 
-async def monitor_index_build(password, finish: asyncio.Event):
-    conn = await psycopg.AsyncConnection.connect(
-        conninfo=f"postgresql://postgres:{password}@localhost:5432/postgres",
-        dbname="postgres",
-        autocommit=True,
-        **KEEPALIVE_KWARGS,
-    )
-    pbar = tqdm(smoothing=0.0)
+async def monitor_index_build(conn, finish: asyncio.Event):
     async with conn.cursor() as acur:
+        blocks_total = None
+        while blocks_total is None:
+            await asyncio.sleep(1)
+            await acur.execute(
+                f"SELECT blocks_total FROM pg_stat_progress_create_index"
+            )
+            blocks_total = await acur.fetchone()
+        total = 0 if blocks_total is None else blocks_total[0]
+        pbar = tqdm(smoothing=0.0, total=total, desc="Building index")
         while True:
             if finish.is_set():
+                pbar.update(pbar.total - pbar.n)
                 return
-            await acur.execute(f"SELECT tuples_done FROM pg_stat_progress_create_index")
-            tuples_done = await acur.fetchone()
-            update = 0 if tuples_done is None else tuples_done[0]
-            pbar.update(update - pbar.n)
+            await acur.execute(f"SELECT blocks_done FROM pg_stat_progress_create_index")
+            blocks_done = await acur.fetchone()
+            done = 0 if blocks_done is None else blocks_done[0]
+            pbar.update(done - pbar.n)
             await asyncio.sleep(1)
+        pbar.close()
 
 
 async def main(dataset):
     dataset = h5py.File(Path(args.input), "r")
-    conn = await create_connection(args.password)
+    url = f"postgresql://postgres:{args.password}@localhost:5432/postgres",
+    conn = await create_connection(url)
     if args.centroids:
         centroids = np.load(args.centroids, allow_pickle=False)
         await add_centroids(conn, args.name, centroids)
@@ -177,16 +179,18 @@ async def main(dataset):
     await add_embeddings(conn, args.name, args.dim, dataset["train"])
 
     index_finish = asyncio.Event()
+    # Need a seperate connection for monitor process
+    monitor_conn = await create_connection(url)
+    monitor_task = monitor_index_build(
+        monitor_conn,
+        index_finish,
+    )
     index_task = build_index(
         conn,
         args.name,
         args.workers,
         metric_ops,
         ivf_config,
-        index_finish,
-    )
-    monitor_task = monitor_index_build(
-        args.password,
         index_finish,
     )
     await asyncio.gather(index_task, monitor_task)
