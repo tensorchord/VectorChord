@@ -179,7 +179,7 @@ async def main(dataset):
     await add_embeddings(conn, args.name, args.dim, dataset["train"])
 
     index_finish = asyncio.Event()
-    # Need a seperate connection for monitor process
+    # Need a separate connection for monitor process
     monitor_conn = await create_connection(url)
     monitor_task = monitor_index_build(
         monitor_conn,
