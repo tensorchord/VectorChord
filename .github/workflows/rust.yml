@@ -40,41 +40,30 @@ jobs:
     strategy:
       matrix:
         arch: ["x86_64", "aarch64"]
+    env:
+      PGRX_IMAGE: "kemingy/pgrx:0.12.6"
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Set up dev environment
-        run: |
-          sudo apt-get remove -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
-          sudo apt-get purge -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
-          sudo apt-get update
-          sudo apt-get install -y build-essential crossbuild-essential-arm64 clang
-          sudo apt-get install -y libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
-          sudo apt-get install -y qemu-user-static
-          touch ~/.cargo/config.toml
-          echo 'target.aarch64-unknown-linux-gnu.linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
-          echo 'target.aarch64-unknown-linux-gnu.runner = ["qemu-aarch64-static", "-L", "/usr/aarch64-linux-gnu"]' >> ~/.cargo/config.toml
-          rustup target add x86_64-unknown-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
       - name: Cache
         uses: mozilla-actions/sccache-action@v0.0.6
-      - name: Set up pgrx
+      - name: Set up docker images and permissions
         run: |
-          cargo install cargo-pgrx --locked
-          cargo pgrx init
+          docker pull $PGRX_IMAGE
+          echo "Default user: $(id -u):$(id -g)"
+          sudo chown -R 1000:1000 .
+
       - name: Clippy
         run: |
-          for v in {12..17}; do
-            cargo clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
+          for v in {14..17}; do
+            docker run --rm -v .:/workspace $PGRX_IMAGE clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
           done
       - name: Build
         run: |
-          for v in {12..17}; do
-            cargo build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
+          for v in {14..17}; do
+            docker run --rm -v .:/workspace $PGRX_IMAGE build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
           done
       - name: Test
         run: |
           # pg agnostic tests
-          cargo test --no-fail-fast --target $ARCH-unknown-linux-gnu --features pg17
+          docker run --rm -v .:/workspace $PGRX_IMAGE test --no-fail-fast --target $ARCH-unknown-linux-gnu --features pg17
