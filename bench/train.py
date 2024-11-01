@@ -32,6 +32,9 @@ def build_arg_parse():
         "--niter", help="number of iterations", type=int, default=N_ITER
     )
     parser.add_argument("-m", "--metric", choices=["l2", "cos"], default="l2")
+    parser.add_argument(
+        "-g", "--gpu", help="enable GPU for KMeans", action="store_true"
+    )
     return parser
 
 
@@ -56,14 +59,14 @@ def filter_by_label(iter, labels, target):
             yield vec
 
 
-def kmeans_cluster(data, k, child_k, niter, metric):
+def kmeans_cluster(data, k, child_k, niter, metric, gpu=False):
     n, dim = data.shape
     if n > MAX_POINTS_PER_CLUSTER * k:
         train = reservoir_sampling(iter(data), MAX_POINTS_PER_CLUSTER * args.k)
     else:
         train = data[:]
     kmeans = Kmeans(
-        dim, k, verbose=True, niter=niter, seed=SEED, spherical=metric == "cos"
+        dim, k, gpu=gpu, verbose=True, niter=niter, seed=SEED, spherical=metric == "cos"
     )
     kmeans.train(train)
     if not child_k:
@@ -85,6 +88,7 @@ def kmeans_cluster(data, k, child_k, niter, metric):
         child_kmeans = Kmeans(
             dim,
             child_k,
+            gpu=gpu,
             verbose=True,
             niter=niter,
             seed=SEED,
@@ -105,7 +109,7 @@ if __name__ == "__main__":
 
     start_time = perf_counter()
     centroids = kmeans_cluster(
-        dataset["train"], args.k, args.child_k, args.niter, args.metric
+        dataset["train"], args.k, args.child_k, args.niter, args.metric, args.gpu
     )
     print(f"K-means (k=({args.k}, {args.child_k})): {perf_counter() - start_time:.2f}s")
 
