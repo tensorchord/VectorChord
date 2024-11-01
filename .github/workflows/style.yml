@@ -1,0 +1,39 @@
+name: Style
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Typos
+        uses: crate-ci/typos@master
+
+      - name: TOML lint
+        run: |
+          curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-full-linux-x86_64.gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
+          taplo fmt --check
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cargo Lint
+        run: |
+          cargo fmt -- --check

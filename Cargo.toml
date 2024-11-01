@@ -48,12 +48,12 @@ rust.unused_lifetimes = "warn"
 rust.unused_qualifications = "warn"
 
 [profile.opt]
+debug-assertions = false
 inherits = "dev"
 opt-level = 3
-debug-assertions = false
 overflow-checks = false
 
 [profile.release]
-lto = "fat"
 codegen-units = 1
 debug = true
+lto = "fat"

@@ -1,0 +1,18 @@
+[formatting]
+indent_string = "    "
+
+[[rule]]
+keys = ["dependencies", "*-denpendencies", "lints", "patch.*"]
+
+[rule.formatting]
+reorder_keys = false
+reorder_arrays = true
+align_comments = true
+
+[[rule]]
+keys = ["profile.*"]
+
+[rule.formatting]
+reorder_keys = true
+reorder_arrays = true
+align_comments = true

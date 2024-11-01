@@ -1,0 +1,80 @@
+name: Rust
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rust.yml'
+      - 'src/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '*.control'
+      - 'rust-toolchain.toml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/rust.yml'
+      - 'src/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '*.control'
+      - 'rust-toolchain.toml'
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  RUSTFLAGS: "-Dwarnings"
+  CARGO_PROFILE_OPT_BUILD_OVERRIDE_DEBUG: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        arch: ["x86_64", "aarch64"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Set up dev environment
+        run: |
+          sudo apt-get remove -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
+          sudo apt-get purge -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
+          sudo apt-get update
+          sudo apt-get install -y build-essential crossbuild-essential-arm64
+          sudo apt-get install -y qemu-user-static
+          touch ~/.cargo/config.toml
+          echo 'target.aarch64-unknown-linux-gnu.linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          echo 'target.aarch64-unknown-linux-gnu.runner = ["qemu-aarch64-static", "-L", "/usr/aarch64-linux-gnu"]' >> ~/.cargo/config.toml
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
+      - name: Cache
+        uses: mozilla-actions/sccache-action@v0.0.6
+      - name: Set up pgrx
+        run: |
+          cargo install cargo-pgrx --locked
+          cargo pgrx init
+      - name: Clippy
+        run: |
+          for v in {12..17}; do
+            cargo clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
+          done
+      - name: Build
+        run: |
+          for v in {12..17}; do
+            cargo build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
+          done
+      - name: Test
+        run: |
+          # pg agnostic tests
+          cargo test --no-fail-fast --target $ARCH-unknown-linux-gnu --features pg17
