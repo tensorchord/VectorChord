@@ -13,15 +13,16 @@ path = "./src/bin/pgrx_embed.rs"
 
 [features]
 default = []
-pg12 = ["pgrx/pg12"]
-pg13 = ["pgrx/pg13"]
-pg14 = ["pgrx/pg14"]
-pg15 = ["pgrx/pg15"]
-pg16 = ["pgrx/pg16"]
-pg17 = ["pgrx/pg17"]
+pg12 = ["pgrx/pg12", "pgrx-catalog/pg12"]
+pg13 = ["pgrx/pg13", "pgrx-catalog/pg13"]
+pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
+pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
+pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
+pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
-pgrx = { version = "=0.12.6", default-features = false, features = ["cshim"] }
+pgrx = { version = "=0.12.8", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.1.0"
 base = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 common = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 detect = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
@@ -31,16 +32,15 @@ paste = "1"
 serde = "1"
 toml = "0.8.19"
 rand = "0.8.5"
-nalgebra = { version = "=0.33.0", default-features = false }
-# lock algebra version forever so that the QR decomposition never changes for same input
-rand_distr = "0.4.3"
-rkyv = { version = "0.7.45", features = ["validation"] }
 rand_chacha = "0.3.1"
-seq-macro = "0.3.5"
+rand_distr = "0.4.3"
 validator = "0.18.1"
 
-[patch.crates-io]
-pgrx = { git = "https://github.com/tensorchord/pgrx.git", branch = "v0.12.6-patch" }
+# lock algebra version forever so that the QR decomposition never changes for same input
+nalgebra = { version = "=0.33.0", default-features = false }
+
+# lock rkyv version forever so that data is always compatible
+rkyv = { version = "=0.7.45", features = ["validation"] }
 
 [lints]
 rust.unsafe_op_in_unsafe_fn = "deny"
