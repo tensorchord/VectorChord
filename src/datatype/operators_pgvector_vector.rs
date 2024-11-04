@@ -1,5 +1,4 @@
 use crate::datatype::memory_pgvector_vector::*;
-use base::scalar::ScalarLike;
 use base::vector::{VectBorrowed, VectorBorrowed};
 use std::num::NonZero;
 
@@ -21,7 +20,10 @@ fn _rabbithole_pgvector_vector_sphere_l2_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    f32::reduce_sum_of_d2(lhs.slice(), center.slice()).to_f32() < radius
+    VectBorrowed::operator_l2(lhs.as_borrowed(), center.as_borrowed())
+        .to_f32()
+        .sqrt()
+        < radius
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
@@ -42,7 +44,7 @@ fn _rabbithole_pgvector_vector_sphere_dot_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    -f32::reduce_sum_of_xy(lhs.slice(), center.slice()) < radius
+    VectBorrowed::operator_dot(lhs.as_borrowed(), center.as_borrowed()).to_f32() < radius
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]

@@ -1,7 +1,8 @@
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::type_complexity)]
+#![allow(clippy::collapsible_else_if)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
 
 mod algorithm;
 mod datatype;

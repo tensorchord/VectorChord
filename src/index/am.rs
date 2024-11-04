@@ -166,15 +166,11 @@ pub unsafe extern "C" fn ambuild(
             {
                 use base::vector::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
-                let vector = unsafe {
-                    state
-                        .this
-                        .opfamily
-                        .datum_to_vector(*values.add(0), *is_null.add(0))
-                };
+                let opfamily = state.this.opfamily;
+                let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
                 let pointer = unsafe { ctid_to_pointer(ctid.read()) };
                 if let Some(vector) = vector {
-                    let vector = match vector {
+                    let vector = match opfamily.preprocess(vector.as_borrowed()) {
                         OwnedVector::Vecf32(x) => x,
                         OwnedVector::Vecf16(_) => unreachable!(),
                         OwnedVector::SVecf32(_) => unreachable!(),
@@ -204,6 +200,10 @@ pub unsafe extern "C" fn ambuild(
                 );
             }
         }
+
+        fn opfamily(&self) -> Opfamily {
+            self.opfamily
+        }
     }
     #[derive(Debug, Clone)]
     pub struct PgReporter {}
@@ -225,12 +225,13 @@ pub unsafe extern "C" fn ambuild(
             }
         }
     }
-    let (vector_options, rabbithole_options, pg_distance) = unsafe { am_options::options(index) };
+    let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
+    let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
         heap,
         index,
         index_info,
-        opfamily: unsafe { am_options::opfamily(index) },
+        opfamily,
     };
     let mut reporter = PgReporter {};
     let index_relation = unsafe { Relation::new(index) };
@@ -239,7 +240,6 @@ pub unsafe extern "C" fn ambuild(
         rabbithole_options,
         heap_relation.clone(),
         index_relation.clone(),
-        pg_distance,
         reporter.clone(),
     );
     if let Some(leader) =
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn ambuild(
                 index_relation.clone(),
                 payload,
                 vector,
-                pg_distance.to_distance(),
+                opfamily.distance_kind(),
             );
             tuples_done += 1;
             reporter.tuples_done(tuples_done);
@@ -516,15 +516,11 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
             {
                 use base::vector::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
-                let vector = unsafe {
-                    state
-                        .this
-                        .opfamily
-                        .datum_to_vector(*values.add(0), *is_null.add(0))
-                };
+                let opfamily = state.this.opfamily;
+                let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
                 let pointer = unsafe { ctid_to_pointer(ctid.read()) };
                 if let Some(vector) = vector {
-                    let vector = match vector {
+                    let vector = match opfamily.preprocess(vector.as_borrowed()) {
                         OwnedVector::Vecf32(x) => x,
                         OwnedVector::Vecf16(_) => unreachable!(),
                         OwnedVector::SVecf32(_) => unreachable!(),
@@ -553,6 +549,10 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
                     self.scan,
                 );
             }
+        }
+
+        fn opfamily(&self) -> Opfamily {
+            self.opfamily
         }
     }
 
@@ -608,7 +608,7 @@ pub unsafe extern "C" fn aminsert(
     let opfamily = unsafe { am_options::opfamily(index) };
     let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
     if let Some(vector) = vector {
-        let vector = match vector {
+        let vector = match opfamily.preprocess(vector.as_borrowed()) {
             OwnedVector::Vecf32(x) => x,
             OwnedVector::Vecf16(_) => unreachable!(),
             OwnedVector::SVecf32(_) => unreachable!(),

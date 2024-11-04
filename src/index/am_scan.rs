@@ -74,7 +74,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
         if let Some((vector, opfamily)) = vector.as_ref() {
             let vbase = scan(
                 relation,
-                match vector {
+                match opfamily.preprocess(vector.as_borrowed()) {
                     OwnedVector::Vecf32(x) => x.slice().to_vec(),
                     OwnedVector::Vecf16(_) => unreachable!(),
                     OwnedVector::SVecf32(_) => unreachable!(),

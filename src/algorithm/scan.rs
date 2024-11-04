@@ -15,9 +15,9 @@ pub fn scan(
     relation: Relation,
     vector: Vec<f32>,
     distance_kind: DistanceKind,
-    h1_nprobe: u32,
+    nprobe_1: u32,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
-    assert!(h1_nprobe >= 1);
+    assert!(nprobe_1 >= 1);
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()
@@ -28,7 +28,7 @@ pub fn scan(
     let dims = meta_tuple.dims;
     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
     let vector = rabitq::project(&vector);
-    let is_residual = meta_tuple.is_residual && distance_kind == DistanceKind::L2;
+    let is_residual = meta_tuple.is_residual;
     let default_lut = if !is_residual {
         Some(rabitq::fscan_preprocess(&vector))
     } else {
@@ -118,7 +118,7 @@ pub fn scan(
             let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop()?;
             Some((first, mean))
         })
-        .take(h1_nprobe as usize)
+        .take(nprobe_1 as usize)
         .collect()
     };
     {
