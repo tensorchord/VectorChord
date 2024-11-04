@@ -66,4 +66,4 @@ jobs:
       - name: Test
         run: |
           # pg agnostic tests
-          docker run --rm -v .:/workspace $PGRX_IMAGE test --no-fail-fast --target $ARCH-unknown-linux-gnu --features pg17
+          docker run --rm -v .:/workspace $PGRX_IMAGE test --no-fail-fast --target ${{ matrix.arch }}-unknown-linux-gnu --features pg17

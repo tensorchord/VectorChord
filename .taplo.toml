@@ -5,7 +5,7 @@ indent_string = "    "
 keys = ["dependencies", "*-denpendencies", "lints", "patch.*"]
 
 [rule.formatting]
-reorder_keys = false
+reorder_keys = true
 reorder_arrays = true
 align_comments = true
 
