@@ -1,7 +1,7 @@
 # CNPG only support Debian 12 (Bookworm)
 FROM ubuntu:22.04
 
-ARG PGRX_VERSION=0.12.6
+ARG PGRX_VERSION=0.12.8
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \

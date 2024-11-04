@@ -41,12 +41,10 @@ jobs:
       matrix:
         arch: ["x86_64", "aarch64"]
     env:
-      PGRX_IMAGE: "kemingy/pgrx:0.12.6"
+      PGRX_IMAGE: "kemingy/pgrx:0.12.8"
 
     steps:
       - uses: actions/checkout@v4
-      - name: Cache
-        uses: mozilla-actions/sccache-action@v0.0.6
       - name: Set up docker images and permissions
         run: |
           docker pull $PGRX_IMAGE

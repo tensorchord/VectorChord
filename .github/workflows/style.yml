@@ -36,4 +36,4 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cargo Lint
         run: |
-          cargo fmt -- --check
+          cargo fmt --check
