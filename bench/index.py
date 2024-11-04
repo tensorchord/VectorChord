@@ -168,7 +168,7 @@ async def monitor_index_build(conn, finish: asyncio.Event):
 
 async def main(dataset):
     dataset = h5py.File(Path(args.input), "r")
-    url = f"postgresql://postgres:{args.password}@localhost:5432/postgres",
+    url = f"postgresql://postgres:{args.password}@localhost:5432/postgres"
     conn = await create_connection(url)
     if args.centroids:
         centroids = np.load(args.centroids, allow_pickle=False)

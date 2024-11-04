@@ -1,7 +1,10 @@
+import itertools
+from multiprocessing import Pool, cpu_count
 from time import perf_counter
 import argparse
 from pathlib import Path
 from sys import version_info
+from tqdm import tqdm
 
 if version_info >= (3, 12):
     raise RuntimeError("h5py doesn't support 3.12")
@@ -13,6 +16,7 @@ from tqdm import tqdm
 
 DEFAULT_K = 4096
 N_ITER = 25
+CHUNKS = 10
 SEED = 42
 MAX_POINTS_PER_CLUSTER = 256
 
@@ -35,22 +39,70 @@ def build_arg_parse():
     parser.add_argument(
         "-g", "--gpu", help="enable GPU for KMeans", action="store_true"
     )
+    parser.add_argument(
+        "--in-memory",
+        help="use numpy in-memory mode sampling, quicker for large dataset",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--chunks",
+        help="chunks for in-memory mode. If OOM, increase it",
+        type=int,
+        default=CHUNKS,
+    )
     return parser
 
 
 def reservoir_sampling(iterator, k: int):
     """Reservoir sampling from an iterator."""
     res = []
-    while len(res) < k:
+    for _ in tqdm(range(k), desc="Collect train subset"):
         try:
             res.append(next(iterator))
         except StopIteration:
             return np.vstack(res)
-    for i, vec in enumerate(iterator, k + 1):
+    for i, vec in tqdm(enumerate(iterator, k + 1), total=k, desc="Random Pick"):
         j = np.random.randint(0, i)
         if j < k:
             res[j] = vec
     return np.vstack(res)
+
+
+def _slice_chunk(args: tuple[int, str, np.ndarray]):
+    k, file_path, chunk, start_idx = args
+    dataset = h5py.File(Path(file_path), "r")
+    data = dataset["train"]
+    start, end = min(chunk), max(chunk)
+    indexes = [c - start for c in chunk]
+    source = data[start : end + 1]
+    select = source[indexes]
+    delta, dim = select.shape
+
+    output = np.memmap("index.mmap", dtype=np.float32, mode="r+", shape=(k, dim))
+    output[start_idx : start_idx + delta, :] = select
+    output.flush()
+
+
+def reservoir_sampling_np(data, file_path, k: int, chunks: int):
+    """Reservoir sampling in memory by numpy."""
+    index = np.random.permutation(len(data))[:k]
+    indices = np.sort(index)
+    num_processes = cpu_count()
+    # Split indices into chunks for parallel processing
+    index_chunks = np.array_split(indices, chunks)
+    _, dim = data.shape
+    np.memmap("index.mmap", dtype=np.float32, mode="w+", shape=(k, dim))
+    # Create arguments for each chunk
+    start_idx_acu = [0]
+    start_idx_acu.extend(
+        list(itertools.accumulate([len(c) for c in index_chunks[:-1]]))
+    )
+    chunk_args = [
+        (k, file_path, chunk, start_idx_acu[i]) for i, chunk in enumerate(index_chunks)
+    ]
+    # Process chunks in parallel
+    with Pool(processes=num_processes) as pool:
+        list(pool.map(_slice_chunk, chunk_args))
 
 
 def filter_by_label(iter, labels, target):
@@ -59,10 +111,30 @@ def filter_by_label(iter, labels, target):
             yield vec
 
 
-def kmeans_cluster(data, k, child_k, niter, metric, gpu=False):
+def kmeans_cluster(
+    data,
+    file_path,
+    k,
+    child_k,
+    niter,
+    metric,
+    gpu=False,
+    in_memory=False,
+    chunks=CHUNKS,
+):
     n, dim = data.shape
-    if n > MAX_POINTS_PER_CLUSTER * k:
+    if n > MAX_POINTS_PER_CLUSTER * k and not in_memory:
         train = reservoir_sampling(iter(data), MAX_POINTS_PER_CLUSTER * args.k)
+    elif n > MAX_POINTS_PER_CLUSTER * k and in_memory:
+        reservoir_sampling_np(data, file_path, MAX_POINTS_PER_CLUSTER * args.k, chunks)
+        train = np.array(
+            np.memmap(
+                "index.mmap",
+                dtype=np.float32,
+                mode="r",
+                shape=(MAX_POINTS_PER_CLUSTER * k, dim),
+            )
+        )
     else:
         train = data[:]
     kmeans = Kmeans(
@@ -109,7 +181,15 @@ if __name__ == "__main__":
 
     start_time = perf_counter()
     centroids = kmeans_cluster(
-        dataset["train"], args.k, args.child_k, args.niter, args.metric, args.gpu
+        dataset["train"],
+        args.input,
+        args.k,
+        args.child_k,
+        args.niter,
+        args.metric,
+        args.gpu,
+        args.in_memory,
+        args.chunks,
     )
     print(f"K-means (k=({args.k}, {args.child_k})): {perf_counter() - start_time:.2f}s")
 

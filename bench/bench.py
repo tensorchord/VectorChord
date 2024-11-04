@@ -22,6 +22,9 @@ def build_arg_parse():
     parser.add_argument(
         "-p", "--password", help="Database password", default="password"
     )
+    parser.add_argument(
+        "--nprob", help="argument rabbithole.nprobe for query", default=300, type=int
+    )
     return parser
 
 
@@ -84,6 +87,6 @@ if __name__ == "__main__":
     else:
         raise ValueError
     conn = create_connection(args.password)
-    conn.execute("SET rabbithole.nprobe=300")
+    conn.execute(f"SET rabbithole.nprobe={args.nprob}")
 
     bench(args.name, test, answer, metric_ops, conn)
