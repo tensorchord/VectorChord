@@ -1,6 +1,7 @@
 use super::am_options::Opfamily;
 use crate::algorithm::scan::scan;
-use crate::gucs::executing::nprobe;
+use crate::gucs::executing::nprobe_1;
+use crate::gucs::executing::nprobe_2;
 use crate::postgres::Relation;
 use base::distance::Distance;
 use base::search::*;
@@ -81,7 +82,8 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                     OwnedVector::BVector(_) => unreachable!(),
                 },
                 opfamily.distance_kind(),
-                nprobe(),
+                nprobe_2(),
+                nprobe_1(),
             );
             *scanner = Scanner::Vbase {
                 vbase: Box::new(vbase),

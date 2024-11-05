@@ -49,7 +49,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
             let mut tuples_total = 0_usize;
             let samples = {
                 let mut rand = rand::thread_rng();
-                let max_number_of_samples = internal_build.nlist.saturating_mul(256);
+                let max_number_of_samples = internal_build.nlist_1.saturating_mul(256);
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
                 heap_relation.traverse(false, |(_, vector)| {
@@ -69,6 +69,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
             Structure::internal_build(vector_options.clone(), internal_build.clone(), samples)
         }
     };
+    let h3_len = structure.h3_len();
     let h2_len = structure.h2_len();
     let h1_len = structure.h1_len();
     let mut meta = Tape::create(&relation, false);
@@ -77,6 +78,14 @@ pub fn build<T: HeapRelation, R: Reporter>(
     assert_eq!(forwards.first(), 1);
     let mut vectors = Tape::create(&relation, true);
     assert_eq!(vectors.first(), 2);
+    let h3_means = (0..h3_len)
+        .map(|i| {
+            vectors.push(&VectorTuple {
+                payload: None,
+                vector: structure.h3_means(i).clone(),
+            })
+        })
+        .collect::<Vec<_>>();
     let h2_means = (0..h2_len)
         .map(|i| {
             vectors.push(&VectorTuple {
@@ -165,18 +174,86 @@ pub fn build<T: HeapRelation, R: Reporter>(
             tape.first()
         })
         .collect::<Vec<_>>();
+    let h3_firsts = (0..h3_len)
+        .map(|i| {
+            let mut tape = Tape::<Height2Tuple>::create(&relation, false);
+            let mut cache = Vec::new();
+            let h3_mean = structure.h3_means(i);
+            let children = structure.h3_children(i);
+            for child in children.iter().copied() {
+                let h2_mean = structure.h2_means(child);
+                let code = if is_residual {
+                    rabitq::code(dims, &f32::vector_sub(h2_mean, h3_mean))
+                } else {
+                    rabitq::code(dims, h2_mean)
+                };
+                cache.push((child, code));
+                if cache.len() == 32 {
+                    let group = std::mem::take(&mut cache);
+                    let code = std::array::from_fn(|i| group[i].1.clone());
+                    let packed = rabitq::pack_codes(dims, code);
+                    tape.push(&Height2Tuple {
+                        mask: [true; 32],
+                        mean: std::array::from_fn(|i| h2_means[group[i].0 as usize]),
+                        first: std::array::from_fn(|i| h2_firsts[group[i].0 as usize]),
+                        dis_u_2: packed.dis_u_2,
+                        factor_ppc: packed.factor_ppc,
+                        factor_ip: packed.factor_ip,
+                        factor_err: packed.factor_err,
+                        t: packed.t,
+                    });
+                }
+            }
+            if !cache.is_empty() {
+                let group = std::mem::take(&mut cache);
+                let codes = std::array::from_fn(|i| {
+                    if i < group.len() {
+                        group[i].1.clone()
+                    } else {
+                        rabitq::dummy_code(dims)
+                    }
+                });
+                let packed = rabitq::pack_codes(dims, codes);
+                tape.push(&Height2Tuple {
+                    mask: std::array::from_fn(|i| i < group.len()),
+                    mean: std::array::from_fn(|i| {
+                        if i < group.len() {
+                            h2_means[group[i].0 as usize]
+                        } else {
+                            Default::default()
+                        }
+                    }),
+                    first: std::array::from_fn(|i| {
+                        if i < group.len() {
+                            h2_firsts[group[i].0 as usize]
+                        } else {
+                            Default::default()
+                        }
+                    }),
+                    dis_u_2: packed.dis_u_2,
+                    factor_ppc: packed.factor_ppc,
+                    factor_ip: packed.factor_ip,
+                    factor_err: packed.factor_err,
+                    t: packed.t,
+                });
+            }
+            tape.first()
+        })
+        .collect::<Vec<_>>();
     forwards.head.get_mut().get_opaque_mut().fast_forward = vectors.first();
     meta.push(&MetaTuple {
         dims,
         is_residual,
         vectors_first: vectors.first(),
         forwards_first: forwards.first(),
-        mean: h2_means[0],
-        first: h2_firsts[0],
+        mean: h3_means[0],
+        first: h3_firsts[0],
     });
 }
 
 struct Structure {
+    h3_means: Vec<Vec<f32>>,
+    h3_children: Vec<Vec<u32>>,
     h2_means: Vec<Vec<f32>>,
     h2_children: Vec<Vec<u32>>,
     h1_means: Vec<Vec<f32>>,
@@ -197,7 +274,7 @@ impl Structure {
             |parallelism| {
                 k_means::k_means(
                     parallelism,
-                    internal_build.nlist as usize,
+                    internal_build.nlist_1 as usize,
                     vector_options.dims as usize,
                     samples,
                     internal_build.spherical_centroids,
@@ -215,7 +292,7 @@ impl Structure {
             |parallelism| {
                 k_means::k_means(
                     parallelism,
-                    1,
+                    internal_build.nlist_2 as usize,
                     vector_options.dims as usize,
                     h1_means.clone(),
                     internal_build.spherical_centroids,
@@ -232,7 +309,34 @@ impl Structure {
         let (h2_means, h2_children) = std::iter::zip(h2_means, h2_children)
             .filter(|(_, x)| !x.is_empty())
             .unzip::<_, _, Vec<_>, Vec<_>>();
+        let h3_means = crate::algorithm::parallelism::RayonParallelism::scoped(
+            internal_build.build_threads as _,
+            Arc::new(|| {
+                pgrx::check_for_interrupts!();
+            }),
+            |parallelism| {
+                k_means::k_means(
+                    parallelism,
+                    1,
+                    vector_options.dims as usize,
+                    h2_means.clone(),
+                    internal_build.spherical_centroids,
+                    10,
+                )
+            },
+        )
+        .expect("failed to create thread pool");
+        let mut h3_children = vec![Vec::new(); h3_means.len()];
+        for i in 0..h2_means.len() as u32 {
+            let target = k_means::k_means_lookup(&h2_means[i as usize], &h3_means);
+            h3_children[target].push(i);
+        }
+        let (h3_means, h3_children) = std::iter::zip(h3_means, h3_children)
+            .filter(|(_, x)| !x.is_empty())
+            .unzip::<_, _, Vec<_>, Vec<_>>();
         Structure {
+            h3_means: h3_means.into_iter().map(|x| rabitq::project(&x)).collect(),
+            h3_children,
             h2_means: h2_means.into_iter().map(|x| rabitq::project(&x)).collect(),
             h2_children,
             h1_means: h1_means.into_iter().map(|x| rabitq::project(&x)).collect(),
@@ -329,7 +433,7 @@ impl Structure {
             .into_iter()
             .map(|(k, v)| (k, v.expect("not a connected graph")))
             .collect::<BTreeMap<_, _>>();
-        if heights[&root] != 2 {
+        if heights[&root] != 3 {
             pgrx::error!(
                 "extern build: unexpected tree height, height = {}",
                 heights[&root]
@@ -360,14 +464,26 @@ impl Structure {
                 })
                 .unzip()
         }
+        let (h3_means, h3_children) = extract(3, &labels, &vectors, &children);
         let (h2_means, h2_children) = extract(2, &labels, &vectors, &children);
         let (h1_means, h1_children) = extract(1, &labels, &vectors, &children);
         Self {
+            h3_means,
+            h3_children,
             h2_means,
             h2_children,
             h1_means,
             h1_children,
         }
+    }
+    fn h3_len(&self) -> u32 {
+        self.h3_means.len() as _
+    }
+    fn h3_means(&self, i: u32) -> &Vec<f32> {
+        &self.h3_means[i as usize]
+    }
+    fn h3_children(&self, i: u32) -> &Vec<u32> {
+        &self.h3_children[i as usize]
     }
     fn h2_len(&self) -> u32 {
         self.h2_means.len() as _

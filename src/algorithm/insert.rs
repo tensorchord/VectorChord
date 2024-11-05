@@ -102,6 +102,76 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             };
             let mut current = list.0;
             while current != u32::MAX {
+                let h2_guard = relation.read(current);
+                for i in 1..=h2_guard.get().len() {
+                    let h2_tuple = h2_guard
+                        .get()
+                        .get(i)
+                        .map(rkyv::check_archived_root::<Height2Tuple>)
+                        .expect("data corruption")
+                        .expect("data corruption");
+                    let lowerbounds = fscan_process_lowerbound(
+                        distance_kind,
+                        dims,
+                        lut,
+                        (
+                            &h2_tuple.dis_u_2,
+                            &h2_tuple.factor_ppc,
+                            &h2_tuple.factor_ip,
+                            &h2_tuple.factor_err,
+                            &h2_tuple.t,
+                        ),
+                    );
+                    for j in 0..32 {
+                        if h2_tuple.mask[j] {
+                            results.push((
+                                Reverse(lowerbounds[j]),
+                                AlwaysEqual(h2_tuple.mean[j]),
+                                AlwaysEqual(h2_tuple.first[j]),
+                            ));
+                        }
+                    }
+                }
+                current = h2_guard.get().get_opaque().next;
+            }
+        }
+        let mut heap = BinaryHeap::from(results);
+        let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
+        {
+            while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
+                let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
+                let vector_guard = relation.read(mean.0);
+                let vector_tuple = vector_guard
+                    .get()
+                    .get(mean.1)
+                    .map(rkyv::check_archived_root::<VectorTuple>)
+                    .expect("data corruption")
+                    .expect("data corruption");
+                let dis_u = distance(distance_kind, &vector, &vector_tuple.vector);
+                cache.push((
+                    Reverse(dis_u),
+                    AlwaysEqual(first),
+                    AlwaysEqual(if is_residual {
+                        Some(vector_tuple.vector.to_vec())
+                    } else {
+                        None
+                    }),
+                ));
+            }
+            let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop().unwrap();
+            (first, mean)
+        }
+    };
+    let list = {
+        let mut results = Vec::new();
+        {
+            let lut = if is_residual {
+                &rabitq::fscan_preprocess(&f32::vector_sub(&vector, list.1.as_ref().unwrap()))
+            } else {
+                default_lut.as_ref().unwrap()
+            };
+            let mut current = list.0;
+            while current != u32::MAX {
                 let h1_guard = relation.read(current);
                 for i in 1..=h1_guard.get().len() {
                     let h1_tuple = h1_guard

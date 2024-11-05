@@ -24,6 +24,22 @@ pub struct VectorTuple {
 
 #[derive(Clone, PartialEq, Archive, Serialize, Deserialize)]
 #[archive(check_bytes)]
+pub struct Height2Tuple {
+    pub mask: [bool; 32],
+    // raw vector
+    pub mean: [(u32, u16); 32],
+    // for height 2 tuple, it's pointers to next level
+    pub first: [u32; 32],
+    // RaBitQ algorithm
+    pub dis_u_2: [f32; 32],
+    pub factor_ppc: [f32; 32],
+    pub factor_ip: [f32; 32],
+    pub factor_err: [f32; 32],
+    pub t: Vec<u8>,
+}
+
+#[derive(Clone, PartialEq, Archive, Serialize, Deserialize)]
+#[archive(check_bytes)]
 pub struct Height1Tuple {
     pub mask: [bool; 32],
     // raw vector

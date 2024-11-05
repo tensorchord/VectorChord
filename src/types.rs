@@ -4,9 +4,12 @@ use validator::Validate;
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct RabbitholeInternalBuildOptions {
-    #[serde(default = "RabbitholeInternalBuildOptions::default_nlist")]
+    #[serde(default = "RabbitholeInternalBuildOptions::default_nlist_2")]
     #[validate(range(min = 1, max = 1_000_000))]
-    pub nlist: u32,
+    pub nlist_2: u32,
+    #[serde(default = "RabbitholeInternalBuildOptions::default_nlist_1")]
+    #[validate(range(min = 1, max = 1_000_000))]
+    pub nlist_1: u32,
     #[serde(default = "RabbitholeInternalBuildOptions::default_spherical_centroids")]
     pub spherical_centroids: bool,
     #[serde(default = "RabbitholeInternalBuildOptions::default_build_threads")]
@@ -15,7 +18,10 @@ pub struct RabbitholeInternalBuildOptions {
 }
 
 impl RabbitholeInternalBuildOptions {
-    fn default_nlist() -> u32 {
+    fn default_nlist_2() -> u32 {
+        10
+    }
+    fn default_nlist_1() -> u32 {
         1000
     }
     fn default_spherical_centroids() -> bool {
@@ -29,7 +35,8 @@ impl RabbitholeInternalBuildOptions {
 impl Default for RabbitholeInternalBuildOptions {
     fn default() -> Self {
         Self {
-            nlist: Self::default_nlist(),
+            nlist_2: Self::default_nlist_2(),
+            nlist_1: Self::default_nlist_1(),
             spherical_centroids: Self::default_spherical_centroids(),
             build_threads: Self::default_build_threads(),
         }
