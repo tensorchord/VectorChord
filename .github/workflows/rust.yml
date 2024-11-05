@@ -26,14 +26,6 @@ concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
   cancel-in-progress: true
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
-  RUSTFLAGS: "-Dwarnings"
-  CARGO_PROFILE_OPT_BUILD_OVERRIDE_DEBUG: true
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -45,6 +37,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = process.env.ACTIONS_CACHE_URL || '';
+            const token = process.env.ACTIONS_RUNTIME_TOKEN || '';
+            core.exportVariable(
+              'CACHE_ENVS',
+              `-e CARGO_INCREMENTAL=0 -e SCCACHE_GHA_ENABLED=true -e RUSTC_WRAPPER=sccache -e ACTIONS_CACHE_URL=${url} -e ACTIONS_RUNTIME_TOKEN=${token}`,
+            );
       - name: Set up docker images and permissions
         run: |
           docker pull $PGRX_IMAGE
@@ -54,14 +56,14 @@ jobs:
       - name: Clippy
         run: |
           for v in {14..17}; do
-            docker run --rm -v .:/workspace $PGRX_IMAGE clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
+            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
           done
       - name: Build
         run: |
           for v in {14..17}; do
-            docker run --rm -v .:/workspace $PGRX_IMAGE build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
+            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
           done
       - name: Test
         run: |
           # pg agnostic tests
-          docker run --rm -v .:/workspace $PGRX_IMAGE test --no-fail-fast --target ${{ matrix.arch }}-unknown-linux-gnu --features pg17
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE test --no-fail-fast --target ${{ matrix.arch }}-unknown-linux-gnu --features pg17
