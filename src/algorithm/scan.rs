@@ -17,7 +17,6 @@ pub fn scan(
     distance_kind: DistanceKind,
     nprobe_1: u32,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
-    assert!(nprobe_1 >= 1);
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()

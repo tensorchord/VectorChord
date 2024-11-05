@@ -1,3 +1,4 @@
+use crate::algorithm::k_means;
 use crate::algorithm::rabitq;
 use crate::algorithm::tuples::*;
 use crate::index::am_options::Opfamily;
@@ -11,11 +12,9 @@ use base::distance::DistanceKind;
 use base::index::VectorOptions;
 use base::scalar::ScalarLike;
 use base::search::Pointer;
-use common::vec2::Vec2;
 use rand::Rng;
 use rkyv::ser::serializers::AllocSerializer;
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub trait HeapRelation {
@@ -56,17 +55,15 @@ pub fn build<T: HeapRelation, R: Reporter>(
                 heap_relation.traverse(false, |(_, vector)| {
                     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
                     if number_of_samples < max_number_of_samples {
-                        samples.extend(vector);
+                        samples.push(vector);
                         number_of_samples += 1;
                     } else {
                         let index = rand.gen_range(0..max_number_of_samples) as usize;
-                        let start = index * dims as usize;
-                        let end = start + dims as usize;
-                        samples[start..end].copy_from_slice(&vector);
+                        samples[index] = vector;
                     }
                     tuples_total += 1;
                 });
-                Vec2::from_vec((number_of_samples as _, dims as _), samples)
+                samples
             };
             reporter.tuples_total(tuples_total);
             Structure::internal_build(vector_options.clone(), internal_build.clone(), samples)
@@ -190,51 +187,56 @@ impl Structure {
     fn internal_build(
         vector_options: VectorOptions,
         internal_build: RabbitholeInternalBuildOptions,
-        mut samples: Vec2<f32>,
+        samples: Vec<Vec<f32>>,
     ) -> Self {
-        let dims = vector_options.dims;
-        for i in 0..samples.shape_0() {
-            let vector = &mut samples[(i,)];
-            vector.copy_from_slice(&rabitq::project(vector));
-        }
-        let h1_means = base::parallelism::RayonParallelism::scoped(
+        let h1_means = crate::algorithm::parallelism::RayonParallelism::scoped(
             internal_build.build_threads as _,
-            Arc::new(AtomicBool::new(false)),
+            Arc::new(|| {
+                pgrx::check_for_interrupts!();
+            }),
             |parallelism| {
-                let raw = k_means::k_means(
+                k_means::k_means(
                     parallelism,
                     internal_build.nlist as usize,
+                    vector_options.dims as usize,
                     samples,
                     internal_build.spherical_centroids,
                     10,
-                    false,
-                );
-                let mut centroids = Vec::new();
-                for i in 0..internal_build.nlist {
-                    centroids.push(raw[(i as usize,)].to_vec());
-                }
-                centroids
+                )
             },
         )
-        .expect("k_means panics")
-        .expect("k_means interrupted");
-        let h2_mean = {
-            let mut centroid = vec![0.0; dims as _];
-            for i in 0..internal_build.nlist {
-                for j in 0..dims {
-                    centroid[j as usize] += h1_means[i as usize][j as usize];
-                }
-            }
-            for j in 0..dims {
-                centroid[j as usize] /= internal_build.nlist as f32;
-            }
-            centroid
-        };
+        .expect("failed to create thread pool");
+        let h1_children = vec![Vec::new(); h1_means.len()];
+        let h2_means = crate::algorithm::parallelism::RayonParallelism::scoped(
+            internal_build.build_threads as _,
+            Arc::new(|| {
+                pgrx::check_for_interrupts!();
+            }),
+            |parallelism| {
+                k_means::k_means(
+                    parallelism,
+                    1,
+                    vector_options.dims as usize,
+                    h1_means.clone(),
+                    internal_build.spherical_centroids,
+                    10,
+                )
+            },
+        )
+        .expect("failed to create thread pool");
+        let mut h2_children = vec![Vec::new(); h2_means.len()];
+        for i in 0..h1_means.len() as u32 {
+            let target: usize = k_means::k_means_lookup(&h1_means[i as usize], &h2_means);
+            h2_children[target].push(i);
+        }
+        let (h2_means, h2_children) = std::iter::zip(h2_means, h2_children)
+            .filter(|(_, x)| !x.is_empty())
+            .unzip::<_, _, Vec<_>, Vec<_>>();
         Structure {
-            h2_means: vec![h2_mean],
-            h2_children: vec![(0..internal_build.nlist).collect()],
-            h1_means,
-            h1_children: (0..internal_build.nlist).map(|_| Vec::new()).collect(),
+            h2_means: h2_means.into_iter().map(|x| rabitq::project(&x)).collect(),
+            h2_children,
+            h1_means: h1_means.into_iter().map(|x| rabitq::project(&x)).collect(),
+            h1_children,
         }
     }
     fn extern_build(

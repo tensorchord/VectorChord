@@ -21,6 +21,7 @@ pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
+half = "2.4.1"
 paste = "1"
 pgrx = { version = "=0.12.8", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.1.0"
@@ -29,18 +30,19 @@ rand_chacha = "0.3.1"
 rand_distr = "0.4.3"
 serde = "1"
 toml = "0.8.19"
-validator = "0.18.1"
+validator = { version = "0.19.0", features = ["derive"] }
 
 base = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 common = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 detect = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
-k_means = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 quantization = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 
 # lock algebra version forever so that the QR decomposition never changes for same input
 nalgebra = { version = "=0.33.0", default-features = false }
 
 # lock rkyv version forever so that data is always compatible
+log = "0.4.22"
+rayon = "1.10.0"
 rkyv = { version = "=0.7.45", features = ["validation"] }
 
 [lints]
