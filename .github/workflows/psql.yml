@@ -72,14 +72,14 @@ jobs:
           ARCH: ${{ matrix.arch }}
           PLATFORM: "amd64"
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features "pg{{ matrix.version }}" --target {{ matrix.arch }}-unknown-linux-gnu --profile opt
-          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint ./tools/schema.sh $PGRX_IMAGE --features "pg{{ matrix.version }}" --target {{ matrix.arch }}-unknown-linux-gnu --profile opt | expand -t 4 > ./target/schema.sql
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile opt
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint ./tools/schema.sh $PGRX_IMAGE --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile opt | expand -t 4 > ./target/schema.sql
           ./tools/package.sh
           docker build -t rabbithole:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 
       - name: Setup SQL Logic Test
         run: |
-          curl -fsSL -o sqllogictest.tar.gz https://github.com/risinglightdb/sqllogictest-rs/releases/download/v${SQLLOGICTEST}/sqllogictest-bin-v${SQLLOGICTEST}-{{ matrix.arch }}-unknown-linux-musl.tar.gz
+          curl -fsSL -o sqllogictest.tar.gz https://github.com/risinglightdb/sqllogictest-rs/releases/download/v${SQLLOGICTEST}/sqllogictest-bin-v${SQLLOGICTEST}-${{ matrix.arch }}-unknown-linux-musl.tar.gz
           tar -xzf sqllogictest.tar.gz
           mv sqllogictest /usr/local/bin/
 
