@@ -44,4 +44,4 @@ CONTROL_FILEPATH="./rabbithole.control" SO_FILEPATH="$DIR/librabbithole.so" $(di
 
 PGRX_EMBED=$code cargo rustc --package rabbithole --bin pgrx_embed_rabbithole "$@" -- --cfg pgrx_embed
 
-CARGO_PKG_VERSION="0.0.0" QEMU_LD_PREFIX=$QEMU_LD_PREFIX "${RUNNER[@]}" "$DIR/pgrx_embed_rabbithole" | expand -t 4
+CARGO_PKG_VERSION="0.0.0" QEMU_LD_PREFIX=$QEMU_LD_PREFIX "${RUNNER[@]}" "$DIR/pgrx_embed_rabbithole" | expand -t 4 > ./target/schema.sql

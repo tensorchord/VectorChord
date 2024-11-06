@@ -5,7 +5,7 @@ sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml
 cargo install --locked cargo-pgrx
 cargo pgrx init
 cargo build --package rabbithole --lib --features pg16 --target x86_64-unknown-linux-gnu --release
-./tools/schema.sh --features pg16 --target x86_64-unknown-linux-gnu --release | expand -t 4 > ./target/schema.sql
+./tools/schema.sh --features pg16 --target x86_64-unknown-linux-gnu --release
 
 export SEMVER="0.0.0"
 export VERSION="16"
