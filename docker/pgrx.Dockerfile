@@ -34,12 +34,13 @@ RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 # install all the PostgresQL
 RUN set -ex; \
     for v in $(seq 14 17); do \
-        apt install -y --no-install-recommends postgresql-$v postgresql-server-dev-$v; \
+        apt install -y --no-install-recommends postgresql-$v postgresql-server-dev-$v postgresql-$v-pgvector; \
     done; \
     rm -rf /var/lib/apt/lists/*;
 
 # create a non-root user (make it compatible with Ubuntu 24.04)
 RUN useradd -u 1000 -U -m ubuntu
+RUN chown -R ubuntu:ubuntu /usr/share/postgresql/ /usr/lib/postgresql/
 USER ubuntu
 ENV PATH="$PATH:/home/ubuntu/.cargo/bin"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain=none -y

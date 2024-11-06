@@ -1,0 +1,58 @@
+statement ok
+SET search_path TO public, rabbithole, pg_temp;
+
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 1000);
+
+statement error
+CREATE INDEX ON t USING rabbithole (val vector_l2_ops)
+WITH (options = $$
+unknown_options=true
+$$);
+
+# multiple index on single column
+statement ok
+CREATE INDEX ON t USING rabbithole (val vector_l2_ops)
+WITH (options = $$
+nlist = 32
+residual_quantization = true
+spherical_centroids = false
+$$);
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val vector_dot_ops)
+WITH (options = $$
+nlist = 32
+residual_quantization = false
+spherical_centroids = true
+$$);
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val vector_cos_ops)
+WITH (options = $$
+nlist = 32
+residual_quantization = false
+spherical_centroids = true
+$$);
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <=> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <#> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+statement ok
+----
+DROP TABLE t;

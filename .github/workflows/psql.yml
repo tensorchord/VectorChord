@@ -1,0 +1,94 @@
+name: PostgresSQL
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/rust.yml'
+      - 'src/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '*.control'
+      - 'rust-toolchain.toml'
+      - 'tests/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/rust.yml'
+      - 'src/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - '*.control'
+      - 'rust-toolchain.toml'
+      - 'tests/**'
+      - 'tools/**'
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-Dwarnings"
+  CARGO_PROFILE_OPT_BUILD_OVERRIDE_DEBUG: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: ["14", "15", "16", "17"]
+        arch: ["x86_64"]
+    env:
+      PGRX_IMAGE: "kemingy/pgrx:0.12.8"
+      SQLLOGICTEST: "0.22.0"
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = process.env.ACTIONS_CACHE_URL || '';
+            const token = process.env.ACTIONS_RUNTIME_TOKEN || '';
+            core.exportVariable(
+              'CACHE_ENVS',
+              `-e CARGO_INCREMENTAL=0 -e SCCACHE_GHA_ENABLED=true -e RUSTC_WRAPPER=sccache -e ACTIONS_CACHE_URL=${url} -e ACTIONS_RUNTIME_TOKEN=${token}`,
+            );
+      - name: Set up pgrx docker images and permissions
+        run: |
+          docker pull $PGRX_IMAGE
+          echo "Default user: $(id -u):$(id -g)"
+          sudo chown -R 1000:1000 .
+
+      - name: Build
+        env:
+          SEMVER: "0.0.0"
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: "amd64"
+        run: |
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features "pg{{ matrix.version }}" --target {{ matrix.arch }}-unknown-linux-gnu --profile opt
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint ./tools/schema.sh $PGRX_IMAGE --features "pg{{ matrix.version }}" --target {{ matrix.arch }}-unknown-linux-gnu --profile opt | expand -t 4 > ./target/schema.sql
+          ./tools/package.sh
+          docker build -t rabbithole:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
+
+      - name: Setup SQL Logic Test
+        run: |
+          curl -fsSL -o sqllogictest.tar.gz https://github.com/risinglightdb/sqllogictest-rs/releases/download/v${SQLLOGICTEST}/sqllogictest-bin-v${SQLLOGICTEST}-{{ matrix.arch }}-unknown-linux-musl.tar.gz
+          tar -xzf sqllogictest.tar.gz
+          mv sqllogictest /usr/local/bin/
+
+      - name: SQL Test
+        env:
+          PGPASSWORD: postgres
+        run: |
+          docker run --rm -n test -d -e POSTGRES_PASSWORD=${PGPASSWORD} -p 5432:5432 rabbithole:pg${{ matrix.version }}
+          sleep 5
+          psql -h localhost -U postgres -d postgres -c 'CREATE EXTENSION IF NOT EXISTS rabbithole CASCADE;'
+          sqllogictest './tests/**/*.slt'
+          docker stop test

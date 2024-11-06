@@ -13,7 +13,7 @@ export ARCH="x86_64"
 export PLATFORM="amd64"
 ./tools/package.sh
 
-docker build -t rabbithole:pg16-latest -f ./docker/Dockerfile .
+docker build -t rabbithole:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
 ```
 
 Or you can use `starkind/rabbithole:pg16-latest` to run the bench.
