@@ -5,6 +5,7 @@ printf "SEMVER = ${SEMVER}\n"
 printf "VERSION = ${VERSION}\n"
 printf "ARCH = ${ARCH}\n"
 printf "PLATFORM = ${PLATFORM}\n"
+printf "PROFILE = ${PROFILE}\n"
 
 rm -rf ./build/dir_zip
 rm -rf ./build/rabbithole-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
@@ -12,9 +13,9 @@ rm -rf ./build/dir_deb
 rm -rf ./build/rabbithole-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
 
 mkdir -p ./build/dir_zip
-cp ./target/schema.sql ./build/dir_zip/rabbithole--$SEMVER.sql
+cp ./target/${ARCH}-unknown-linux-gnu/${PROFILE}/schema.sql ./build/dir_zip/rabbithole--$SEMVER.sql
 sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./rabbithole.control > ./build/dir_zip/rabbithole.control
-cp ./target/${ARCH}-unknown-linux-gnu/release/librabbithole.so ./build/dir_zip/rabbithole.so
+cp ./target/${ARCH}-unknown-linux-gnu/${PROFILE}/librabbithole.so ./build/dir_zip/rabbithole.so
 zip ./build/rabbithole-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip -j ./build/dir_zip/*
 
 mkdir -p ./build/dir_deb

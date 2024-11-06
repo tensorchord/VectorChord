@@ -11,6 +11,7 @@ export SEMVER="0.0.0"
 export VERSION="16"
 export ARCH="x86_64"
 export PLATFORM="amd64"
+export PROFILE="opt"
 ./tools/package.sh
 
 docker build -t rabbithole:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
