@@ -88,7 +88,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          docker run --rm -n test -d -e POSTGRES_PASSWORD=${PGPASSWORD} -p 5432:5432 rabbithole:pg${{ matrix.version }}
+          docker run --rm --name test -d -e POSTGRES_PASSWORD=${PGPASSWORD} -p 5432:5432 rabbithole:pg${{ matrix.version }}
           sleep 5
           psql -h localhost -U postgres -d postgres -c 'CREATE EXTENSION IF NOT EXISTS rabbithole CASCADE;'
           sqllogictest './tests/**/*.slt'
