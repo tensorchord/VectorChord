@@ -63,7 +63,7 @@ jobs:
         run: |
           docker pull $PGRX_IMAGE
           echo "Default user: $(id -u):$(id -g)"
-          sudo chown -R 1000:1000 .
+          sudo chmod -R 777 .
 
       - name: Build
         env:
@@ -73,7 +73,7 @@ jobs:
           PLATFORM: "amd64"
         run: |
           docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile opt
-          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint ./tools/schema.sh $PGRX_IMAGE --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile opt | expand -t 4 > ./target/schema.sql
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile opt | expand -t 4 > ./target/schema.sql
           ./tools/package.sh
           docker build -t rabbithole:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 
