@@ -19,7 +19,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 pub trait HeapRelation {
-    fn traverse<F>(&self, callback: F)
+    fn traverse<F>(&self, progress: bool, callback: F)
     where
         F: FnMut((Pointer, Vec<f32>));
     fn opfamily(&self) -> Opfamily;
@@ -53,7 +53,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
                 let max_number_of_samples = internal_build.nlist.saturating_mul(256);
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
-                heap_relation.traverse(|(_, vector)| {
+                heap_relation.traverse(false, |(_, vector)| {
                     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
                     if number_of_samples < max_number_of_samples {
                         samples.extend(vector);

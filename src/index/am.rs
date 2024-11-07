@@ -145,7 +145,7 @@ pub unsafe extern "C" fn ambuild(
         opfamily: Opfamily,
     }
     impl HeapRelation for Heap {
-        fn traverse<F>(&self, callback: F)
+        fn traverse<F>(&self, progress: bool, callback: F)
         where
             F: FnMut((Pointer, Vec<f32>)),
         {
@@ -191,7 +191,7 @@ pub unsafe extern "C" fn ambuild(
                     self.index_info,
                     true,
                     false,
-                    true,
+                    progress,
                     0,
                     pgrx::pg_sys::InvalidBlockNumber,
                     Some(call::<F>),
@@ -246,6 +246,15 @@ pub unsafe extern "C" fn ambuild(
         unsafe { RabbitholeLeader::enter(heap, index, (*index_info).ii_Concurrent) }
     {
         unsafe {
+            parallel_build(
+                index,
+                heap,
+                index_info,
+                leader.tablescandesc,
+                leader.rabbitholeshared,
+                true,
+            );
+            leader.wait();
             let nparticipants = leader.nparticipants;
             loop {
                 pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.rabbitholeshared).mutex);
@@ -264,7 +273,7 @@ pub unsafe extern "C" fn ambuild(
     } else {
         let mut tuples_done = 0;
         reporter.tuples_done(tuples_done);
-        heap_relation.traverse(|(payload, vector)| {
+        heap_relation.traverse(true, |(payload, vector)| {
             algorithm::insert::insert(
                 index_relation.clone(),
                 payload,
@@ -306,6 +315,7 @@ struct RabbitholeLeader {
     pcxt: *mut pgrx::pg_sys::ParallelContext,
     nparticipants: i32,
     rabbitholeshared: *mut RabbitholeShared,
+    tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     snapshot: pgrx::pg_sys::Snapshot,
 }
 
@@ -417,10 +427,10 @@ impl RabbitholeLeader {
             pgrx::pg_sys::LaunchParallelWorkers(pcxt);
         }
 
-        let nparticipants = unsafe { (*pcxt).nworkers_launched };
+        let nworkers_launched = unsafe { (*pcxt).nworkers_launched };
 
         unsafe {
-            if nparticipants == 0 {
+            if nworkers_launched == 0 {
                 pgrx::pg_sys::WaitForParallelWorkersToFinish(pcxt);
                 if is_mvcc_snapshot(snapshot) {
                     pgrx::pg_sys::UnregisterSnapshot(snapshot);
@@ -430,15 +440,20 @@ impl RabbitholeLeader {
                 return None;
             }
         }
-        unsafe {
-            pgrx::pg_sys::WaitForParallelWorkersToAttach(pcxt);
-        }
+
         Some(Self {
             pcxt,
-            nparticipants,
+            nparticipants: nworkers_launched + 1,
             rabbitholeshared,
+            tablescandesc,
             snapshot,
         })
+    }
+
+    pub fn wait(&self) {
+        unsafe {
+            pgrx::pg_sys::WaitForParallelWorkersToAttach(self.pcxt);
+        }
     }
 }
 
@@ -486,6 +501,31 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         (*index_info).ii_Concurrent = (*rabbitholeshared).isconcurrent;
     }
 
+    unsafe {
+        parallel_build(
+            index,
+            heap,
+            index_info,
+            tablescandesc,
+            rabbitholeshared,
+            false,
+        );
+    }
+
+    unsafe {
+        pgrx::pg_sys::index_close(index, index_lockmode);
+        pgrx::pg_sys::table_close(heap, heap_lockmode);
+    }
+}
+
+unsafe fn parallel_build(
+    index: *mut pgrx::pg_sys::RelationData,
+    heap: pgrx::pg_sys::Relation,
+    index_info: *mut pgrx::pg_sys::IndexInfo,
+    tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
+    rabbitholeshared: *mut RabbitholeShared,
+    progress: bool,
+) {
     #[derive(Debug, Clone)]
     pub struct Heap {
         heap: pgrx::pg_sys::Relation,
@@ -495,7 +535,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         scan: *mut pgrx::pg_sys::TableScanDescData,
     }
     impl HeapRelation for Heap {
-        fn traverse<F>(&self, callback: F)
+        fn traverse<F>(&self, progress: bool, callback: F)
         where
             F: FnMut((Pointer, Vec<f32>)),
         {
@@ -541,7 +581,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
                     self.index_info,
                     true,
                     false,
-                    true,
+                    progress,
                     0,
                     pgrx::pg_sys::InvalidBlockNumber,
                     Some(call::<F>),
@@ -566,7 +606,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         opfamily,
         scan,
     };
-    heap_relation.traverse(|(payload, vector)| {
+    heap_relation.traverse(progress, |(payload, vector)| {
         algorithm::insert::insert(
             index_relation.clone(),
             payload,
@@ -580,11 +620,6 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         (*rabbitholeshared).nparticipantsdone += 1;
         pgrx::pg_sys::SpinLockRelease(&raw mut (*rabbitholeshared).mutex);
         pgrx::pg_sys::ConditionVariableSignal(&raw mut (*rabbitholeshared).workersdonecv);
-    }
-
-    unsafe {
-        pgrx::pg_sys::index_close(index, index_lockmode);
-        pgrx::pg_sys::table_close(heap, heap_lockmode);
     }
 }
 
