@@ -18,6 +18,7 @@ pub fn scan(
     nprobe_2: u32,
     nprobe_1: u32,
     epsilon: f32,
+    prefetch: u32,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
@@ -240,7 +241,16 @@ pub fn scan(
                 current = h0_guard.get().get_opaque().next;
             }
         }
-        let mut heap = BinaryHeap::from(results);
+        let mut heap = Prefetcher::new(
+            BinaryHeap::from(results),
+            {
+                let relation = relation.clone();
+                move |x| {
+                    relation.prefetch(x.1 .0 .0);
+                }
+            },
+            prefetch,
+        );
         let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
         std::iter::from_fn(move || {
             while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
@@ -262,5 +272,43 @@ pub fn scan(
             let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;
             Some((dis_u, Pointer::new(pay_u)))
         })
+    }
+}
+
+pub struct Prefetcher<T, F> {
+    heap: BinaryHeap<T>,
+    fetch: BinaryHeap<T>,
+    f: F,
+    prefetch: u32,
+}
+
+impl<T: Ord, F: Fn(&T)> Prefetcher<T, F> {
+    pub fn new(heap: BinaryHeap<T>, f: F, prefetch: u32) -> Self {
+        Self {
+            heap,
+            fetch: BinaryHeap::new(),
+            f,
+            prefetch,
+        }
+    }
+    pub fn peek(&mut self) -> Option<&T> {
+        if let Some(x) = self.fetch.peek() {
+            return Some(x);
+        }
+        if let Some(x) = self.heap.peek() {
+            return Some(x);
+        }
+        None
+    }
+    pub fn pop(&mut self) -> Option<T> {
+        while self.fetch.len() <= self.prefetch as _ && !self.heap.is_empty() {
+            let x = self.heap.pop().unwrap();
+            (self.f)(&x);
+            self.fetch.push(x);
+        }
+        self.fetch.pop()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty() && self.fetch.is_empty()
     }
 }

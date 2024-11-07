@@ -3,6 +3,7 @@ use crate::algorithm::scan::scan;
 use crate::gucs::executing::epsilon;
 use crate::gucs::executing::nprobe_1;
 use crate::gucs::executing::nprobe_2;
+use crate::gucs::executing::prefetch;
 use crate::postgres::Relation;
 use base::distance::Distance;
 use base::search::*;
@@ -86,6 +87,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                 nprobe_2(),
                 nprobe_1(),
                 epsilon(),
+                prefetch(),
             );
             *scanner = Scanner::Vbase {
                 vbase: Box::new(vbase),

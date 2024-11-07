@@ -326,4 +326,9 @@ impl Relation {
             }
         }
     }
+    pub fn prefetch(&self, id: u32) {
+        unsafe {
+            pgrx::pg_sys::PrefetchBuffer(self.raw, pgrx::pg_sys::ForkNumber::MAIN_FORKNUM, id);
+        }
+    }
 }
