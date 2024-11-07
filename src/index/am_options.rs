@@ -88,8 +88,8 @@ pub fn convert_opfamily_to_vd(
 fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
     match name.strip_suffix("_ops") {
         Some("vector_l2") => Some((VectorKind::Vecf32, PgDistanceKind::L2)),
-        Some("vector_dot") => Some((VectorKind::Vecf32, PgDistanceKind::Dot)),
-        Some("vector_cos") => Some((VectorKind::Vecf32, PgDistanceKind::Cos)),
+        Some("vector_ip") => Some((VectorKind::Vecf32, PgDistanceKind::Dot)),
+        Some("vector_cosine") => Some((VectorKind::Vecf32, PgDistanceKind::Cos)),
         _ => None,
     }
 }

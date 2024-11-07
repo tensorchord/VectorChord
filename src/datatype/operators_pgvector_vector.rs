@@ -20,14 +20,14 @@ fn _rabbithole_pgvector_vector_sphere_l2_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    VectBorrowed::operator_l2(lhs.as_borrowed(), center.as_borrowed())
-        .to_f32()
-        .sqrt()
-        < radius
+    let lhs = lhs.as_borrowed();
+    let center = center.as_borrowed();
+    let d = VectBorrowed::operator_l2(lhs, center).to_f32().sqrt();
+    d < radius
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _rabbithole_pgvector_vector_sphere_dot_in(
+fn _rabbithole_pgvector_vector_sphere_ip_in(
     lhs: PgvectorVectorInput<'_>,
     rhs: pgrx::composite_type!("sphere_vector"),
 ) -> bool {
@@ -44,11 +44,14 @@ fn _rabbithole_pgvector_vector_sphere_dot_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    VectBorrowed::operator_dot(lhs.as_borrowed(), center.as_borrowed()).to_f32() < radius
+    let lhs = lhs.as_borrowed();
+    let center = center.as_borrowed();
+    let d = VectBorrowed::operator_dot(lhs, center).to_f32();
+    d < radius
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _rabbithole_pgvector_vector_sphere_cos_in(
+fn _rabbithole_pgvector_vector_sphere_cosine_in(
     lhs: PgvectorVectorInput<'_>,
     rhs: pgrx::composite_type!("sphere_vector"),
 ) -> bool {
@@ -65,5 +68,8 @@ fn _rabbithole_pgvector_vector_sphere_cos_in(
         Ok(None) => pgrx::error!("Bad input: empty radius at sphere"),
         Err(_) => unreachable!(),
     };
-    VectBorrowed::operator_cos(lhs.as_borrowed(), center.as_borrowed()).to_f32() < radius
+    let lhs = lhs.as_borrowed();
+    let center = center.as_borrowed();
+    let d = VectBorrowed::operator_cos(lhs, center).to_f32();
+    d < radius
 }
