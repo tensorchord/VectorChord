@@ -55,7 +55,6 @@ pub fn build<T: HeapRelation, R: Reporter>(
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
                 heap_relation.traverse(|(_, vector)| {
-                    pgrx::check_for_interrupts!();
                     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions",);
                     let vector = rabitq::project(&vector);
                     if number_of_samples < max_number_of_samples {
