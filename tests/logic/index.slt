@@ -17,24 +17,27 @@ $$);
 statement ok
 CREATE INDEX ON t USING rabbithole (val vector_l2_ops)
 WITH (options = $$
-nlist = 32
 residual_quantization = true
+[build.internal]
+nlist = 32
 spherical_centroids = false
 $$);
 
 statement ok
-CREATE INDEX ON t USING rabbithole (val vector_dot_ops)
+CREATE INDEX ON t USING rabbithole (val vector_ip_ops)
 WITH (options = $$
-nlist = 32
 residual_quantization = false
+[build.internal]
+nlist = 32
 spherical_centroids = true
 $$);
 
 statement ok
-CREATE INDEX ON t USING rabbithole (val vector_cos_ops)
+CREATE INDEX ON t USING rabbithole (val vector_cosine_ops)
 WITH (options = $$
-nlist = 32
 residual_quantization = false
+[build.internal]
+nlist = 32
 spherical_centroids = true
 $$);
 
