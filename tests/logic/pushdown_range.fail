@@ -1,0 +1,102 @@
+statement ok
+SET search_path TO public, rabbithole, pg_temp;
+
+statement ok
+CREATE TABLE t (val0 vector(3), val1 halfvec(3), val2 sparsevec(3), val3 bit(3));
+
+statement ok
+INSERT INTO t (val0, val1, val2, val3) VALUES 
+    ('[0.1, 0.1, 0.1]', '[0.1, 0.1, 0.1]', '{1:-0.1, 2:0.1, 3:0.1}/3', '000'),
+    ('[0.2, 0.2, 0.2]', '[-0.2, 0.2, 0.2]', '{1:0.2, 2:-0.2, 3:0.2}/3', '001'),
+    ('[0.3, 0.3, 0.3]', '[0.3, 0.3, -0.3]', '{1:-0.3, 2:0.3, 3:-0.3}/3', '110'),
+    ('[0.4, 0.4, 0.4]', '[0.4, -0.4, 0.4]', '{1:-0.4, 2:-0.4, 3:-0.4}/3', '111');
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val0 vector_l2_ops);
+
+# original style
+query I
+SELECT val0 FROM t WHERE val0 <-> '[0.24, 0.24, 0.24]' < 0.12 ORDER BY val0 <-> '[0.24, 0.24, 0.24]';
+----
+[0.2, 0.2, 0.2]
+[0.3, 0.3, 0.3]
+
+# sphere style
+query I
+SELECT val0 FROM t WHERE val0 <<->> sphere('[0.24, 0.24, 0.24]'::vector, 0.012) ORDER BY val0 <-> '[0.24, 0.24, 0.24]';
+----
+[0.2, 0.2, 0.2]
+[0.3, 0.3, 0.3]
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val1 halfvec_dot_ops);
+
+# original style
+query I
+SELECT val1 FROM t WHERE val1 <#> '[0.24, -0.24, 0.24]' < 0 ORDER BY val1 <#> '[0.24, -0.24, 0.24]';
+----
+[0.39990234, -0.39990234, 0.39990234]
+[0.099975586, 0.099975586, 0.099975586]
+
+# sphere style
+query I
+SELECT val1 FROM t WHERE val1 <<#>> sphere('[0.24, -0.24, 0.24]'::halfvec, 0) ORDER BY val1 <#> '[0.24, -0.24, 0.24]';
+----
+[0.39990234, -0.39990234, 0.39990234]
+[0.099975586, 0.099975586, 0.099975586]
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val2 sparsevec_cos_ops)
+WITH (options = "[indexing.hnsw]");
+
+# original style
+query I
+SELECT val2 FROM t WHERE val2 <=> '{0:0.12, 1:0.24, 2:0.36}/3' < 1 ORDER BY val2 <=> '{0:0.12, 1:0.24, 2:0.36}/3';
+----
+{0:-0.1, 1:0.1, 2:0.1}/3
+{0:0.2, 1:-0.2, 2:0.2}/3
+
+# sphere style
+query I
+SELECT val2 FROM t WHERE val2 <<=>> sphere('{0:0.12, 1:0.24, 2:0.36}/3'::sparsevec, 1) 
+ORDER BY val2 <=> '{0:0.12, 1:0.24, 2:0.36}/3';
+----
+{0:-0.1, 1:0.1, 2:0.1}/3
+{0:0.2, 1:-0.2, 2:0.2}/3
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val3 bit_jaccard_ops)
+WITH (options = "[indexing.hnsw]");
+
+# original style
+query I
+SELECT val3 FROM t WHERE val3 <~> '[1, 1, 1]' <= 0.4 ORDER BY val3 <~> '[1, 1, 1]';
+----
+[1, 1, 1]
+[1, 1, 0]
+
+# sphere style
+query I
+SELECT val3 FROM t WHERE val3 <<~>> sphere('[1, 1, 1]'::bit, 0.4) ORDER BY val3 <~> '[1, 1, 1]';
+----
+[1, 1, 1]
+[1, 1, 0]
+
+# sphere style: multiple vector keys and no order-by key
+query I
+SELECT val0 FROM t WHERE val0 <<->> sphere('[0.24, 0.24, 0.24]'::vector, 0.012)
+AND val1 <<#>> sphere('[0.24, -0.24, 0.24]'::halfvec, 0.05)
+ORDER BY val0 <-> '[0.24, 0.24, 0.24]';
+----
+[0.2, 0.2, 0.2]
+
+# sphere style: vectors in key and order-by key are different
+query I
+SELECT val0 FROM t WHERE val0 <<->> sphere('[0.24, 0.24, 0.24]'::vector, 0.012) 
+ORDER BY val1 <#> '[1, 1, -1]';
+----
+[0.3, 0.3, 0.3]
+[0.2, 0.2, 0.2]
+
+statement ok
+DROP TABLE t;

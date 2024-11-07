@@ -1,0 +1,19 @@
+# https://github.com/tensorchord/pgvecto.rs/issues/427
+
+statement ok
+SET search_path TO public, rabbithole, pg_temp;
+
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT NULL::vector FROM generate_series(1, 1000);
+
+statement ok
+CREATE INDEX ON t USING rabbithole (val vector_l2_ops);
+
+statement ok
+SELECT val FROM t ORDER BY val <-> (SELECT val FROM t LIMIT 1) limit 10;
+
+statement ok
+DROP TABLE t;
