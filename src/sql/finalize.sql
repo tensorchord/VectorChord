@@ -14,18 +14,18 @@ CREATE OPERATOR <<->> (
     COMMUTATOR = <<->>
 );
 
-CREATE OPERATOR <<=>> (
-    PROCEDURE = _rabbithole_pgvector_vector_sphere_cos_in,
-    LEFTARG = vector,
-    RIGHTARG = sphere_vector,
-    COMMUTATOR = <<=>>
-);
-
 CREATE OPERATOR <<#>> (
-    PROCEDURE = _rabbithole_pgvector_vector_sphere_dot_in,
+    PROCEDURE = _rabbithole_pgvector_vector_sphere_ip_in,
     LEFTARG = vector,
     RIGHTARG = sphere_vector,
     COMMUTATOR = <<#>>
+);
+
+CREATE OPERATOR <<=>> (
+    PROCEDURE = _rabbithole_pgvector_vector_sphere_cosine_in,
+    LEFTARG = vector,
+    RIGHTARG = sphere_vector,
+    COMMUTATOR = <<=>>
 );
 
 -- List of functions
@@ -41,8 +41,8 @@ COMMENT ON ACCESS METHOD rabbithole IS 'rabbithole index access method';
 -- List of operator families
 
 CREATE OPERATOR FAMILY vector_l2_ops USING rabbithole;
-CREATE OPERATOR FAMILY vector_dot_ops USING rabbithole;
-CREATE OPERATOR FAMILY vector_cos_ops USING rabbithole;
+CREATE OPERATOR FAMILY vector_ip_ops USING rabbithole;
+CREATE OPERATOR FAMILY vector_cosine_ops USING rabbithole;
 
 -- List of operator classes
 
@@ -51,12 +51,12 @@ CREATE OPERATOR CLASS vector_l2_ops
     OPERATOR 1 <-> (vector, vector) FOR ORDER BY float_ops,
     OPERATOR 2 <<->> (vector, sphere_vector) FOR SEARCH;
 
-CREATE OPERATOR CLASS vector_dot_ops
-    FOR TYPE vector USING rabbithole FAMILY vector_dot_ops AS
+CREATE OPERATOR CLASS vector_ip_ops
+    FOR TYPE vector USING rabbithole FAMILY vector_ip_ops AS
     OPERATOR 1 <#> (vector, vector) FOR ORDER BY float_ops,
     OPERATOR 2 <<#>> (vector, sphere_vector) FOR SEARCH;
 
-CREATE OPERATOR CLASS vector_cos_ops
-    FOR TYPE vector USING rabbithole FAMILY vector_cos_ops AS
+CREATE OPERATOR CLASS vector_cosine_ops
+    FOR TYPE vector USING rabbithole FAMILY vector_cosine_ops AS
     OPERATOR 1 <=> (vector, vector) FOR ORDER BY float_ops,
     OPERATOR 2 <<=>> (vector, sphere_vector) FOR SEARCH;

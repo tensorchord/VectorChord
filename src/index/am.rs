@@ -145,7 +145,7 @@ pub unsafe extern "C" fn ambuild(
         opfamily: Opfamily,
     }
     impl HeapRelation for Heap {
-        fn traverse<F>(&self, callback: F)
+        fn traverse<F>(&self, progress: bool, callback: F)
         where
             F: FnMut((Pointer, Vec<f32>)),
         {
@@ -164,18 +164,13 @@ pub unsafe extern "C" fn ambuild(
             ) where
                 F: FnMut((Pointer, Vec<f32>)),
             {
-                pgrx::check_for_interrupts!();
                 use base::vector::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
-                let vector = unsafe {
-                    state
-                        .this
-                        .opfamily
-                        .datum_to_vector(*values.add(0), *is_null.add(0))
-                };
+                let opfamily = state.this.opfamily;
+                let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
                 let pointer = unsafe { ctid_to_pointer(ctid.read()) };
                 if let Some(vector) = vector {
-                    let vector = match vector {
+                    let vector = match opfamily.preprocess(vector.as_borrowed()) {
                         OwnedVector::Vecf32(x) => x,
                         OwnedVector::Vecf16(_) => unreachable!(),
                         OwnedVector::SVecf32(_) => unreachable!(),
@@ -196,7 +191,7 @@ pub unsafe extern "C" fn ambuild(
                     self.index_info,
                     true,
                     false,
-                    true,
+                    progress,
                     0,
                     pgrx::pg_sys::InvalidBlockNumber,
                     Some(call::<F>),
@@ -204,6 +199,10 @@ pub unsafe extern "C" fn ambuild(
                     std::ptr::null_mut(),
                 );
             }
+        }
+
+        fn opfamily(&self) -> Opfamily {
+            self.opfamily
         }
     }
     #[derive(Debug, Clone)]
@@ -226,12 +225,13 @@ pub unsafe extern "C" fn ambuild(
             }
         }
     }
-    let (vector_options, rabbithole_options, pg_distance) = unsafe { am_options::options(index) };
+    let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
+    let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
         heap,
         index,
         index_info,
-        opfamily: unsafe { am_options::opfamily(index) },
+        opfamily,
     };
     let mut reporter = PgReporter {};
     let index_relation = unsafe { Relation::new(index) };
@@ -240,17 +240,25 @@ pub unsafe extern "C" fn ambuild(
         rabbithole_options,
         heap_relation.clone(),
         index_relation.clone(),
-        pg_distance,
         reporter.clone(),
     );
     if let Some(leader) =
         unsafe { RabbitholeLeader::enter(heap, index, (*index_info).ii_Concurrent) }
     {
         unsafe {
-            let nparticipanttuplesorts = leader.nparticipanttuplesorts;
+            parallel_build(
+                index,
+                heap,
+                index_info,
+                leader.tablescandesc,
+                leader.rabbitholeshared,
+                true,
+            );
+            leader.wait();
+            let nparticipants = leader.nparticipants;
             loop {
                 pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.rabbitholeshared).mutex);
-                if (*leader.rabbitholeshared).nparticipantsdone == nparticipanttuplesorts {
+                if (*leader.rabbitholeshared).nparticipantsdone == nparticipants {
                     pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.rabbitholeshared).mutex);
                     break;
                 }
@@ -265,13 +273,12 @@ pub unsafe extern "C" fn ambuild(
     } else {
         let mut tuples_done = 0;
         reporter.tuples_done(tuples_done);
-        heap_relation.traverse(|(payload, vector)| {
-            pgrx::check_for_interrupts!();
+        heap_relation.traverse(true, |(payload, vector)| {
             algorithm::insert::insert(
                 index_relation.clone(),
                 payload,
                 vector,
-                pg_distance.to_distance(),
+                opfamily.distance_kind(),
             );
             tuples_done += 1;
             reporter.tuples_done(tuples_done);
@@ -306,8 +313,9 @@ fn is_mvcc_snapshot(snapshot: *mut pgrx::pg_sys::SnapshotData) -> bool {
 
 struct RabbitholeLeader {
     pcxt: *mut pgrx::pg_sys::ParallelContext,
-    nparticipanttuplesorts: i32,
+    nparticipants: i32,
     rabbitholeshared: *mut RabbitholeShared,
+    tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     snapshot: pgrx::pg_sys::Snapshot,
 }
 
@@ -419,10 +427,10 @@ impl RabbitholeLeader {
             pgrx::pg_sys::LaunchParallelWorkers(pcxt);
         }
 
-        let nparticipanttuplesorts = unsafe { (*pcxt).nworkers_launched };
+        let nworkers_launched = unsafe { (*pcxt).nworkers_launched };
 
         unsafe {
-            if nparticipanttuplesorts == 0 {
+            if nworkers_launched == 0 {
                 pgrx::pg_sys::WaitForParallelWorkersToFinish(pcxt);
                 if is_mvcc_snapshot(snapshot) {
                     pgrx::pg_sys::UnregisterSnapshot(snapshot);
@@ -432,27 +440,34 @@ impl RabbitholeLeader {
                 return None;
             }
         }
-        unsafe {
-            pgrx::pg_sys::WaitForParallelWorkersToAttach(pcxt);
-        }
+
         Some(Self {
             pcxt,
-            nparticipanttuplesorts,
+            nparticipants: nworkers_launched + 1,
             rabbitholeshared,
+            tablescandesc,
             snapshot,
         })
+    }
+
+    pub fn wait(&self) {
+        unsafe {
+            pgrx::pg_sys::WaitForParallelWorkersToAttach(self.pcxt);
+        }
     }
 }
 
 impl Drop for RabbitholeLeader {
     fn drop(&mut self) {
-        unsafe {
-            pgrx::pg_sys::WaitForParallelWorkersToFinish(self.pcxt);
-            if is_mvcc_snapshot(self.snapshot) {
-                pgrx::pg_sys::UnregisterSnapshot(self.snapshot);
+        if !std::thread::panicking() {
+            unsafe {
+                pgrx::pg_sys::WaitForParallelWorkersToFinish(self.pcxt);
+                if is_mvcc_snapshot(self.snapshot) {
+                    pgrx::pg_sys::UnregisterSnapshot(self.snapshot);
+                }
+                pgrx::pg_sys::DestroyParallelContext(self.pcxt);
+                pgrx::pg_sys::ExitParallelMode();
             }
-            pgrx::pg_sys::DestroyParallelContext(self.pcxt);
-            pgrx::pg_sys::ExitParallelMode();
         }
     }
 }
@@ -486,6 +501,31 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         (*index_info).ii_Concurrent = (*rabbitholeshared).isconcurrent;
     }
 
+    unsafe {
+        parallel_build(
+            index,
+            heap,
+            index_info,
+            tablescandesc,
+            rabbitholeshared,
+            false,
+        );
+    }
+
+    unsafe {
+        pgrx::pg_sys::index_close(index, index_lockmode);
+        pgrx::pg_sys::table_close(heap, heap_lockmode);
+    }
+}
+
+unsafe fn parallel_build(
+    index: *mut pgrx::pg_sys::RelationData,
+    heap: pgrx::pg_sys::Relation,
+    index_info: *mut pgrx::pg_sys::IndexInfo,
+    tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
+    rabbitholeshared: *mut RabbitholeShared,
+    progress: bool,
+) {
     #[derive(Debug, Clone)]
     pub struct Heap {
         heap: pgrx::pg_sys::Relation,
@@ -495,7 +535,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         scan: *mut pgrx::pg_sys::TableScanDescData,
     }
     impl HeapRelation for Heap {
-        fn traverse<F>(&self, callback: F)
+        fn traverse<F>(&self, progress: bool, callback: F)
         where
             F: FnMut((Pointer, Vec<f32>)),
         {
@@ -514,18 +554,13 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
             ) where
                 F: FnMut((Pointer, Vec<f32>)),
             {
-                pgrx::check_for_interrupts!();
                 use base::vector::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
-                let vector = unsafe {
-                    state
-                        .this
-                        .opfamily
-                        .datum_to_vector(*values.add(0), *is_null.add(0))
-                };
+                let opfamily = state.this.opfamily;
+                let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
                 let pointer = unsafe { ctid_to_pointer(ctid.read()) };
                 if let Some(vector) = vector {
-                    let vector = match vector {
+                    let vector = match opfamily.preprocess(vector.as_borrowed()) {
                         OwnedVector::Vecf32(x) => x,
                         OwnedVector::Vecf16(_) => unreachable!(),
                         OwnedVector::SVecf32(_) => unreachable!(),
@@ -546,7 +581,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
                     self.index_info,
                     true,
                     false,
-                    true,
+                    progress,
                     0,
                     pgrx::pg_sys::InvalidBlockNumber,
                     Some(call::<F>),
@@ -554,6 +589,10 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
                     self.scan,
                 );
             }
+        }
+
+        fn opfamily(&self) -> Opfamily {
+            self.opfamily
         }
     }
 
@@ -567,8 +606,7 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         opfamily,
         scan,
     };
-    heap_relation.traverse(|(payload, vector)| {
-        pgrx::check_for_interrupts!();
+    heap_relation.traverse(progress, |(payload, vector)| {
         algorithm::insert::insert(
             index_relation.clone(),
             payload,
@@ -582,11 +620,6 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
         (*rabbitholeshared).nparticipantsdone += 1;
         pgrx::pg_sys::SpinLockRelease(&raw mut (*rabbitholeshared).mutex);
         pgrx::pg_sys::ConditionVariableSignal(&raw mut (*rabbitholeshared).workersdonecv);
-    }
-
-    unsafe {
-        pgrx::pg_sys::index_close(index, index_lockmode);
-        pgrx::pg_sys::table_close(heap, heap_lockmode);
     }
 }
 
@@ -610,7 +643,7 @@ pub unsafe extern "C" fn aminsert(
     let opfamily = unsafe { am_options::opfamily(index) };
     let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
     if let Some(vector) = vector {
-        let vector = match vector {
+        let vector = match opfamily.preprocess(vector.as_borrowed()) {
             OwnedVector::Vecf32(x) => x,
             OwnedVector::Vecf16(_) => unreachable!(),
             OwnedVector::SVecf32(_) => unreachable!(),

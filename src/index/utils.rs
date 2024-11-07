@@ -1,11 +1,6 @@
 use base::distance::{Distance, DistanceKind};
 use base::scalar::ScalarLike;
 use base::search::*;
-use base::vector::{VectBorrowed, VectorBorrowed};
-use pgrx::pg_sys::panic::ErrorReportable;
-use pgrx::{error, Spi};
-
-use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 
 pub fn pointer_to_ctid(pointer: Pointer) -> pgrx::pg_sys::ItemPointerData {
     let value = pointer.as_u64();
@@ -24,37 +19,6 @@ pub fn ctid_to_pointer(ctid: pgrx::pg_sys::ItemPointerData) -> Pointer {
     value |= (ctid.ip_blkid.bi_lo as u64) << 16;
     value |= ctid.ip_posid as u64;
     Pointer::new(value)
-}
-
-pub fn load_table_vectors<F>(
-    table_name: &str,
-    column_name: &str,
-    rows: u32,
-    dims: u32,
-    preprocess: F,
-) -> Vec<Vec<f32>>
-where
-    F: Fn(VectBorrowed<f32>) -> Vec<f32>,
-{
-    let query = format!("SELECT {column_name} FROM {table_name};");
-    let mut centroids = Vec::new();
-
-    Spi::connect(|client| {
-        let tup_table = client.select(&query, None, None).unwrap_or_report();
-        assert_eq!(tup_table.len(), rows as usize);
-
-        for row in tup_table {
-            let vector = row[column_name].value::<PgvectorVectorOutput>();
-            if let Ok(Some(v)) = vector {
-                let borrowed = v.as_borrowed();
-                assert_eq!(borrowed.dims(), dims);
-                centroids.push(preprocess(borrowed));
-            } else {
-                error!("load vectors from column is not valid")
-            }
-        }
-        centroids
-    })
 }
 
 pub fn distance(d: DistanceKind, lhs: &[f32], rhs: &[f32]) -> Distance {

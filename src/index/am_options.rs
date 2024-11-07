@@ -88,8 +88,8 @@ pub fn convert_opfamily_to_vd(
 fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
     match name.strip_suffix("_ops") {
         Some("vector_l2") => Some((VectorKind::Vecf32, PgDistanceKind::L2)),
-        Some("vector_dot") => Some((VectorKind::Vecf32, PgDistanceKind::Dot)),
-        Some("vector_cos") => Some((VectorKind::Vecf32, PgDistanceKind::Cos)),
+        Some("vector_ip") => Some((VectorKind::Vecf32, PgDistanceKind::Dot)),
+        Some("vector_cosine") => Some((VectorKind::Vecf32, PgDistanceKind::Cos)),
         _ => None,
     }
 }
@@ -114,9 +114,7 @@ unsafe fn convert_reloptions_to_options(
     }
 }
 
-pub unsafe fn options(
-    index: pgrx::pg_sys::Relation,
-) -> (VectorOptions, RabbitholeIndexingOptions, PgDistanceKind) {
+pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, RabbitholeIndexingOptions) {
     let opfamily = unsafe { (*index).rd_opfamily.read() };
     let att = unsafe { &mut *(*index).rd_att };
     let atts = unsafe { att.attrs.as_slice(att.natts as _) };
@@ -144,7 +142,7 @@ pub unsafe fn options(
     };
     // get indexing, segment, optimizing
     let rabitq = unsafe { convert_reloptions_to_options((*index).rd_options) };
-    (vector, rabitq, pg_d)
+    (vector, rabitq)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -205,6 +203,7 @@ impl Opfamily {
     pub fn process(self, x: Distance) -> f32 {
         match self.pg_distance {
             PgDistanceKind::Cos => f32::from(x) + 1.0f32,
+            PgDistanceKind::L2 => f32::from(x).sqrt(),
             _ => f32::from(x),
         }
     }
