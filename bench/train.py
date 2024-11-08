@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 from sys import version_info
 from tqdm import tqdm
+from numpy import linalg as LA
 
 if version_info >= (3, 12):
     raise RuntimeError("h5py doesn't support 3.12")
@@ -35,7 +36,7 @@ def build_arg_parse():
     parser.add_argument(
         "--niter", help="number of iterations", type=int, default=N_ITER
     )
-    parser.add_argument("-m", "--metric", choices=["l2", "cos"], default="l2")
+    parser.add_argument("-m", "--metric", choices=["l2", "cos", "dot"], default="l2")
     parser.add_argument(
         "-g", "--gpu", help="enable GPU for KMeans", action="store_true"
     )
@@ -137,8 +138,10 @@ def kmeans_cluster(
         )
     else:
         train = data[:]
+    if metric == "cos":
+        train = train / LA.norm(train, axis=1, keepdims=True)
     kmeans = Kmeans(
-        dim, k, gpu=gpu, verbose=True, niter=niter, seed=SEED, spherical=metric == "cos"
+        dim, k, gpu=gpu, verbose=True, niter=niter, seed=SEED, spherical=metric != "l2"
     )
     kmeans.train(train)
     if not child_k:

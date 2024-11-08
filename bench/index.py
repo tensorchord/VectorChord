@@ -1,4 +1,5 @@
 import asyncio
+import math
 from time import perf_counter
 import argparse
 from pathlib import Path
@@ -16,6 +17,7 @@ KEEPALIVE_KWARGS = {
     "keepalives_interval": 5,
     "keepalives_count": 5,
 }
+CHUNKS = 10
 
 
 def build_arg_parse():
@@ -44,6 +46,12 @@ def build_arg_parse():
         type=int,
         required=False,
         default=max(multiprocessing.cpu_count() - 1, 1),
+    )
+    parser.add_argument(
+        "--chunks",
+        help="chunks for in-memory mode. If OOM, increase it",
+        type=int,
+        default=CHUNKS,
     )
     return parser
 
@@ -113,21 +121,29 @@ async def add_centroids(conn, name, centroids):
             await asyncio.sleep(0)
 
 
-async def add_embeddings(conn, name, dim, train):
+async def add_embeddings(conn, name, dim, train, chunks):
     await conn.execute(f"DROP TABLE IF EXISTS {name}")
     await conn.execute(f"CREATE TABLE {name} (id integer, embedding vector({dim}))")
 
-    async with conn.cursor().copy(
-        f"COPY {name} (id, embedding) FROM STDIN WITH (FORMAT BINARY)"
-    ) as copy:
-        copy.set_types(["integer", "vector"])
+    n, dim = train.shape
+    chunk_size = math.ceil(n / chunks)
+    pbar = tqdm(desc="Adding embeddings", total=n)
+    for i in range(chunks):
+        chunk_start = i * chunk_size
+        chunk_len = min(chunk_size, n - i * chunk_size)
+        data = train[chunk_start : chunk_start + chunk_len]
 
-        for i, vec in tqdm(
-            enumerate(train), desc="Adding embeddings", total=len(train)
-        ):
-            await copy.write_row((i, vec))
-        while conn.pgconn.flush() == 1:
-            await asyncio.sleep(0)
+        async with conn.cursor().copy(
+            f"COPY {name} (id, embedding) FROM STDIN WITH (FORMAT BINARY)"
+        ) as copy:
+            copy.set_types(["integer", "vector"])
+
+            for i, vec in enumerate(data):
+                await copy.write_row((chunk_start + i, vec))
+            while conn.pgconn.flush() == 1:
+                await asyncio.sleep(0)
+        pbar.update(chunk_len)
+    pbar.close()
 
 
 async def build_index(
@@ -176,7 +192,7 @@ async def main(dataset):
     metric_ops, ivf_config = get_ivf_ops_config(
         args.metric, args.k, args.name if args.centroids else None
     )
-    await add_embeddings(conn, args.name, args.dim, dataset["train"])
+    await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks)
 
     index_finish = asyncio.Event()
     # Need a separate connection for monitor process
