@@ -25,8 +25,7 @@ pub trait HeapRelation {
 }
 
 pub trait Reporter {
-    fn tuples_total(&mut self, tuples_total: usize);
-    fn tuples_done(&mut self, tuples_done: usize);
+    fn tuples_total(&mut self, tuples_total: u64);
 }
 
 pub fn build<T: HeapRelation, R: Reporter>(
@@ -46,7 +45,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
             external_build.clone(),
         ),
         RabbitholeBuildOptions::Internal(internal_build) => {
-            let mut tuples_total = 0_usize;
+            let mut tuples_total = 0_u64;
             let samples = {
                 let mut rand = rand::thread_rng();
                 let max_number_of_samples = internal_build.nlist.saturating_mul(256);
