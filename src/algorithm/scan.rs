@@ -16,6 +16,7 @@ pub fn scan(
     vector: Vec<f32>,
     distance_kind: DistanceKind,
     nprobe_1: u32,
+    epsilon: f32,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
@@ -77,6 +78,7 @@ pub fn scan(
                             &h1_tuple.factor_err,
                             &h1_tuple.t,
                         ),
+                        epsilon,
                     );
                     for j in 0..32 {
                         if h1_tuple.mask[j] {
@@ -149,6 +151,7 @@ pub fn scan(
                             &h0_tuple.factor_err,
                             &h0_tuple.t,
                         ),
+                        epsilon,
                     );
                     for j in 0..32 {
                         if h0_tuple.mask[j] {

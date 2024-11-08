@@ -121,6 +121,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                             &h1_tuple.factor_err,
                             &h1_tuple.t,
                         ),
+                        1.9,
                     );
                     for j in 0..32 {
                         if h1_tuple.mask[j] {
