@@ -141,7 +141,7 @@ impl IntoDatum for PgvectorVectorOutput {
     }
 
     fn type_oid() -> Oid {
-        panic!("calling `type_oid` is never expected")
+        Oid::INVALID
     }
 
     fn is_compatible_with(_: Oid) -> bool {
