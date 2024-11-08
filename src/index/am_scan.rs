@@ -1,5 +1,6 @@
 use super::am_options::Opfamily;
 use crate::algorithm::scan::scan;
+use crate::gucs::executing::epsilon;
 use crate::gucs::executing::nprobe_1;
 use crate::gucs::executing::nprobe_2;
 use crate::postgres::Relation;
@@ -84,6 +85,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                 opfamily.distance_kind(),
                 nprobe_2(),
                 nprobe_1(),
+                epsilon(),
             );
             *scanner = Scanner::Vbase {
                 vbase: Box::new(vbase),

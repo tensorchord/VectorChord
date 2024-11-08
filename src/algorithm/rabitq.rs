@@ -178,6 +178,7 @@ pub fn fscan_process_lowerbound(
         &[f32; 32],
         &[u8],
     ),
+    epsilon: f32,
 ) -> [Distance; 32] {
     let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
     let r = quantization::fast_scan::b4::fast_scan_b4(dims.div_ceil(4), t, s);
@@ -188,13 +189,13 @@ pub fn fscan_process_lowerbound(
                 + b * factor_ppc[i]
                 + ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
             let err = factor_err[i] * dis_v_2.sqrt();
-            Distance::from_f32(rough - 1.9 * err)
+            Distance::from_f32(rough - epsilon * err)
         }),
         DistanceKind::Dot => std::array::from_fn(|i| {
             let rough = 0.5 * b * factor_ppc[i]
                 + 0.5 * ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
             let err = 0.5 * factor_err[i] * dis_v_2.sqrt();
-            Distance::from_f32(rough - 1.9 * err)
+            Distance::from_f32(rough - epsilon * err)
         }),
         DistanceKind::Hamming => unreachable!(),
         DistanceKind::Jaccard => unreachable!(),
