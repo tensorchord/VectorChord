@@ -61,9 +61,9 @@ pub fn scan(
             };
             let mut current = list.0;
             while current != u32::MAX {
-                let h1_guard = relation.read(current);
-                for i in 1..=h1_guard.get().len() {
-                    let h1_tuple = h1_guard
+                let h2_guard = relation.read(current);
+                for i in 1..=h2_guard.get().len() {
+                    let h2_tuple = h2_guard
                         .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height2Tuple>)
@@ -74,25 +74,25 @@ pub fn scan(
                         dims,
                         lut,
                         (
-                            &h1_tuple.dis_u_2,
-                            &h1_tuple.factor_ppc,
-                            &h1_tuple.factor_ip,
-                            &h1_tuple.factor_err,
-                            &h1_tuple.t,
+                            &h2_tuple.dis_u_2,
+                            &h2_tuple.factor_ppc,
+                            &h2_tuple.factor_ip,
+                            &h2_tuple.factor_err,
+                            &h2_tuple.t,
                         ),
                         epsilon,
                     );
                     for j in 0..32 {
-                        if h1_tuple.mask[j] {
+                        if h2_tuple.mask[j] {
                             results.push((
                                 Reverse(lowerbounds[j]),
-                                AlwaysEqual(h1_tuple.mean[j]),
-                                AlwaysEqual(h1_tuple.first[j]),
+                                AlwaysEqual(h2_tuple.mean[j]),
+                                AlwaysEqual(h2_tuple.first[j]),
                             ));
                         }
                     }
                 }
-                current = h1_guard.get().get_opaque().next;
+                current = h2_guard.get().get_opaque().next;
             }
         }
         let mut heap = BinaryHeap::from(results);
