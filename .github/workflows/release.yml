@@ -1,0 +1,120 @@
+name: Publish
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'tag name (semver without v-prefix)'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  semver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = github.context.payload.inputs?.tag || github.context.payload.release?.tag_name;
+            const r = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+            if (!r.test(tag)) {
+              core.setFailed(`Action failed with an invalid semver.`);
+            }
+            core.exportVariable('SEMVER', tag);
+
+  build:
+    runs-on: ubuntu-latest
+    needs: ["semver"]
+    strategy:
+      matrix:
+        version: ["14", "15", "16", "17"]
+        arch: ["x86_64", "aarch64"]
+    env:
+      PGRX_IMAGE: "kemingy/pgrx:0.12.8"
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure sccache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = process.env.ACTIONS_CACHE_URL || '';
+            const token = process.env.ACTIONS_RUNTIME_TOKEN || '';
+            core.exportVariable(
+              'CACHE_ENVS',
+              `-e CARGO_INCREMENTAL=0 -e SCCACHE_GHA_ENABLED=true -e RUSTC_WRAPPER=sccache -e ACTIONS_CACHE_URL=${url} -e ACTIONS_RUNTIME_TOKEN=${token}`,
+            );
+      - name: Set up pgrx docker images and permissions
+        run: |
+          docker pull $PGRX_IMAGE
+          echo "Default user: $(id -u):$(id -g)"
+          sudo chmod -R 777 .
+
+      - name: Build
+        env:
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
+          PROFILE: "release"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
+          ./tools/package.sh
+          docker build -t rabbithole:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
+          gh release upload --clobber $SEMVER ./build/rabbithole-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
+          gh release upload --clobber $SEMVER ./build/rabbithole-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: ["semver", "build"]
+    strategy:
+      matrix:
+        version: ["14", "15", "16", "17"]
+        platform: ["amd64", "arm64"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $SEMVER --pattern "rabbithole-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb" --output rabbithole-binary-release.deb
+          mkdir -p build
+          cp rabbithole-binary-release.deb ./build/rabbithole-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERIO_USERNAME }}
+          password: ${{ secrets.DOCKERIO_TOKEN }}
+      - name: Push binary release to Docker Registry
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: "linux/${{ matrix.platform }}"
+          file: ./docker/binary.Dockerfile
+          tags: tensorchord/rabbithole-binary:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
+      - name: Push PostgreSQL release to Docker Registry
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: "linux/${{ matrix.platform }}"
+          file: ./docker/Dockerfile
+          tags: tensorchord/rabbithole-postgres:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
+          build-args: |
+            PG_VERSION=${{ matrix.version }}
+            SEMVER=${SEMVER}
+            PGVECTOR=0.8.0
+            PLATFORM=${{ matrix.platform }}
