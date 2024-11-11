@@ -22,7 +22,7 @@ SELECT
 FROM generate_series(1, 1000);
 
 statement ok
-CREATE INDEX ON items USING rabbithole (val rabbithole.vector_l2_ops);
+CREATE INDEX ON items USING rabbithole (val public.vector_l2_ops);
 
 query I
 SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
@@ -39,7 +39,7 @@ SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <=> '[0.5,0.5,0.5]' limit
 
 # partial index
 statement ok
-CREATE INDEX ON items USING rabbithole (val rabbithole.vector_ip_ops) WHERE (category_id = 1);
+CREATE INDEX ON items USING rabbithole (val public.vector_ip_ops) WHERE (category_id = 1);
 
 query I
 SELECT COUNT(1) FROM

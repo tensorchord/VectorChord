@@ -28,11 +28,11 @@ def build_arg_parse():
     parser.add_argument("-o", "--output", help="output filepath", required=True)
     parser.add_argument(
         "-k",
-        help="K-means centroids or nlist",
+        help="K-means centroids or lists",
         type=int,
         default=DEFAULT_K,
     )
-    parser.add_argument("--child-k", type=int, help="lower layer nlist (if enabled)")
+    parser.add_argument("--child-k", type=int, help="lower layer lists (if enabled)")
     parser.add_argument(
         "--niter", help="number of iterations", type=int, default=N_ITER
     )

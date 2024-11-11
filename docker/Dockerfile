@@ -10,4 +10,4 @@ RUN echo ${PG_VERSION}
 COPY ./build/rabbithole-pg${PG_VERSION}_${SEMVER}_${PLATFORM}.deb /tmp/rabbithole.deb
 RUN apt-get install -y /tmp/rabbithole.deb && rm -f /tmp/rabbithole.deb
 
-CMD ["postgres", "-c" ,"shared_preload_libraries=rabbithole.so", "-c", "search_path=\"$user\", public, rabbithole"]
+CMD ["postgres", "-c" ,"shared_preload_libraries=rabbithole.so"]

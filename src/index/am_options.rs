@@ -51,40 +51,6 @@ impl PgDistanceKind {
     }
 }
 
-pub fn convert_opclass_to_vd(
-    opclass_oid: pgrx::pg_sys::Oid,
-) -> Option<(VectorKind, PgDistanceKind)> {
-    let namespace = pgrx_catalog::PgNamespace::search_namespacename(c"rabbithole").unwrap();
-    let namespace = namespace.get().expect("rabbithole is not installed.");
-    let opclass = pgrx_catalog::PgOpclass::search_claoid(opclass_oid).unwrap();
-    let opclass = opclass.get().expect("rabbithole is not installed.");
-    if opclass.opcnamespace() == namespace.oid() {
-        if let Ok(name) = opclass.opcname().to_str() {
-            if let Some(p) = convert_name_to_vd(name) {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
-
-pub fn convert_opfamily_to_vd(
-    opfamily_oid: pgrx::pg_sys::Oid,
-) -> Option<(VectorKind, PgDistanceKind)> {
-    let namespace = pgrx_catalog::PgNamespace::search_namespacename(c"rabbithole").unwrap();
-    let namespace = namespace.get().expect("rabbithole is not installed.");
-    let opfamily = pgrx_catalog::PgOpfamily::search_opfamilyoid(opfamily_oid).unwrap();
-    let opfamily = opfamily.get().expect("rabbithole is not installed.");
-    if opfamily.opfnamespace() == namespace.oid() {
-        if let Ok(name) = opfamily.opfname().to_str() {
-            if let Some(p) = convert_name_to_vd(name) {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
-
 fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
     match name.strip_suffix("_ops") {
         Some("vector_l2") => Some((VectorKind::Vecf32, PgDistanceKind::L2)),
@@ -115,7 +81,6 @@ unsafe fn convert_reloptions_to_options(
 }
 
 pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, RabbitholeIndexingOptions) {
-    let opfamily = unsafe { (*index).rd_opfamily.read() };
     let att = unsafe { &mut *(*index).rd_att };
     let atts = unsafe { att.attrs.as_slice(att.natts as _) };
     if atts.is_empty() {
@@ -134,11 +99,11 @@ pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, Rabbitho
         );
     };
     // get v, d
-    let (v, pg_d) = convert_opfamily_to_vd(opfamily).unwrap();
+    let opfamily = unsafe { opfamily(index) };
     let vector = VectorOptions {
         dims,
-        v,
-        d: pg_d.to_distance(),
+        v: opfamily.vector,
+        d: opfamily.distance_kind(),
     };
     // get indexing, segment, optimizing
     let rabitq = unsafe { convert_reloptions_to_options((*index).rd_options) };
@@ -213,8 +178,41 @@ impl Opfamily {
 }
 
 pub unsafe fn opfamily(index: pgrx::pg_sys::Relation) -> Opfamily {
-    let opfamily = unsafe { (*index).rd_opfamily.read() };
-    let (vector, pg_distance) = convert_opfamily_to_vd(opfamily).unwrap();
+    use pgrx::pg_sys::Oid;
+
+    let proc = unsafe { pgrx::pg_sys::index_getprocid(index, 1, 1) };
+
+    if proc == Oid::INVALID {
+        pgrx::error!("support function 1 is not found");
+    }
+
+    let mut flinfo = pgrx::pg_sys::FmgrInfo::default();
+    unsafe {
+        pgrx::pg_sys::fmgr_info(proc, &mut flinfo);
+    }
+
+    let fn_addr = flinfo.fn_addr.expect("null function pointer");
+
+    let mut fcinfo = unsafe { std::mem::zeroed::<pgrx::pg_sys::FunctionCallInfoBaseData>() };
+    fcinfo.flinfo = &mut flinfo;
+    fcinfo.fncollation = pgrx::pg_sys::DEFAULT_COLLATION_OID;
+    fcinfo.context = std::ptr::null_mut();
+    fcinfo.resultinfo = std::ptr::null_mut();
+    fcinfo.isnull = true;
+    fcinfo.nargs = 0;
+
+    let result_datum = unsafe { pgrx::pg_sys::ffi::pg_guard_ffi_boundary(|| fn_addr(&mut fcinfo)) };
+
+    let result_option = unsafe { String::from_datum(result_datum, fcinfo.isnull) };
+
+    let result_string = result_option.expect("null string");
+
+    let (vector, pg_distance) = convert_name_to_vd(&result_string).unwrap();
+
+    unsafe {
+        pgrx::pg_sys::pfree(result_datum.cast_mut_ptr());
+    }
+
     Opfamily {
         vector,
         pg_distance,
