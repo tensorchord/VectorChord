@@ -162,6 +162,7 @@ pub unsafe extern "C" fn ambuild(
     index: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
 ) -> *mut pgrx::pg_sys::IndexBuildResult {
+    use validator::Validate;
     #[derive(Debug, Clone)]
     pub struct Heap {
         heap: pgrx::pg_sys::Relation,
@@ -231,6 +232,15 @@ pub unsafe extern "C" fn ambuild(
         }
     }
     let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
+    if let Err(errors) = Validate::validate(&vector_options) {
+        pgrx::error!("error while validating options: {}", errors);
+    }
+    if vector_options.dims > 2000 {
+        pgrx::error!("error while validating options: dimension is too large");
+    }
+    if let Err(errors) = Validate::validate(&rabbithole_options) {
+        pgrx::error!("error while validating options: {}", errors);
+    }
     let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
         heap,
