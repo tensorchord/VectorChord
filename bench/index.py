@@ -65,21 +65,21 @@ def get_ivf_ops_config(metric, k, name=None):
     if metric == "l2":
         metric_ops = "vector_l2_ops"
         ivf_config = f"""
-        nlist = {k}
+        lists = {k}
         residual_quantization = true
         spherical_centroids = false
         """
     elif metric == "cosine":
         metric_ops = "vector_cosine_ops"
         ivf_config = f"""
-        nlist = {k}
+        lists = {k}
         residual_quantization = false
         spherical_centroids = true
         """
     elif metric == "ip":
         metric_ops = "vector_ip_ops"
         ivf_config = f"""
-        nlist = {k}
+        lists = {k}
         residual_quantization = false
         spherical_centroids = true
         """

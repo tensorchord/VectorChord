@@ -1,14 +1,14 @@
 use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting};
 
-static NPROBE: GucSetting<i32> = GucSetting::<i32>::new(10);
+static PROBES: GucSetting<i32> = GucSetting::<i32>::new(10);
 static EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 
 pub unsafe fn init() {
     GucRegistry::define_int_guc(
-        "rabbithole.nprobe",
-        "`nprobe` argument of rabbithole.",
-        "`nprobe` argument of rabbithole.",
-        &NPROBE,
+        "rabbithole.probes",
+        "`probes` argument of rabbithole.",
+        "`probes` argument of rabbithole.",
+        &PROBES,
         1,
         u16::MAX as _,
         GucContext::Userset,
@@ -26,8 +26,8 @@ pub unsafe fn init() {
     );
 }
 
-pub fn nprobe() -> u32 {
-    NPROBE.get() as u32
+pub fn probes() -> u32 {
+    PROBES.get() as u32
 }
 
 pub fn epsilon() -> f32 {

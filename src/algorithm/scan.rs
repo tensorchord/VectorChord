@@ -15,7 +15,7 @@ pub fn scan(
     relation: Relation,
     vector: Vec<f32>,
     distance_kind: DistanceKind,
-    nprobe_1: u32,
+    probes: u32,
     epsilon: f32,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
     let meta_guard = relation.read(0);
@@ -119,7 +119,7 @@ pub fn scan(
             let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop()?;
             Some((first, mean))
         })
-        .take(nprobe_1 as usize)
+        .take(probes as usize)
         .collect()
     };
     {
