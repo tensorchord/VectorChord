@@ -49,14 +49,17 @@ CREATE OPERATOR FAMILY vector_cosine_ops USING rabbithole;
 CREATE OPERATOR CLASS vector_l2_ops
     FOR TYPE vector USING rabbithole FAMILY vector_l2_ops AS
     OPERATOR 1 <-> (vector, vector) FOR ORDER BY float_ops,
-    OPERATOR 2 <<->> (vector, sphere_vector) FOR SEARCH;
+    OPERATOR 2 <<->> (vector, sphere_vector) FOR SEARCH,
+    FUNCTION 1 _rabbithole_support_vector_l2_ops();
 
 CREATE OPERATOR CLASS vector_ip_ops
     FOR TYPE vector USING rabbithole FAMILY vector_ip_ops AS
     OPERATOR 1 <#> (vector, vector) FOR ORDER BY float_ops,
-    OPERATOR 2 <<#>> (vector, sphere_vector) FOR SEARCH;
+    OPERATOR 2 <<#>> (vector, sphere_vector) FOR SEARCH,
+    FUNCTION 1 _rabbithole_support_vector_ip_ops();
 
 CREATE OPERATOR CLASS vector_cosine_ops
     FOR TYPE vector USING rabbithole FAMILY vector_cosine_ops AS
     OPERATOR 1 <=> (vector, vector) FOR ORDER BY float_ops,
-    OPERATOR 2 <<=>> (vector, sphere_vector) FOR SEARCH;
+    OPERATOR 2 <<=>> (vector, sphere_vector) FOR SEARCH,
+    FUNCTION 1 _rabbithole_support_vector_cosine_ops();

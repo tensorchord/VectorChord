@@ -823,16 +823,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pgrx-catalog"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38fc7bbd6334277565c322bf9d48c80bb8858cad493ec29e337df39dc259fc6a"
-dependencies = [
- "paste",
- "pgrx",
-]
-
-[[package]]
 name = "pgrx-macros"
 version = "0.12.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -987,14 +977,12 @@ name = "rabbithole"
 version = "0.0.0"
 dependencies = [
  "base",
- "common",
  "detect",
  "half 2.4.1",
  "log",
  "nalgebra",
  "paste",
  "pgrx",
- "pgrx-catalog",
  "quantization",
  "rand",
  "rand_chacha",
