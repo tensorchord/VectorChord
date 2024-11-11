@@ -209,6 +209,10 @@ pub unsafe fn opfamily(index: pgrx::pg_sys::Relation) -> Opfamily {
 
     let (vector, pg_distance) = convert_name_to_vd(&result_string).unwrap();
 
+    unsafe {
+        pgrx::pg_sys::pfree(result_datum.cast_mut_ptr());
+    }
+
     Opfamily {
         vector,
         pg_distance,
