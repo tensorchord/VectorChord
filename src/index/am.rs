@@ -653,6 +653,39 @@ pub unsafe extern "C" fn ambuildempty(_index: pgrx::pg_sys::Relation) {
     pgrx::error!("Unlogged indexes are not supported.");
 }
 
+#[cfg(feature = "pg13")]
+#[pgrx::pg_guard]
+pub unsafe extern "C" fn aminsert(
+    index: pgrx::pg_sys::Relation,
+    values: *mut Datum,
+    is_null: *mut bool,
+    heap_tid: pgrx::pg_sys::ItemPointer,
+    _heap: pgrx::pg_sys::Relation,
+    _check_unique: pgrx::pg_sys::IndexUniqueCheck::Type,
+    _index_info: *mut pgrx::pg_sys::IndexInfo,
+) -> bool {
+    use base::vector::OwnedVector;
+    let opfamily = unsafe { am_options::opfamily(index) };
+    let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
+    if let Some(vector) = vector {
+        let vector = match opfamily.preprocess(vector.as_borrowed()) {
+            OwnedVector::Vecf32(x) => x,
+            OwnedVector::Vecf16(_) => unreachable!(),
+            OwnedVector::SVecf32(_) => unreachable!(),
+            OwnedVector::BVector(_) => unreachable!(),
+        };
+        let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
+        algorithm::insert::insert(
+            unsafe { Relation::new(index) },
+            pointer,
+            vector.into_vec(),
+            opfamily.distance_kind(),
+        );
+    }
+    false
+}
+
+#[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16", feature = "pg17"))]
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn aminsert(
     index: pgrx::pg_sys::Relation,
