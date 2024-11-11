@@ -13,23 +13,13 @@ path = "./src/bin/pgrx_embed.rs"
 
 [features]
 default = []
-pg13 = ["pgrx/pg13"]
-pg14 = ["pgrx/pg14"]
-pg15 = ["pgrx/pg15"]
-pg16 = ["pgrx/pg16"]
-pg17 = ["pgrx/pg17"]
+pg13 = ["pgrx/pg13", "pgrx-catalog/pg13"]
+pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
+pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
+pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
+pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
-half = "2.4.1"
-paste = "1"
-pgrx = { version = "=0.12.8", default-features = false, features = ["cshim"] }
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-rand_distr = "0.4.3"
-serde = "1"
-toml = "0.8.19"
-validator = { version = "0.18.1", features = ["derive"] }
-
 base = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 detect = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
 quantization = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch = "rabbithole-2" }
@@ -38,9 +28,20 @@ quantization = { git = "https://github.com/tensorchord/pgvecto.rs.git", branch =
 nalgebra = { version = "=0.33.0", default-features = false }
 
 # lock rkyv version forever so that data is always compatible
-log = "0.4.22"
-rayon = "1.10.0"
 rkyv = { version = "=0.7.45", features = ["validation"] }
+
+half = "2.4.1"
+log = "0.4.22"
+paste = "1"
+pgrx = { version = "=0.12.8", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.1.0"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+rand_distr = "0.4.3"
+rayon = "1.10.0"
+serde = "1"
+toml = "0.8.19"
+validator = { version = "0.18.1", features = ["derive"] }
 
 [lints]
 rust.unsafe_op_in_unsafe_fn = "deny"

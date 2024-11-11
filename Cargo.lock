@@ -823,6 +823,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pgrx-catalog"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38fc7bbd6334277565c322bf9d48c80bb8858cad493ec29e337df39dc259fc6a"
+dependencies = [
+ "paste",
+ "pgrx",
+]
+
+[[package]]
 name = "pgrx-macros"
 version = "0.12.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -983,6 +993,7 @@ dependencies = [
  "nalgebra",
  "paste",
  "pgrx",
+ "pgrx-catalog",
  "quantization",
  "rand",
  "rand_chacha",
@@ -1150,9 +1161,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.38"
+version = "0.38.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa260229e6538e52293eeb577aabd09945a09d6d9cc0fc550ed7529056c2e32a"
+checksum = "99e4ea3e1cdc4b559b8e5650f9c8e5998e3e5c1343b4eaf034565f32318d63c0"
 dependencies = [
  "bitflags",
  "errno",

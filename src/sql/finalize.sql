@@ -33,6 +33,9 @@ CREATE OPERATOR <<=>> (
 CREATE FUNCTION sphere(vector, real) RETURNS sphere_vector
 IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
 
+CREATE FUNCTION rabbithole_prewarm(regclass) RETURNS TEXT
+STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_rabbithole_prewarm_wrapper';
+
 -- List of access methods
 
 CREATE ACCESS METHOD rabbithole TYPE INDEX HANDLER _rabbithole_amhandler;
