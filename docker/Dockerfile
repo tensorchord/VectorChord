@@ -1,11 +1,11 @@
 ARG PG_VERSION=17
 ARG PGVECTOR=0.8.0
-ARG SEMVER=0.0.0
-ARG PLATFORM=amd64
 
 FROM pgvector/pgvector:${PGVECTOR}-pg${PG_VERSION}
 
 ARG PG_VERSION
+ARG SEMVER=0.0.0
+ARG PLATFORM=amd64
 RUN echo ${PG_VERSION}
 COPY ./build/rabbithole-pg${PG_VERSION}_${SEMVER}_${PLATFORM}.deb /tmp/rabbithole.deb
 RUN apt-get install -y /tmp/rabbithole.deb && rm -f /tmp/rabbithole.deb
