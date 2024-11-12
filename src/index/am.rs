@@ -26,9 +26,7 @@ pub unsafe fn init() {
     }
 }
 
-#[pgrx::pg_extern(sql = "\
-CREATE FUNCTION _rabbithole_amhandler(internal) RETURNS index_am_handler
-IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '@FUNCTION_NAME@';")]
+#[pgrx::pg_extern(sql = "")]
 fn _rabbithole_amhandler(_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> Internal {
     type T = pgrx::pg_sys::IndexAmRoutine;
     unsafe {

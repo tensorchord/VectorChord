@@ -2,7 +2,7 @@ use crate::algorithm::tuples::*;
 use crate::postgres::Relation;
 use std::fmt::Write;
 
-pub fn prewarm(relation: Relation) -> String {
+pub fn prewarm(relation: Relation, height: i32) -> String {
     let mut message = String::new();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
@@ -11,9 +11,15 @@ pub fn prewarm(relation: Relation) -> String {
         .map(rkyv::check_archived_root::<MetaTuple>)
         .expect("data corruption")
         .expect("data corruption");
+    if height > 2 {
+        return message;
+    }
     let lists = vec![meta_tuple.first];
     writeln!(message, "number of h2 tuples: {}", lists.len()).unwrap();
     writeln!(message, "number of h2 pages: {}", 1).unwrap();
+    if height == 2 {
+        return message;
+    }
     let mut counter = 0_usize;
     let lists: Vec<_> = {
         let mut results = Vec::new();
@@ -52,6 +58,9 @@ pub fn prewarm(relation: Relation) -> String {
     };
     writeln!(message, "number of h1 tuples: {}", lists.len()).unwrap();
     writeln!(message, "number of h1 pages: {}", counter).unwrap();
+    if height == 1 {
+        return message;
+    }
     let mut counter = 0_usize;
     let lists: Vec<_> = {
         let mut results = Vec::new();

@@ -3,8 +3,8 @@ use crate::postgres::Relation;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass};
 
-#[pgrx::pg_extern(strict)]
-fn _rabbithole_prewarm(indexrelid: Oid) -> String {
+#[pgrx::pg_extern(sql = "")]
+fn _rabbithole_prewarm(indexrelid: Oid, height: i32) -> String {
     let pg_am = PgAm::search_amname(c"rabbithole").unwrap();
     let Some(pg_am) = pg_am.get() else {
         pgrx::error!("rabbithole is not installed");
@@ -18,7 +18,7 @@ fn _rabbithole_prewarm(indexrelid: Oid) -> String {
     }
     let index = unsafe { pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::ShareLock as _) };
     let relation = unsafe { Relation::new(index) };
-    let message = prewarm(relation);
+    let message = prewarm(relation, height);
     unsafe {
         pgrx::pg_sys::index_close(index, pgrx::pg_sys::ShareLock as _);
     }

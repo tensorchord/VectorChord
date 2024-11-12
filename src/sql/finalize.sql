@@ -8,21 +8,21 @@ CREATE TYPE sphere_vector AS (
 -- List of operators
 
 CREATE OPERATOR <<->> (
-    PROCEDURE = _rabbithole_pgvector_vector_sphere_l2_in,
+    PROCEDURE = _rabbithole_vector_sphere_l2_in,
     LEFTARG = vector,
     RIGHTARG = sphere_vector,
     COMMUTATOR = <<->>
 );
 
 CREATE OPERATOR <<#>> (
-    PROCEDURE = _rabbithole_pgvector_vector_sphere_ip_in,
+    PROCEDURE = _rabbithole_vector_sphere_ip_in,
     LEFTARG = vector,
     RIGHTARG = sphere_vector,
     COMMUTATOR = <<#>>
 );
 
 CREATE OPERATOR <<=>> (
-    PROCEDURE = _rabbithole_pgvector_vector_sphere_cosine_in,
+    PROCEDURE = _rabbithole_vector_sphere_cosine_in,
     LEFTARG = vector,
     RIGHTARG = sphere_vector,
     COMMUTATOR = <<=>>
@@ -33,12 +33,15 @@ CREATE OPERATOR <<=>> (
 CREATE FUNCTION sphere(vector, real) RETURNS sphere_vector
 IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
 
-CREATE FUNCTION rabbithole_prewarm(regclass) RETURNS TEXT
+CREATE FUNCTION rabbithole_amhandler(internal) RETURNS index_am_handler
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_rabbithole_amhandler_wrapper';
+
+CREATE FUNCTION rabbithole_prewarm(regclass, integer default 0) RETURNS TEXT
 STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_rabbithole_prewarm_wrapper';
 
 -- List of access methods
 
-CREATE ACCESS METHOD rabbithole TYPE INDEX HANDLER _rabbithole_amhandler;
+CREATE ACCESS METHOD rabbithole TYPE INDEX HANDLER rabbithole_amhandler;
 COMMENT ON ACCESS METHOD rabbithole IS 'rabbithole index access method';
 
 -- List of operator families

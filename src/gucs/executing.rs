@@ -19,7 +19,7 @@ pub unsafe fn init() {
         "`epsilon` argument of rabbithole.",
         "`epsilon` argument of rabbithole.",
         &EPSILON,
-        1.0,
+        0.0,
         4.0,
         GucContext::Userset,
         GucFlags::default(),
