@@ -10,18 +10,18 @@
 <a href="https://github.com/tensorchord/vcvec#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/vcvec/main"></a>
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the pgvecto.rs project.
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the pgvecto.rs project. VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from millions to billions of entries.
 
 ## Features
 - **Blazing-Fast Queries**: Achieve up to 3x faster queries compared to pgvector's HNSW, maintaining the same recall level.
 - **External Index Precomputation**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
 - **Lightning-Fast Index Building**: Build index up to 20x faster than pgvector hnsw with precomputed centroids. (1.5 min for 1M 960-dim vectors)
-<!-- - **High-throughput Update**: TODO -->
 - **Advanced Quantization**: Uses cutting-edge RaBitQ to compress float vectors into compact bit representations with autonomous reranking.
 - **Optimized SIMD Kernels**: Features a highly tuned computation kernel optimized for fast scans using SIMD and efficient register management.
 - **Disk-Friendly Performance**: Query laion-100M 768-dim vectors using just 32GB of memory, achieving 35ms P50 latency with top10 recall@95%.
 - **Seamless Compatibility**: Compatible with pgvector data types while delivering faster indexing and querying.
 - **Simple Configuration**: No need to tweak quantization or rerank parameters — best defaults are provided out of the box.
+<!-- - **High-throughput Update**: TODO -->
 
 ## Quick Start
 <!-- For new users, we recommend using the Docker image to get started quickly.
@@ -42,11 +42,17 @@ Run the following SQL to ensure the extension is enabled.
 CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 ```
 
+And make sure to add vchord.so to the shared_preload_libraries in postgresql.conf.
+
+```SQL
+-- Add vchord and pgvector to shared_preload_libraries --
+ALTER SYSTEM SET shared_preload_libraries = 'vector,vchord';
+```
+
 To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
 CREATE INDEX ON gist_train USING vchordrq (embedding vchordrq.vector_l2_ops) WITH (options = $$
-[build.internal]
 lists = 4096
 spherical_centroids = true
 $$);
@@ -65,7 +71,12 @@ Supported distance functions are:
 - <#> - (negative) inner product
 - <=> - cosine distance
 
-<!-- TODO: Sphere search -->
+<!-- ### Range Query
+
+To query vectors within a certain distance range, you can use the following syntax.
+```SQL
+
+``` -->
 
 ### Query Performance Tuning
 You can fine-tune the search performance by adjusting the `probes` and `epsilon` parameters:
@@ -93,6 +104,13 @@ SET jit = off;
 -- For disk-heavy workloads, you can increase this to up to 90% of total memory.
 -- Note: A restart is required for this setting to take effect.
 ALTER SYSTEM SET shared_buffers = '8GB';
+
+-- vchordrq relies on a projection matrix to optimize performance.
+-- Add your vector dimensions to the `prewarm_dim` list to reduce latency for the first query in each new connection.
+-- If this is not configured, the first query will have higher latency as the matrix is generated on demand.
+-- Default value: '64,128,256,384,512,768,1024,1536'
+-- Note: This setting requires a database restart to take effect.
+ALTER SYSTEM SET vchordrq.prewarm_dim = '64,128,256,384,512,768,1024,1536';
 ```
 
 <!-- ### Indexing
@@ -119,7 +137,12 @@ SELECT phase, round(100.0 * blocks_done / nullif(blocks_total, 0), 1) AS "%" FRO
 ```
 
 ### Installing From Source
-TODO
+Install pgrx according to [pgrx's instruction](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#getting-started).
+```bash
+cargo install --locked cargo-pgrx
+cargo pgrx init --pg17 $(which pg_config) # To init with system postgres, with pg_config in PATH
+cargo pgrx install --release --sudo # To install the extension into the system postgres with sudo
+```
 
 ## Limitations
 - Data Type Support: Currently, only the `f32` data type is supported for vectors, and the dimensionality is limited to 2000. (Dimension support improvements are planned for future updates.)
