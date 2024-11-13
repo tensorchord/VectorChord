@@ -1,6 +1,3 @@
-statement ok
-SET search_path TO public, rabbithole, pg_temp;
-
 # partition table
 statement ok
 CREATE TABLE items (val vector(3), category_id int) PARTITION BY LIST(category_id);
@@ -22,7 +19,7 @@ SELECT
 FROM generate_series(1, 1000);
 
 statement ok
-CREATE INDEX ON items USING rabbithole (val public.vector_l2_ops);
+CREATE INDEX ON items USING vchordrq (val public.vector_l2_ops);
 
 query I
 SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
@@ -30,7 +27,7 @@ SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <-> '[0.5,0.5,0.5]' limit
 10
 
 statement ok
-CREATE INDEX ON id_123 USING rabbithole (val vector_cosine_ops);
+CREATE INDEX ON id_123 USING vchordrq (val vector_cosine_ops);
 
 query I
 SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <=> '[0.5,0.5,0.5]' limit 10) t2;
@@ -39,7 +36,7 @@ SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <=> '[0.5,0.5,0.5]' limit
 
 # partial index
 statement ok
-CREATE INDEX ON items USING rabbithole (val public.vector_ip_ops) WHERE (category_id = 1);
+CREATE INDEX ON items USING vchordrq (val public.vector_ip_ops) WHERE (category_id = 1);
 
 query I
 SELECT COUNT(1) FROM

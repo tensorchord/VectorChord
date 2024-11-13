@@ -98,9 +98,8 @@ async def create_connection(url):
         autocommit=True,
         **KEEPALIVE_KWARGS,
     )
-    await conn.execute("SET search_path TO public, vectors, rabbithole")
     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    await conn.execute("CREATE EXTENSION IF NOT EXISTS rabbithole")
+    await conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     await register_vector_async(conn)
     return conn
 
@@ -153,7 +152,7 @@ async def build_index(
     await conn.execute(f"SET max_parallel_maintenance_workers TO {workers}")
     await conn.execute(f"SET max_parallel_workers TO {workers}")
     await conn.execute(
-        f"CREATE INDEX ON {name} USING rabbithole (embedding {metric_ops}) WITH (options = $${ivf_config}$$)"
+        f"CREATE INDEX ON {name} USING vchordrq (embedding {metric_ops}) WITH (options = $${ivf_config}$$)"
     )
     print(f"Index build time: {perf_counter() - start_time:.2f}s")
     finish.set()

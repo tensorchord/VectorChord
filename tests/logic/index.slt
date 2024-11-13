@@ -1,21 +1,18 @@
 statement ok
-SET search_path TO public, rabbithole, pg_temp;
-
-statement ok
 CREATE TABLE t (val vector(3));
 
 statement ok
 INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 1000);
 
 statement error
-CREATE INDEX ON t USING rabbithole (val vector_l2_ops)
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
 WITH (options = $$
 unknown_options=true
 $$);
 
 # multiple index on single column
 statement ok
-CREATE INDEX ON t USING rabbithole (val vector_l2_ops)
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
 WITH (options = $$
 residual_quantization = true
 [build.internal]
@@ -24,7 +21,7 @@ spherical_centroids = false
 $$);
 
 statement ok
-CREATE INDEX ON t USING rabbithole (val vector_ip_ops)
+CREATE INDEX ON t USING vchordrq (val vector_ip_ops)
 WITH (options = $$
 residual_quantization = false
 [build.internal]
@@ -33,7 +30,7 @@ spherical_centroids = true
 $$);
 
 statement ok
-CREATE INDEX ON t USING rabbithole (val vector_cosine_ops)
+CREATE INDEX ON t USING vchordrq (val vector_cosine_ops)
 WITH (options = $$
 residual_quantization = false
 [build.internal]

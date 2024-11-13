@@ -76,7 +76,7 @@ jobs:
           docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
           docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
           ./tools/package.sh
-          docker build -t rabbithole:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
+          docker build -t vchord:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 
       - name: Setup SQL Logic Test
         run: |
@@ -88,8 +88,8 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          docker run --rm --name test -d -e POSTGRES_PASSWORD=${PGPASSWORD} -p 5432:5432 rabbithole:pg${{ matrix.version }}
+          docker run --rm --name test -d -e POSTGRES_PASSWORD=${PGPASSWORD} -p 5432:5432 vchord:pg${{ matrix.version }}
           sleep 5
-          psql -h localhost -U postgres -d postgres -c 'CREATE EXTENSION IF NOT EXISTS rabbithole CASCADE;'
+          psql -h localhost -U postgres -d postgres -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
           sqllogictest './tests/**/*.slt'
           docker stop test

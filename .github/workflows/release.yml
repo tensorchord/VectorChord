@@ -67,8 +67,8 @@ jobs:
           docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
           docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
           ./tools/package.sh
-          gh release upload --clobber $SEMVER ./build/rabbithole-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
-          gh release upload --clobber $SEMVER ./build/rabbithole-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
+          gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
+          gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
 
   docker:
     runs-on: ubuntu-latest
@@ -84,9 +84,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download $SEMVER --pattern "rabbithole-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb" --output rabbithole-binary-release.deb
+          gh release download $SEMVER --pattern "vchord-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb" --output vchord-binary-release.deb
           mkdir -p build
-          cp rabbithole-binary-release.deb ./build/rabbithole-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb
+          cp vchord-binary-release.deb ./build/vchord-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -103,7 +103,7 @@ jobs:
           push: true
           platforms: "linux/${{ matrix.platform }}"
           file: ./docker/binary.Dockerfile
-          tags: tensorchord/rabbithole-binary:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
+          tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
       - name: Push PostgreSQL release to Docker Registry
         uses: docker/build-push-action@v6
         with:
@@ -111,7 +111,7 @@ jobs:
           push: true
           platforms: "linux/${{ matrix.platform }}"
           file: ./docker/Dockerfile
-          tags: tensorchord/rabbithole-postgres:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
+          tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${SEMVER}-${{ matrix.platform }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
             SEMVER=${SEMVER}

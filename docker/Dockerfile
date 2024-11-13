@@ -6,8 +6,9 @@ FROM pgvector/pgvector:${PGVECTOR}-pg${PG_VERSION}
 ARG PG_VERSION
 ARG SEMVER=0.0.0
 ARG PLATFORM=amd64
-RUN echo ${PG_VERSION}
-COPY ./build/rabbithole-pg${PG_VERSION}_${SEMVER}_${PLATFORM}.deb /tmp/rabbithole.deb
-RUN apt-get install -y /tmp/rabbithole.deb && rm -f /tmp/rabbithole.deb
 
-CMD ["postgres", "-c" ,"shared_preload_libraries=rabbithole.so"]
+RUN echo ${PG_VERSION}
+COPY ./build/vchord-pg${PG_VERSION}_${SEMVER}_${PLATFORM}.deb /tmp/vchord.deb
+RUN apt-get install -y /tmp/vchord.deb && rm -f /tmp/vchord.deb
+
+CMD ["postgres", "-c" ,"shared_preload_libraries=vchord.so"]

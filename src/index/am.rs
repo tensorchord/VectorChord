@@ -26,10 +26,8 @@ pub unsafe fn init() {
     }
 }
 
-#[pgrx::pg_extern(sql = "\
-CREATE FUNCTION _rabbithole_amhandler(internal) RETURNS index_am_handler
-IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '@FUNCTION_NAME@';")]
-fn _rabbithole_amhandler(_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> Internal {
+#[pgrx::pg_extern(sql = "")]
+fn _vchordrq_amhandler(_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> Internal {
     type T = pgrx::pg_sys::IndexAmRoutine;
     unsafe {
         let index_am_routine = pgrx::pg_sys::palloc0(size_of::<T>()) as *mut T;
@@ -227,14 +225,14 @@ pub unsafe extern "C" fn ambuild(
             self.opfamily
         }
     }
-    let (vector_options, rabbithole_options) = unsafe { am_options::options(index) };
+    let (vector_options, vchordrq_options) = unsafe { am_options::options(index) };
     if let Err(errors) = Validate::validate(&vector_options) {
         pgrx::error!("error while validating options: {}", errors);
     }
     if vector_options.dims > 2000 {
         pgrx::error!("error while validating options: dimension is too large");
     }
-    if let Err(errors) = Validate::validate(&rabbithole_options) {
+    if let Err(errors) = Validate::validate(&vchordrq_options) {
         pgrx::error!("error while validating options: {}", errors);
     }
     let opfamily = unsafe { am_options::opfamily(index) };
@@ -248,7 +246,7 @@ pub unsafe extern "C" fn ambuild(
     let index_relation = unsafe { Relation::new(index) };
     algorithm::build::build(
         vector_options,
-        rabbithole_options,
+        vchordrq_options,
         heap_relation.clone(),
         index_relation.clone(),
         reporter.clone(),
@@ -262,20 +260,20 @@ pub unsafe extern "C" fn ambuild(
                 heap,
                 index_info,
                 leader.tablescandesc,
-                leader.rabbitholeshared,
+                leader.vchordrqshared,
                 Some(reporter),
             );
             leader.wait();
             let nparticipants = leader.nparticipants;
             loop {
-                pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.rabbitholeshared).mutex);
-                if (*leader.rabbitholeshared).nparticipantsdone == nparticipants {
-                    pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.rabbitholeshared).mutex);
+                pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.vchordrqshared).mutex);
+                if (*leader.vchordrqshared).nparticipantsdone == nparticipants {
+                    pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordrqshared).mutex);
                     break;
                 }
-                pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.rabbitholeshared).mutex);
+                pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordrqshared).mutex);
                 pgrx::pg_sys::ConditionVariableSleep(
-                    &raw mut (*leader.rabbitholeshared).workersdonecv,
+                    &raw mut (*leader.vchordrqshared).workersdonecv,
                     pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN,
                 );
             }
@@ -326,7 +324,7 @@ fn is_mvcc_snapshot(snapshot: *mut pgrx::pg_sys::SnapshotData) -> bool {
 struct RabbitholeLeader {
     pcxt: *mut pgrx::pg_sys::ParallelContext,
     nparticipants: i32,
-    rabbitholeshared: *mut RabbitholeShared,
+    vchordrqshared: *mut RabbitholeShared,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     snapshot: pgrx::pg_sys::Snapshot,
 }
@@ -367,8 +365,8 @@ impl RabbitholeLeader {
         }
         let pcxt = unsafe {
             pgrx::pg_sys::CreateParallelContext(
-                c"rabbithole".as_ptr(),
-                c"rabbithole_parallel_build_main".as_ptr(),
+                c"vchordrq".as_ptr(),
+                c"vchordrq_parallel_build_main".as_ptr(),
                 request,
             )
         };
@@ -406,11 +404,11 @@ impl RabbitholeLeader {
             }
         }
 
-        let rabbitholeshared = unsafe {
-            let rabbitholeshared =
+        let vchordrqshared = unsafe {
+            let vchordrqshared =
                 pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<RabbitholeShared>())
                     .cast::<RabbitholeShared>();
-            rabbitholeshared.write(RabbitholeShared {
+            vchordrqshared.write(RabbitholeShared {
                 heaprelid: (*heap).rd_id,
                 indexrelid: (*index).rd_id,
                 isconcurrent,
@@ -419,9 +417,9 @@ impl RabbitholeLeader {
                 nparticipantsdone: 0,
                 indtuples: 0,
             });
-            pgrx::pg_sys::ConditionVariableInit(&raw mut (*rabbitholeshared).workersdonecv);
-            pgrx::pg_sys::SpinLockInit(&raw mut (*rabbitholeshared).mutex);
-            rabbitholeshared
+            pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordrqshared).workersdonecv);
+            pgrx::pg_sys::SpinLockInit(&raw mut (*vchordrqshared).mutex);
+            vchordrqshared
         };
 
         let tablescandesc = unsafe {
@@ -432,7 +430,7 @@ impl RabbitholeLeader {
         };
 
         unsafe {
-            pgrx::pg_sys::shm_toc_insert((*pcxt).toc, 0xA000000000000001, rabbitholeshared.cast());
+            pgrx::pg_sys::shm_toc_insert((*pcxt).toc, 0xA000000000000001, vchordrqshared.cast());
             pgrx::pg_sys::shm_toc_insert((*pcxt).toc, 0xA000000000000002, tablescandesc.cast());
         }
 
@@ -457,7 +455,7 @@ impl RabbitholeLeader {
         Some(Self {
             pcxt,
             nparticipants: nworkers_launched + 1,
-            rabbitholeshared,
+            vchordrqshared,
             tablescandesc,
             snapshot,
         })
@@ -487,11 +485,11 @@ impl Drop for RabbitholeLeader {
 
 #[pgrx::pg_guard]
 #[no_mangle]
-pub unsafe extern "C" fn rabbithole_parallel_build_main(
+pub unsafe extern "C" fn vchordrq_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
-    let rabbitholeshared = unsafe {
+    let vchordrqshared = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<RabbitholeShared>()
     };
     let tablescandesc = unsafe {
@@ -500,29 +498,22 @@ pub unsafe extern "C" fn rabbithole_parallel_build_main(
     };
     let heap_lockmode;
     let index_lockmode;
-    if unsafe { !(*rabbitholeshared).isconcurrent } {
+    if unsafe { !(*vchordrqshared).isconcurrent } {
         heap_lockmode = pgrx::pg_sys::ShareLock as pgrx::pg_sys::LOCKMODE;
         index_lockmode = pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE;
     } else {
         heap_lockmode = pgrx::pg_sys::ShareUpdateExclusiveLock as pgrx::pg_sys::LOCKMODE;
         index_lockmode = pgrx::pg_sys::RowExclusiveLock as pgrx::pg_sys::LOCKMODE;
     }
-    let heap = unsafe { pgrx::pg_sys::table_open((*rabbitholeshared).heaprelid, heap_lockmode) };
-    let index = unsafe { pgrx::pg_sys::index_open((*rabbitholeshared).indexrelid, index_lockmode) };
+    let heap = unsafe { pgrx::pg_sys::table_open((*vchordrqshared).heaprelid, heap_lockmode) };
+    let index = unsafe { pgrx::pg_sys::index_open((*vchordrqshared).indexrelid, index_lockmode) };
     let index_info = unsafe { pgrx::pg_sys::BuildIndexInfo(index) };
     unsafe {
-        (*index_info).ii_Concurrent = (*rabbitholeshared).isconcurrent;
+        (*index_info).ii_Concurrent = (*vchordrqshared).isconcurrent;
     }
 
     unsafe {
-        parallel_build(
-            index,
-            heap,
-            index_info,
-            tablescandesc,
-            rabbitholeshared,
-            None,
-        );
+        parallel_build(index, heap, index_info, tablescandesc, vchordrqshared, None);
     }
 
     unsafe {
@@ -536,7 +527,7 @@ unsafe fn parallel_build(
     heap: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
-    rabbitholeshared: *mut RabbitholeShared,
+    vchordrqshared: *mut RabbitholeShared,
     mut reporter: Option<PgReporter>,
 ) {
     #[derive(Debug, Clone)]
@@ -629,10 +620,10 @@ unsafe fn parallel_build(
         unsafe {
             let indtuples;
             {
-                pgrx::pg_sys::SpinLockAcquire(&raw mut (*rabbitholeshared).mutex);
-                (*rabbitholeshared).indtuples += 1;
-                indtuples = (*rabbitholeshared).indtuples;
-                pgrx::pg_sys::SpinLockRelease(&raw mut (*rabbitholeshared).mutex);
+                pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+                (*vchordrqshared).indtuples += 1;
+                indtuples = (*vchordrqshared).indtuples;
+                pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
             }
             if let Some(reporter) = reporter.as_mut() {
                 reporter.tuples_done(indtuples);
@@ -641,10 +632,10 @@ unsafe fn parallel_build(
     });
 
     unsafe {
-        pgrx::pg_sys::SpinLockAcquire(&raw mut (*rabbitholeshared).mutex);
-        (*rabbitholeshared).nparticipantsdone += 1;
-        pgrx::pg_sys::SpinLockRelease(&raw mut (*rabbitholeshared).mutex);
-        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*rabbitholeshared).workersdonecv);
+        pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+        (*vchordrqshared).nparticipantsdone += 1;
+        pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
+        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*vchordrqshared).workersdonecv);
     }
 }
 
@@ -653,6 +644,39 @@ pub unsafe extern "C" fn ambuildempty(_index: pgrx::pg_sys::Relation) {
     pgrx::error!("Unlogged indexes are not supported.");
 }
 
+#[cfg(feature = "pg13")]
+#[pgrx::pg_guard]
+pub unsafe extern "C" fn aminsert(
+    index: pgrx::pg_sys::Relation,
+    values: *mut Datum,
+    is_null: *mut bool,
+    heap_tid: pgrx::pg_sys::ItemPointer,
+    _heap: pgrx::pg_sys::Relation,
+    _check_unique: pgrx::pg_sys::IndexUniqueCheck::Type,
+    _index_info: *mut pgrx::pg_sys::IndexInfo,
+) -> bool {
+    use base::vector::OwnedVector;
+    let opfamily = unsafe { am_options::opfamily(index) };
+    let vector = unsafe { opfamily.datum_to_vector(*values.add(0), *is_null.add(0)) };
+    if let Some(vector) = vector {
+        let vector = match opfamily.preprocess(vector.as_borrowed()) {
+            OwnedVector::Vecf32(x) => x,
+            OwnedVector::Vecf16(_) => unreachable!(),
+            OwnedVector::SVecf32(_) => unreachable!(),
+            OwnedVector::BVector(_) => unreachable!(),
+        };
+        let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
+        algorithm::insert::insert(
+            unsafe { Relation::new(index) },
+            pointer,
+            vector.into_vec(),
+            opfamily.distance_kind(),
+        );
+    }
+    false
+}
+
+#[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16", feature = "pg17"))]
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn aminsert(
     index: pgrx::pg_sys::Relation,

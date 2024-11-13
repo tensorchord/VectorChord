@@ -32,9 +32,8 @@ def create_connection(password):
         autocommit=True,
         **keepalive_kwargs,
     )
-    conn.execute("SET search_path TO public, vectors, rabbithole")
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    conn.execute("CREATE EXTENSION IF NOT EXISTS rabbithole")
+    conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     register_vector(conn)
     return conn
 

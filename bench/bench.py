@@ -23,7 +23,7 @@ def build_arg_parse():
         "-p", "--password", help="Database password", default="password"
     )
     parser.add_argument(
-        "--nprob", help="argument rabbithole.probes for query", default=300, type=int
+        "--nprob", help="argument vchordrq.probes for query", default=300, type=int
     )
     return parser
 
@@ -41,9 +41,8 @@ def create_connection(password):
         autocommit=True,
         **keepalive_kwargs,
     )
-    conn.execute("SET search_path TO public, vectors, rabbithole")
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    conn.execute("CREATE EXTENSION IF NOT EXISTS rabbithole")
+    conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     register_vector(conn)
     return conn
 
@@ -87,6 +86,6 @@ if __name__ == "__main__":
     else:
         raise ValueError
     conn = create_connection(args.password)
-    conn.execute(f"SET rabbithole.probes={args.nprob}")
+    conn.execute(f"SET vchordrq.probes={args.nprob}")
 
     bench(args.name, test, answer, metric_ops, conn)

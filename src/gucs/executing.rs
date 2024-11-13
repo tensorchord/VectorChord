@@ -5,9 +5,9 @@ static EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 
 pub unsafe fn init() {
     GucRegistry::define_int_guc(
-        "rabbithole.probes",
-        "`probes` argument of rabbithole.",
-        "`probes` argument of rabbithole.",
+        "vchordrq.probes",
+        "`probes` argument of vchordrq.",
+        "`probes` argument of vchordrq.",
         &PROBES,
         1,
         u16::MAX as _,
@@ -15,11 +15,11 @@ pub unsafe fn init() {
         GucFlags::default(),
     );
     GucRegistry::define_float_guc(
-        "rabbithole.epsilon",
-        "`epsilon` argument of rabbithole.",
-        "`epsilon` argument of rabbithole.",
+        "vchordrq.epsilon",
+        "`epsilon` argument of vchordrq.",
+        "`epsilon` argument of vchordrq.",
         &EPSILON,
-        1.0,
+        0.0,
         4.0,
         GucContext::Userset,
         GucFlags::default(),
