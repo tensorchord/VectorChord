@@ -10,7 +10,9 @@
 <a href="https://github.com/tensorchord/vcvec#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/vcvec/main"></a>
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the pgvecto.rs project. VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from millions to billions of entries.
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project. 
+
+VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from millions to billions of entries.
 
 ## Features
 - **Blazing-Fast Queries**: Achieve up to 3x faster queries compared to pgvector's HNSW, maintaining the same recall level.
