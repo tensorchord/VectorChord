@@ -8,31 +8,25 @@ pub fn k_means<S: ScalarLike>(
     parallelism: &impl Parallelism,
     c: usize,
     dims: usize,
-    mut samples: Vec<Vec<S>>,
+    samples: Vec<Vec<S>>,
     is_spherical: bool,
     iterations: usize,
 ) -> Vec<Vec<S>> {
     assert!(c > 0);
-    let n = samples.len();
     assert!(dims > 0);
-    if is_spherical {
-        for i in 0..n {
-            let sample = &mut samples[i];
-            let l = S::reduce_sum_of_x2(sample).sqrt();
-            S::vector_mul_scalar_inplace(sample, 1.0 / l);
-        }
-    }
+    let n = samples.len();
     if n <= c {
-        return quick_centers(c, dims, samples);
-    }
-    let mut lloyd_k_means = LloydKMeans::new(parallelism, c, dims, samples, is_spherical);
-    for _ in 0..iterations {
-        parallelism.check();
-        if lloyd_k_means.iterate() {
-            break;
+        quick_centers(c, dims, samples, is_spherical)
+    } else {
+        let mut lloyd_k_means = LloydKMeans::new(parallelism, c, dims, samples, is_spherical);
+        for _ in 0..iterations {
+            parallelism.check();
+            if lloyd_k_means.iterate() {
+                break;
+            }
         }
+        lloyd_k_means.finish()
     }
-    lloyd_k_means.finish()
 }
 
 pub fn k_means_lookup<S: ScalarLike>(vector: &[S], centroids: &[Vec<S>]) -> usize {
@@ -47,24 +41,33 @@ pub fn k_means_lookup<S: ScalarLike>(vector: &[S], centroids: &[Vec<S>]) -> usiz
     result.1
 }
 
-pub fn quick_centers<S: ScalarLike>(
+fn quick_centers<S: ScalarLike>(
     c: usize,
     dims: usize,
-    mut samples: Vec<Vec<S>>,
+    samples: Vec<Vec<S>>,
+    is_spherical: bool,
 ) -> Vec<Vec<S>> {
     let n = samples.len();
-    let mut rng = rand::thread_rng();
     assert!(c >= n);
+    let mut rng = rand::thread_rng();
+    let mut centroids = samples;
     for _ in n..c {
         let r = (0..dims)
             .map(|_| S::from_f32(rng.gen_range(-1.0f32..1.0f32)))
             .collect();
-        samples.push(r);
+        centroids.push(r);
     }
-    samples
+    if is_spherical {
+        for i in 0..c {
+            let centroid = &mut centroids[i];
+            let l = S::reduce_sum_of_x2(centroid).sqrt();
+            S::vector_mul_scalar_inplace(centroid, 1.0 / l);
+        }
+    }
+    centroids
 }
 
-pub struct LloydKMeans<'a, P, S> {
+struct LloydKMeans<'a, P, S> {
     parallelism: &'a P,
     dims: usize,
     c: usize,
@@ -78,7 +81,7 @@ pub struct LloydKMeans<'a, P, S> {
 const DELTA: f32 = f16::EPSILON.to_f32_const();
 
 impl<'a, P: Parallelism, S: ScalarLike> LloydKMeans<'a, P, S> {
-    pub fn new(
+    fn new(
         parallelism: &'a P,
         c: usize,
         dims: usize,
@@ -120,7 +123,7 @@ impl<'a, P: Parallelism, S: ScalarLike> LloydKMeans<'a, P, S> {
         }
     }
 
-    pub fn iterate(&mut self) -> bool {
+    fn iterate(&mut self) -> bool {
         let dims = self.dims;
         let c = self.c;
         let rand = &mut self.rng;
@@ -207,7 +210,7 @@ impl<'a, P: Parallelism, S: ScalarLike> LloydKMeans<'a, P, S> {
         result
     }
 
-    pub fn finish(self) -> Vec<Vec<S>> {
+    fn finish(self) -> Vec<Vec<S>> {
         self.centroids
     }
 }
