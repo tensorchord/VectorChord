@@ -68,13 +68,13 @@ impl Validate for RabbitholeBuildOptions {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-pub struct RabbitholeIndexingOptions {
-    #[serde(default = "RabbitholeIndexingOptions::default_residual_quantization")]
+pub struct VchordrqIndexingOptions {
+    #[serde(default = "VchordrqIndexingOptions::default_residual_quantization")]
     pub residual_quantization: bool,
     pub build: RabbitholeBuildOptions,
 }
 
-impl RabbitholeIndexingOptions {
+impl VchordrqIndexingOptions {
     fn default_residual_quantization() -> bool {
         false
     }

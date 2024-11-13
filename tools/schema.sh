@@ -40,8 +40,8 @@ fi
 
 code=$(mktemp)
 chmod 700 $code
-CONTROL_FILEPATH="./rabbithole.control" SO_FILEPATH="$DIR/librabbithole.so" $(dirname "$0")/schema-codegen.sh >> $code
+CONTROL_FILEPATH="./vchord.control" SO_FILEPATH="$DIR/libvchord.so" $(dirname "$0")/schema-codegen.sh >> $code
 
-PGRX_EMBED=$code cargo rustc --package rabbithole --bin pgrx_embed_rabbithole "$@" -- --cfg pgrx_embed
+PGRX_EMBED=$code cargo rustc --package vchord --bin pgrx_embed_vchord "$@" -- --cfg pgrx_embed
 
-CARGO_PKG_VERSION="0.0.0" QEMU_LD_PREFIX=$QEMU_LD_PREFIX "${RUNNER[@]}" "$DIR/pgrx_embed_rabbithole" | expand -t 4 > $DIR/schema.sql
+CARGO_PKG_VERSION="0.0.0" QEMU_LD_PREFIX=$QEMU_LD_PREFIX "${RUNNER[@]}" "$DIR/pgrx_embed_vchord" | expand -t 4 > $DIR/schema.sql

@@ -1,14 +1,14 @@
 [package]
-name = "rabbithole"
+name = "vchord"
 version = "0.0.0"
 edition = "2021"
 
 [lib]
-name = "rabbithole"
+name = "vchord"
 crate-type = ["cdylib", "lib"]
 
 [[bin]]
-name = "pgrx_embed_rabbithole"
+name = "pgrx_embed_vchord"
 path = "./src/bin/pgrx_embed.rs"
 
 [features]

@@ -6,7 +6,7 @@ static PREWARM_DIM: GucSetting<Option<&CStr>> =
 
 pub unsafe fn init() {
     GucRegistry::define_string_guc(
-        "rabbithole.prewarm_dim",
+        "vchordrq.prewarm_dim",
         "prewarm_dim when the extension is loading.",
         "prewarm_dim when the extension is loading.",
         &PREWARM_DIM,
@@ -26,7 +26,7 @@ pub fn prewarm() {
                 }
             }
         } else {
-            pgrx::warning!("rabbithole.prewarm_dim is not a valid UTF-8 string");
+            pgrx::warning!("vchordrq.prewarm_dim is not a valid UTF-8 string");
         }
     }
 }

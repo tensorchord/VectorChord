@@ -1,6 +1,0 @@
-comment = 'rabbithole: Vector database plugin for Postgres, written in Rust, specifically designed for LLM'
-default_version = '@CARGO_VERSION@'
-module_pathname = '$libdir/rabbithole'
-relocatable = true
-superuser = true
-requires = 'vector'

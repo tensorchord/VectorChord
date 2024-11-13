@@ -4,7 +4,7 @@
 sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
 cargo install --locked cargo-pgrx
 cargo pgrx init
-cargo build --package rabbithole --lib --features pg16 --target x86_64-unknown-linux-gnu --profile opt
+cargo build --package vchord --lib --features pg16 --target x86_64-unknown-linux-gnu --profile opt
 ./tools/schema.sh --features pg16 --target x86_64-unknown-linux-gnu --profile opt
 
 export SEMVER="0.0.0"
@@ -14,15 +14,15 @@ export PLATFORM="amd64"
 export PROFILE="opt"
 ./tools/package.sh
 
-docker build -t rabbithole:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
+docker build -t vchord:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
 ```
 
-Or you can use `starkind/rabbithole:pg16-latest` to run the bench.
+Or you can use `starkind/vchord:pg16-latest` to run the bench.
 
 ## Run Instance
 
 ```shell
-docker run --name rabbithole -e POSTGRES_PASSWORD=123 -p 5432:5432 -d rabbithole:pg16-latest
+docker run --name vchord -e POSTGRES_PASSWORD=123 -p 5432:5432 -d vchord:pg16-latest
 
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "CREATE USER bench WITH PASSWORD '123';"
 PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "ALTER ROLE bench SUPERUSER;"

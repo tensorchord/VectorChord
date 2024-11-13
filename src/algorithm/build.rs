@@ -6,8 +6,8 @@ use crate::postgres::BufferWriteGuard;
 use crate::postgres::Relation;
 use crate::types::RabbitholeBuildOptions;
 use crate::types::RabbitholeExternalBuildOptions;
-use crate::types::RabbitholeIndexingOptions;
 use crate::types::RabbitholeInternalBuildOptions;
+use crate::types::VchordrqIndexingOptions;
 use base::distance::DistanceKind;
 use base::index::VectorOptions;
 use base::scalar::ScalarLike;
@@ -30,15 +30,15 @@ pub trait Reporter {
 
 pub fn build<T: HeapRelation, R: Reporter>(
     vector_options: VectorOptions,
-    rabbithole_options: RabbitholeIndexingOptions,
+    vchordrq_options: VchordrqIndexingOptions,
     heap_relation: T,
     relation: Relation,
     mut reporter: R,
 ) {
     let dims = vector_options.dims;
     let is_residual =
-        rabbithole_options.residual_quantization && vector_options.d == DistanceKind::L2;
-    let structure = match rabbithole_options.build {
+        vchordrq_options.residual_quantization && vector_options.d == DistanceKind::L2;
+    let structure = match vchordrq_options.build {
         RabbitholeBuildOptions::External(external_build) => Structure::extern_build(
             vector_options.clone(),
             heap_relation.opfamily(),

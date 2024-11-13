@@ -46,6 +46,7 @@ To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
 CREATE INDEX ON gist_train USING vchordrq (embedding vchordrq.vector_l2_ops) WITH (options = $$
+[build.internal]
 lists = 4096
 spherical_centroids = true
 $$);

@@ -1,7 +1,4 @@
 statement ok
-SET search_path TO public, rabbithole, pg_temp;
-
-statement ok
 CREATE TABLE t (val vector(3));
 
 statement ok

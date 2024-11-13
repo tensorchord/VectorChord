@@ -983,29 +983,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rabbithole"
-version = "0.0.0"
-dependencies = [
- "base",
- "detect",
- "half 2.4.1",
- "log",
- "nalgebra",
- "paste",
- "pgrx",
- "pgrx-catalog",
- "quantization",
- "rand",
- "rand_chacha",
- "rand_distr",
- "rayon",
- "rkyv",
- "serde",
- "toml",
- "validator",
-]
-
-[[package]]
 name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1535,6 +1512,29 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.87",
+]
+
+[[package]]
+name = "vchord"
+version = "0.0.0"
+dependencies = [
+ "base",
+ "detect",
+ "half 2.4.1",
+ "log",
+ "nalgebra",
+ "paste",
+ "pgrx",
+ "pgrx-catalog",
+ "quantization",
+ "rand",
+ "rand_chacha",
+ "rand_distr",
+ "rayon",
+ "rkyv",
+ "serde",
+ "toml",
+ "validator",
 ]
 
 [[package]]

@@ -1,7 +1,4 @@
 statement ok
-SET search_path TO public, rabbithole, pg_temp;
-
-statement ok
 CREATE TABLE t (val0 vector(3), val1 halfvec(3), val2 sparsevec(3));
 
 statement ok
@@ -13,10 +10,10 @@ SELECT
 FROM generate_series(1, 10000);
 
 statement ok
-CREATE INDEX ind0 ON t USING rabbithole (val0 vector_l2_ops);
+CREATE INDEX ind0 ON t USING vchordrq (val0 vector_l2_ops);
 
 # statement ok
-# CREATE INDEX ind1 ON t USING rabbithole (val1 halfvec_dot_ops);
+# CREATE INDEX ind1 ON t USING vchordrq (val1 halfvec_dot_ops);
 
 # 1 vector key + 1 corresponding order_by key + sphere style
 query I

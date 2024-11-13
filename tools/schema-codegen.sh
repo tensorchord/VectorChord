@@ -7,7 +7,7 @@ set -e
 printf "fn main() {\n"
 
 cat << EOF
-    rabbithole::__pgrx_marker();
+    vchord::__pgrx_marker();
 
     let mut entities = Vec::new();
     let control_file_path = std::path::PathBuf::from("$CONTROL_FILEPATH");
@@ -30,7 +30,7 @@ done <<< $(nm -D -g $SO_FILEPATH | grep "T __pgrx_internals_" | awk '{print $3}'
 cat << EOF
     let pgrx_sql = ::pgrx::pgrx_sql_entity_graph::PgrxSql::build(
         entities.into_iter(),
-        "vectors".to_string(),
+        "vchord".to_string(),
         false,
     )
     .expect("SQL generation error");

@@ -20,7 +20,7 @@ pgrx::extension_sql_file!("./sql/finalize.sql", finalize);
 #[pgrx::pg_guard]
 unsafe extern "C" fn _PG_init() {
     if unsafe { pgrx::pg_sys::IsUnderPostmaster } {
-        pgrx::error!("rabbithole must be loaded via shared_preload_libraries.");
+        pgrx::error!("vchord must be loaded via shared_preload_libraries.");
     }
     detect::init();
     unsafe {

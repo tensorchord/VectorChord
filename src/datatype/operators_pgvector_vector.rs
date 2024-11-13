@@ -3,7 +3,7 @@ use base::vector::{VectBorrowed, VectorBorrowed};
 use std::num::NonZero;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _rabbithole_vector_sphere_l2_in(
+fn _vchord_vector_sphere_l2_in(
     lhs: PgvectorVectorInput<'_>,
     rhs: pgrx::composite_type!("sphere_vector"),
 ) -> bool {
@@ -27,7 +27,7 @@ fn _rabbithole_vector_sphere_l2_in(
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _rabbithole_vector_sphere_ip_in(
+fn _vchord_vector_sphere_ip_in(
     lhs: PgvectorVectorInput<'_>,
     rhs: pgrx::composite_type!("sphere_vector"),
 ) -> bool {
@@ -51,7 +51,7 @@ fn _rabbithole_vector_sphere_ip_in(
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _rabbithole_vector_sphere_cosine_in(
+fn _vchord_vector_sphere_cosine_in(
     lhs: PgvectorVectorInput<'_>,
     rhs: pgrx::composite_type!("sphere_vector"),
 ) -> bool {

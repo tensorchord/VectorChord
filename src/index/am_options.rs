@@ -1,7 +1,7 @@
 use crate::datatype::memory_pgvector_vector::PgvectorVectorInput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 use crate::datatype::typmod::Typmod;
-use crate::types::RabbitholeIndexingOptions;
+use crate::types::VchordrqIndexingOptions;
 use base::distance::*;
 use base::index::*;
 use base::vector::*;
@@ -62,12 +62,12 @@ fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
 
 unsafe fn convert_reloptions_to_options(
     reloptions: *const pgrx::pg_sys::varlena,
-) -> RabbitholeIndexingOptions {
+) -> VchordrqIndexingOptions {
     #[derive(Debug, Clone, Deserialize, Default)]
     #[serde(deny_unknown_fields)]
     struct Parsed {
         #[serde(flatten)]
-        rabitq: RabbitholeIndexingOptions,
+        rabitq: VchordrqIndexingOptions,
     }
     let reloption = reloptions as *const Reloption;
     if reloption.is_null() || unsafe { (*reloption).options == 0 } {
@@ -80,7 +80,7 @@ unsafe fn convert_reloptions_to_options(
     }
 }
 
-pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, RabbitholeIndexingOptions) {
+pub unsafe fn options(index: pgrx::pg_sys::Relation) -> (VectorOptions, VchordrqIndexingOptions) {
     let att = unsafe { &mut *(*index).rd_att };
     let atts = unsafe { att.attrs.as_slice(att.natts as _) };
     if atts.is_empty() {

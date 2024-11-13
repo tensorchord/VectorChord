@@ -7,8 +7,12 @@ pub unsafe fn init() {
         prewarm::init();
         prewarm::prewarm();
         #[cfg(any(feature = "pg13", feature = "pg14"))]
-        pgrx::pg_sys::EmitWarningsOnPlaceholders(c"rabbithole".as_ptr());
+        pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchord".as_ptr());
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17"))]
-        pgrx::pg_sys::MarkGUCPrefixReserved(c"rabbithole".as_ptr());
+        pgrx::pg_sys::MarkGUCPrefixReserved(c"vchord".as_ptr());
+        #[cfg(any(feature = "pg13", feature = "pg14"))]
+        pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchordrq".as_ptr());
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17"))]
+        pgrx::pg_sys::MarkGUCPrefixReserved(c"vchordrq".as_ptr());
     }
 }
