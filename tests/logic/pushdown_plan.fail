@@ -1,12 +1,10 @@
 statement ok
-CREATE TABLE t (val0 vector(3), val1 halfvec(3), val2 sparsevec(3));
+CREATE TABLE t (val0 vector(3));
 
 statement ok
 INSERT INTO t (val0, val1, val2) 
 SELECT 
     ARRAY[random(), random(), random()]::real[]::vector, 
-    ARRAY[random(), random(), random()]::real[]::vector::halfvec,
-    ARRAY[random(), random(), random()]::real[]::vector::sparsevec
 FROM generate_series(1, 10000);
 
 statement ok
