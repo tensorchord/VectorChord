@@ -94,8 +94,9 @@ SET jit = off;
 ALTER SYSTEM SET shared_buffers = '8GB';
 ```
 
-### Indexing
-TODO
+<!-- ### Indexing
+TODO prewarm -->
+
 
 ### Index Build Time
 Index building can parallelized, and with external centroid precomputation, the total time is primarily limited by disk speed. Optimize parallelism using the following settings:
