@@ -55,7 +55,7 @@ pub fn quick_centers<S: ScalarLike>(
     let n = samples.len();
     let mut rng = rand::thread_rng();
     assert!(c >= n);
-    for _ in n + 1..c {
+    for _ in n..c {
         let r = (0..dims)
             .map(|_| S::from_f32(rng.gen_range(-1.0f32..1.0f32)))
             .collect();
