@@ -53,6 +53,7 @@ To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
 CREATE INDEX ON gist_train USING vchordrq (embedding vchordrq.vector_l2_ops) WITH (options = $$
+[build.internal]
 lists = 4096
 spherical_centroids = true
 $$);
@@ -62,7 +63,7 @@ $$);
 
 ### Query
 
-The query statement is exactly the same as pgvector.
+The query statement is exactly the same as pgvector. VectorChord supports any filter operation and WHERE and JOIN clauses like pgvecto.rs with VBASE.
 ```SQL
 SELECT * FROM items ORDER BY embedding <-> '[3,1,2]' LIMIT 5;
 ```
