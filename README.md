@@ -64,6 +64,8 @@ Supported distance functions are:
 - <#> - (negative) inner product
 - <=> - cosine distance
 
+<!-- TODO: Sphere search -->
+
 ### Query Performance Tuning
 You can fine-tune the search performance by adjusting the `probes` and `epsilon` parameters:
 
