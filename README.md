@@ -42,7 +42,7 @@ Run the following SQL to ensure the extension is enabled.
 CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 ```
 
-To create the VectorChord RabitQ(vchordrq) index, you can use the following SQL.
+To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
 CREATE INDEX ON gist_train USING vchordrq (embedding vchordrq.vector_l2_ops) WITH (options = $$
