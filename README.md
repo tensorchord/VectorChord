@@ -1,6 +1,6 @@
 <div align="center">
 <h1 align=center>VectorChord</h1>
-<h4 align=center>Host 100M 768-dim vector (250GB+) on a $250/month machine (4 vcpu, 32GB) on AWS with VectorChord</h4>
+<h4 align=center>Host 100M 768-dim vector (250GB+) on a $250/month machine (i4i.xlarge, 4 vcpu, 32 GB) on AWS with VectorChord</h4>
 </div>
 
 <p align=center>
@@ -10,7 +10,9 @@
 <a href="https://github.com/tensorchord/vcvec#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/vcvec/main"></a>
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the pgvecto.rs project. VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from millions to billions of entries.
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project. 
+
+VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from hundreds of millions to multi billions of entries.
 
 ## Features
 - **Blazing-Fast Queries**: Achieve up to 3x faster queries compared to pgvector's HNSW, maintaining the same recall level.
@@ -46,15 +48,17 @@ And make sure to add vchord.so to the shared_preload_libraries in postgresql.con
 
 ```SQL
 -- Add vchord and pgvector to shared_preload_libraries --
-ALTER SYSTEM SET shared_preload_libraries = 'vector,vchord';
+ALTER SYSTEM SET shared_preload_libraries = 'vchord.so';
 ```
 
 To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
-CREATE INDEX ON gist_train USING vchordrq (embedding vchordrq.vector_l2_ops) WITH (options = $$
+CREATE INDEX ON gist_train USING vchordrq (embedding vector_l2_ops) WITH (options = $$
+residual_quantization = true
+[build.internal]
 lists = 4096
-spherical_centroids = true
+spherical_centroids = false
 $$);
 ```
 
@@ -62,7 +66,7 @@ $$);
 
 ### Query
 
-The query statement is exactly the same as pgvector.
+The query statement is exactly the same as pgvector. VectorChord supports any filter operation and WHERE/JOIN clauses like pgvecto.rs with VBASE.
 ```SQL
 SELECT * FROM items ORDER BY embedding <-> '[3,1,2]' LIMIT 5;
 ```
@@ -86,9 +90,17 @@ You can fine-tune the search performance by adjusting the `probes` and `epsilon`
 -- Recommended range: 3%–10% of the total `lists` value.
 SET vchordrq.probes = 100;
 
--- Set epsilon to control the reranking precision. 
+-- Set epsilon to control the reranking precision.
+-- Larger value means more rerank for higher recall rate.
 -- Recommended range: 1.0–1.9.
 SET vchordrq.epsilon = 1.0;
+
+-- vchordrq relies on a projection matrix to optimize performance.
+-- Add your vector dimensions to the `prewarm_dim` list to reduce latency.
+-- If this is not configured, the first query will have higher latency as the matrix is generated on demand.
+-- Default value: '64,128,256,384,512,768,1024,1536'
+-- Note: This setting requires a database restart to take effect.
+ALTER SYSTEM SET vchordrq.prewarm_dim = '64,128,256,384,512,768,1024,1536';
 ```
 
 And for postgres's setting
@@ -101,16 +113,9 @@ SET effective_io_concurrency = 200;
 SET jit = off;
 
 -- Allocate at least 25% of total memory to `shared_buffers`. 
--- For disk-heavy workloads, you can increase this to up to 90% of total memory.
+-- For disk-heavy workloads, you can increase this to up to 90% of total memory. You may also want to disable swap with network storage to avoid io hang.
 -- Note: A restart is required for this setting to take effect.
 ALTER SYSTEM SET shared_buffers = '8GB';
-
--- vchordrq relies on a projection matrix to optimize performance.
--- Add your vector dimensions to the `prewarm_dim` list to reduce latency for the first query in each new connection.
--- If this is not configured, the first query will have higher latency as the matrix is generated on demand.
--- Default value: '64,128,256,384,512,768,1024,1536'
--- Note: This setting requires a database restart to take effect.
-ALTER SYSTEM SET vchordrq.prewarm_dim = '64,128,256,384,512,768,1024,1536';
 ```
 
 <!-- ### Indexing
