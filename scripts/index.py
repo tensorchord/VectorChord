@@ -1,5 +1,6 @@
 import asyncio
 import math
+import os
 from time import perf_counter
 import argparse
 from pathlib import Path
@@ -30,14 +31,10 @@ def build_arg_parse():
         choices=["l2", "cos", "dot"],
     )
     parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
-    parser.add_argument(
-        "-c", "--centroids", help="K-means centroids file", required=True
-    )
     parser.add_argument("-i", "--input", help="Input filepath", required=True)
     parser.add_argument(
         "-p", "--password", help="Database password", default="password"
     )
-    parser.add_argument("-k", help="Number of centroids", type=int, required=True)
     parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
     parser.add_argument(
         "-w",
@@ -53,42 +50,56 @@ def build_arg_parse():
         type=int,
         default=CHUNKS,
     )
+    # External build
+    parser.add_argument(
+        "-c", "--centroids", help="K-means centroids file", required=False
+    )
+    # Internal build
+    parser.add_argument("--lists", help="Number of centroids", type=int, required=False)
+
     return parser
 
 
-def get_ivf_ops_config(metric, k, name=None):
-    external_centroids = """
-    [external_centroids]
+def get_ivf_ops_config(metric, workers, k=None, name=None):
+    assert name is not None or k is not None
+    external_centroids_cfg = """
+    [build.external]
     table = 'public.{name}_centroids'
-    h1_means_column = 'coordinate'
     """
     if metric == "l2":
         metric_ops = "vector_l2_ops"
-        ivf_config = f"""
+        config = "residual_quantization = true"
+        internal_centroids_cfg = f"""
+        [build.internal]
         lists = {k}
-        residual_quantization = true
+        build_threads = {workers}
         spherical_centroids = false
         """
-    elif metric == "cosine":
+    elif metric == "cos":
         metric_ops = "vector_cosine_ops"
-        ivf_config = f"""
+        config = "residual_quantization = false"
+        internal_centroids_cfg = f"""
+        [build.internal]
         lists = {k}
-        residual_quantization = false
+        build_threads = {workers}
         spherical_centroids = true
         """
-    elif metric == "ip":
+    elif metric == "dot":
         metric_ops = "vector_ip_ops"
-        ivf_config = f"""
+        config = "residual_quantization = false"
+        internal_centroids_cfg = f"""
+        [build.internal]
         lists = {k}
-        residual_quantization = false
+        build_threads = {workers}
         spherical_centroids = true
         """
     else:
         raise ValueError
 
-    if name:
-        ivf_config += external_centroids.format(name=name)
-    return metric_ops, ivf_config
+    build_config = (
+        external_centroids_cfg.format(name=name) if name else internal_centroids_cfg
+    )
+    return metric_ops, "\n".join([config, build_config])
 
 
 async def create_connection(url):
@@ -105,17 +116,19 @@ async def create_connection(url):
 
 
 async def add_centroids(conn, name, centroids):
-    dim = centroids.shape[1]
+    n, dim = centroids.shape
+    root = np.mean(centroids, axis=0)
     await conn.execute(f"DROP TABLE IF EXISTS public.{name}_centroids")
     await conn.execute(
-        f"CREATE TABLE public.{name}_centroids (coordinate vector({dim}))"
+        f"CREATE TABLE public.{name}_centroids (id integer, parent integer, vector vector({dim}))"
     )
     async with conn.cursor().copy(
-        f"COPY public.{name}_centroids (coordinate) FROM STDIN WITH (FORMAT BINARY)"
+        f"COPY public.{name}_centroids (id, parent, vector) FROM STDIN WITH (FORMAT BINARY)"
     ) as copy:
-        copy.set_types(["vector"])
-        for centroid in tqdm(centroids, desc="Adding centroids"):
-            await copy.write_row((centroid,))
+        copy.set_types(["integer", "integer", "vector"])
+        await copy.write_row((0, None, root))
+        for i, centroid in tqdm(enumerate(centroids), desc="Adding centroids", total=n):
+            await copy.write_row((i+1, 0, centroid))
         while conn.pgconn.flush() == 1:
             await asyncio.sleep(0)
 
@@ -152,7 +165,7 @@ async def build_index(
     await conn.execute(f"SET max_parallel_maintenance_workers TO {workers}")
     await conn.execute(f"SET max_parallel_workers TO {workers}")
     await conn.execute(
-        f"CREATE INDEX ON {name} USING vchordrq (embedding {metric_ops}) WITH (options = $${ivf_config}$$)"
+        f"CREATE INDEX {name}_embedding_idx ON {name} USING vchordrq (embedding {metric_ops}) WITH (options = $${ivf_config}$$)"
     )
     print(f"Index build time: {perf_counter() - start_time:.2f}s")
     finish.set()
@@ -189,7 +202,7 @@ async def main(dataset):
         centroids = np.load(args.centroids, allow_pickle=False)
         await add_centroids(conn, args.name, centroids)
     metric_ops, ivf_config = get_ivf_ops_config(
-        args.metric, args.k, args.name if args.centroids else None
+        args.metric, args.workers, args.lists, args.name if args.centroids else None
     )
     await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks)
 

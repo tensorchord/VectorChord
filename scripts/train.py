@@ -15,7 +15,7 @@ from faiss import Kmeans
 import numpy as np
 from tqdm import tqdm
 
-DEFAULT_K = 4096
+DEFAULT_LISTS = 4096
 N_ITER = 25
 CHUNKS = 10
 SEED = 42
@@ -27,12 +27,14 @@ def build_arg_parse():
     parser.add_argument("-i", "--input", help="input filepath", required=True)
     parser.add_argument("-o", "--output", help="output filepath", required=True)
     parser.add_argument(
-        "-k",
-        help="K-means centroids or lists",
+        "--lists",
+        "--lists-1",
+        help="Number of centroids",
         type=int,
-        default=DEFAULT_K,
+        required=False,
+        default=DEFAULT_LISTS,
     )
-    parser.add_argument("--child-k", type=int, help="lower layer lists (if enabled)")
+    parser.add_argument("--lists-2", type=int, help="lower layer lists (if enabled)")
     parser.add_argument(
         "--niter", help="number of iterations", type=int, default=N_ITER
     )
@@ -41,8 +43,8 @@ def build_arg_parse():
         "-g", "--gpu", help="enable GPU for KMeans", action="store_true"
     )
     parser.add_argument(
-        "--in-memory",
-        help="use numpy in-memory mode sampling, quicker for large dataset",
+        "--mmap",
+        help="not load by iter, instead use numpy chunk mmap, faster for large dataset",
         action="store_true",
     )
     parser.add_argument(
@@ -120,14 +122,14 @@ def kmeans_cluster(
     niter,
     metric,
     gpu=False,
-    in_memory=False,
+    mmap=False,
     chunks=CHUNKS,
 ):
     n, dim = data.shape
-    if n > MAX_POINTS_PER_CLUSTER * k and not in_memory:
-        train = reservoir_sampling(iter(data), MAX_POINTS_PER_CLUSTER * args.k)
-    elif n > MAX_POINTS_PER_CLUSTER * k and in_memory:
-        reservoir_sampling_np(data, file_path, MAX_POINTS_PER_CLUSTER * args.k, chunks)
+    if n > MAX_POINTS_PER_CLUSTER * k and not mmap:
+        train = reservoir_sampling(iter(data), MAX_POINTS_PER_CLUSTER * args.lists)
+    elif n > MAX_POINTS_PER_CLUSTER * k and mmap:
+        reservoir_sampling_np(data, file_path, MAX_POINTS_PER_CLUSTER * args.lists, chunks)
         train = np.array(
             np.memmap(
                 "index.mmap",
@@ -186,14 +188,14 @@ if __name__ == "__main__":
     centroids = kmeans_cluster(
         dataset["train"],
         args.input,
-        args.k,
-        args.child_k,
+        args.lists,
+        args.lists_2,
         args.niter,
         args.metric,
         args.gpu,
-        args.in_memory,
+        args.mmap,
         args.chunks,
     )
-    print(f"K-means (k=({args.k}, {args.child_k})): {perf_counter() - start_time:.2f}s")
+    print(f"K-means (k=({args.lists}, {args.lists_2})): {perf_counter() - start_time:.2f}s")
 
     np.save(Path(args.output), centroids, allow_pickle=False)

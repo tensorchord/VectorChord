@@ -365,7 +365,7 @@ impl RabbitholeLeader {
         }
         let pcxt = unsafe {
             pgrx::pg_sys::CreateParallelContext(
-                c"vchordrq".as_ptr(),
+                c"vchord".as_ptr(),
                 c"vchordrq_parallel_build_main".as_ptr(),
                 request,
             )

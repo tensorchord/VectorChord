@@ -141,6 +141,37 @@ You can check the indexing progress by querying the `pg_stat_progress_create_ind
 SELECT phase, round(100.0 * blocks_done / nullif(blocks_total, 0), 1) AS "%" FROM pg_stat_progress_create_index;
 ```
 
+### External Index Precomputation
+
+Unlike pure SQL, an external index precomputation will first do clustering outside and insert centroids to a PostgreSQL table. Although it might be more complicated, external build is definitely much faster on larger dataset (>5M).
+
+To get started, you need to do a clustering of vectors using `faiss`, `scikit-learn` or any other clustering library.
+
+The centroids should be preset in a table of any name with 3 columns:
+- id(integer): id of each centroid, should be unique
+- parent(integer, nullable): parent id of each centroid, should be NULL for normal clustering
+- vector(vector): representation of each centroid, `pgvector` vector type
+
+And example could be like this:
+
+```sql
+-- Create table of centroids
+CREATE TABLE centroids (id integer NOT NULL UNIQUE, parent integer, vector vector(768));
+-- Insert centroids into it
+INSERT INTO centroids (id, parent, vector) VALUES (1, NULL, '{0.1, 0.2, 0.3, ..., 0.768}');
+INSERT INTO centroids (id, parent, vector) VALUES (2, NULL, '{0.4, 0.5, 0.6, ..., 0.768}');
+INSERT INTO centroids (id, parent, vector) VALUES (3, NULL, '{0.7, 0.8, 0.9, ..., 0.768}');
+-- ...
+
+-- Create index using the centroid table
+CREATE INDEX ON gist_train USING vchordrq (embedding vector_l2_ops) WITH (options = $$
+[build.external]
+table = 'centroids'
+$$);
+```
+
+To simplify the workflow, we provide end-to-end scripts for external index pre-computation, see [scripts](./scripts/README.md#run-external-index-precomputation-toolkit).
+
 ### Installing From Source
 Install pgrx according to [pgrx's instruction](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#getting-started).
 ```bash
