@@ -1,6 +1,6 @@
 <div align="center">
 <h1 align=center>VectorChord</h1>
-<h4 align=center>Host 100M 768-dim vector (250GB+) on a $250/month machine (i4i.xlarge, 4 vcpu, 32 GB) on AWS with VectorChord</h4>
+<h4 align=center>Host 100M 768-dim vector (250GB+) on an AWS i4i.xlarge machine ($250/month) with 4 vCPUs and 32GB of RAM using VectorChord.</h4>
 </div>
 
 <p align=center>
