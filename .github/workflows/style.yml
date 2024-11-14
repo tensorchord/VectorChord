@@ -35,3 +35,6 @@ jobs:
       - name: Cargo Lint
         run: |
           cargo fmt --check
+
+      - name: Python lint
+        uses: astral-sh/ruff-action@v1

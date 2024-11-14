@@ -13,7 +13,6 @@ if version_info >= (3, 12):
 import h5py
 from faiss import Kmeans
 import numpy as np
-from tqdm import tqdm
 
 DEFAULT_LISTS = 4096
 N_ITER = 25

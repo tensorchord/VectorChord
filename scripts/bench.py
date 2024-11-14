@@ -54,8 +54,8 @@ def create_connection(password, nprob, epsilon):
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     # Tuning
-    conn.execute(f"SET jit=false")
-    conn.execute(f"SET effective_io_concurrency=200")
+    conn.execute("SET jit=false")
+    conn.execute("SET effective_io_concurrency=200")
 
     conn.execute(f"SET vchordrq.probes={nprob}")
     conn.execute(f"SET vchordrq.epsilon={epsilon}")
