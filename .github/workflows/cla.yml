@@ -27,7 +27,7 @@ jobs:
         with:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://gist.githubusercontent.com/gaocegege/92886a860e3648842e07651feb836719/raw/10663798a5e459707042a3d37bd6f89ac784dada/CLA.md' # e.g. a CLA or a DCO document
-          # branch should not be protected
+          # The branch is protected, but we use this: https://github.com/contributor-assistant/github-action/issues/150
           branch: 'main'
           allowlist: user1,bot*
 
