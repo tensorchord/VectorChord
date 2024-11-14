@@ -6,8 +6,8 @@
 <p align=center>
 <a href="https://discord.gg/KqswhpVgdU"><img alt="discord invitation link" src="https://dcbadge.vercel.app/api/server/KqswhpVgdU?style=flat"></a>
 <a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=social" alt="trackgit-views" /></a>
-<a href="https://hub.docker.com/r/tensorchord/vcvec"><img src="https://img.shields.io/docker/pulls/tensorchord/vcvec" /></a>
-<a href="https://github.com/tensorchord/vcvec#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/vcvec/main"></a>
+<a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" /></a>
+<a href="https://github.com/tensorchord/VectorChord#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/VectorChord/main"></a>
 </p>
 
 VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project. 

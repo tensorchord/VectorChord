@@ -128,7 +128,7 @@ async def add_centroids(conn, name, centroids):
         copy.set_types(["integer", "integer", "vector"])
         await copy.write_row((0, None, root))
         for i, centroid in tqdm(enumerate(centroids), desc="Adding centroids", total=n):
-            await copy.write_row((i+1, 0, centroid))
+            await copy.write_row((i + 1, 0, centroid))
         while conn.pgconn.flush() == 1:
             await asyncio.sleep(0)
 
