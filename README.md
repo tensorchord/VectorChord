@@ -156,17 +156,17 @@ And example could be like this:
 
 ```sql
 -- Create table of centroids
-CREATE TABLE centroids (id integer NOT NULL UNIQUE, parent integer, vector vector(768));
+CREATE TABLE public.centroids (id integer NOT NULL UNIQUE, parent integer, vector vector(768));
 -- Insert centroids into it
-INSERT INTO centroids (id, parent, vector) VALUES (1, NULL, '{0.1, 0.2, 0.3, ..., 0.768}');
-INSERT INTO centroids (id, parent, vector) VALUES (2, NULL, '{0.4, 0.5, 0.6, ..., 0.768}');
-INSERT INTO centroids (id, parent, vector) VALUES (3, NULL, '{0.7, 0.8, 0.9, ..., 0.768}');
+INSERT INTO public.centroids (id, parent, vector) VALUES (1, NULL, '{0.1, 0.2, 0.3, ..., 0.768}');
+INSERT INTO public.centroids (id, parent, vector) VALUES (2, NULL, '{0.4, 0.5, 0.6, ..., 0.768}');
+INSERT INTO public.centroids (id, parent, vector) VALUES (3, NULL, '{0.7, 0.8, 0.9, ..., 0.768}');
 -- ...
 
 -- Create index using the centroid table
 CREATE INDEX ON gist_train USING vchordrq (embedding vector_l2_ops) WITH (options = $$
 [build.external]
-table = 'centroids'
+table = 'public.centroids'
 $$);
 ```
 
