@@ -1,4 +1,4 @@
 FROM scratch
 
 WORKDIR /workspace
-COPY ./rabbithole-binary-release.deb /workspace/
+COPY ./vchord-binary-release.deb /workspace/
