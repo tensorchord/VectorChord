@@ -6,6 +6,8 @@ if [[ " $@ " =~ --target' '([^ ]+) ]]; then
     DIR="./target/$TARGET/release"
   elif [[ " $@ " =~ " --profile opt " ]]; then
     DIR="./target/$TARGET/opt"
+  elif [[ " $@ " =~ " --profile release " ]]; then
+    DIR="./target/$TARGET/release"
   else
     DIR="./target/$TARGET/debug"
   fi
@@ -14,6 +16,8 @@ else
     DIR="./target/release"
   elif [[ " $@ " =~ " --profile opt " ]]; then
     DIR="./target/opt"
+  elif [[ " $@ " =~ " --profile release " ]]; then
+    DIR="./target/release"
   else
     DIR="./target/debug"
   fi
