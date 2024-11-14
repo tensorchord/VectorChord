@@ -21,7 +21,8 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const tag = github.context.payload.inputs?.tag || github.context.payload.release?.tag_name;
+            const tag = "${{ github.event.inputs.tag }}" || "${{ github.event.release.tag_name }}";
+            console.log(`Tag: ${tag}`);
             const r = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
             if (!r.test(tag)) {
               core.setFailed(`Action failed with an invalid semver.`);
