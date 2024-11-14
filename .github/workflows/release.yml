@@ -17,8 +17,11 @@ concurrency:
 jobs:
   semver:
     runs-on: ubuntu-latest
+    outputs:
+      SEMVER: ${{ steps.semver.outputs.SEMVER }}
     steps:
       - uses: actions/github-script@v7
+        id: semver
         with:
           script: |
             const tag = "${{ github.event.inputs.tag }}" || "${{ github.event.release.tag_name }}";
@@ -27,7 +30,7 @@ jobs:
             if (!r.test(tag)) {
               core.setFailed(`Action failed with an invalid semver.`);
             }
-            core.exportVariable('SEMVER', tag);
+            core.setOutput('SEMVER', tag);
 
   build:
     runs-on: ubuntu-latest
@@ -38,6 +41,7 @@ jobs:
         arch: ["x86_64", "aarch64"]
     env:
       PGRX_IMAGE: "kemingy/pgrx:0.12.8"
+      SEMVER: ${{ needs.semver.outputs.SEMVER }}
 
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +82,8 @@ jobs:
       matrix:
         version: ["14", "15", "16", "17"]
         platform: ["amd64", "arm64"]
+    env:
+      SEMVER: ${{ needs.semver.outputs.SEMVER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
