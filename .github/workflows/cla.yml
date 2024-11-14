@@ -20,7 +20,7 @@ jobs:
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
         uses: contributor-assistant/github-action@v2.6.1
         env:
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_CLA_GITHUB_TOKEN }}
         with:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://gist.githubusercontent.com/gaocegege/92886a860e3648842e07651feb836719/raw/10663798a5e459707042a3d37bd6f89ac784dada/CLA.md' # e.g. a CLA or a DCO document
