@@ -122,6 +122,6 @@ jobs:
           tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ matrix.platform }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
-            SEMVER=${SEMVER}
+            SEMVER=${{ env.SEMVER }}
             PGVECTOR=0.8.0
             PLATFORM=${{ matrix.platform }}
