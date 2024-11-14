@@ -70,8 +70,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash -e SEMVER=${SEMVER} $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
           ./tools/package.sh
+          ls ./build
           gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
           gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
 
