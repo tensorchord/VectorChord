@@ -67,7 +67,8 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
    python script/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] --lists [lists] -m [metric(l2/cos/dot)] -g --mmap
    ```
 
-   `lists` is the number of centroids for clustering, and a typical value could range from: 
+   `lists` is the number of centroids for clustering, and a typical value could range from:
+   
    $$
    4*\sqrt{len(vectors)} \le lists \le 16*\sqrt{len(vectors)}
    $$
