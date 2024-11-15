@@ -21,9 +21,6 @@ docker build -t vchord:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerf
 
 ```shell
 docker run --name vchord -e POSTGRES_PASSWORD=123 -p 5432:5432 -d vchord:pg16-latest
-
-PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "CREATE USER bench WITH PASSWORD '123';"
-PGPASSWORD=123 psql -h 127.0.0.1 -U postgres -c "ALTER ROLE bench SUPERUSER;"
 ```
 
 ## Run External Index Precomputation Toolkit
