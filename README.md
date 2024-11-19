@@ -7,7 +7,8 @@
 <a href="https://discord.gg/KqswhpVgdU"><img alt="discord invitation link" src="https://dcbadge.vercel.app/api/server/KqswhpVgdU?style=flat"></a>
 <a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=social" alt="trackgit-views" /></a>
 <a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" /></a>
-<a href="https://github.com/tensorchord/VectorChord#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/VectorChord/main"></a>
+<p>Prior release: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" /></a></p>
+<!-- <a href="https://github.com/tensorchord/VectorChord#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/VectorChord/main"></a> -->
 </p>
 
 VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project. 
@@ -16,6 +17,7 @@ VectorChord incorporates the insights and lessons learned from pgvecto.rs, provi
 
 ## Features
 - **Blazing-Fast Queries**: Achieve up to 3x faster queries compared to pgvector's HNSW, maintaining the same recall level.
+- **High-throughput Update**: Achieve 16x faster insert throughput compared to pgvector's HNSW.
 - **External Index Precomputation**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
 - **Lightning-Fast Index Building**: Build index up to 20x faster than pgvector hnsw with precomputed centroids. (1.5 min for 1M 960-dim vectors)
 - **Advanced Quantization**: Uses cutting-edge RaBitQ to compress float vectors into compact bit representations with autonomous reranking.
@@ -23,21 +25,20 @@ VectorChord incorporates the insights and lessons learned from pgvecto.rs, provi
 - **Disk-Friendly Performance**: Query laion-100M 768-dim vectors using just 32GB of memory, achieving 35ms P50 latency with top10 recall@95%.
 - **Seamless Compatibility**: Compatible with pgvector data types while delivering faster indexing and querying.
 - **Simple Configuration**: No need to tweak quantization or rerank parameters — best defaults are provided out of the box.
-<!-- - **High-throughput Update**: TODO -->
 
 ## Quick Start
-<!-- For new users, we recommend using the Docker image to get started quickly.
+For new users, we recommend using the Docker image to get started quickly.
 ```bash
 docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d tensorchord/vectorchord:pg17-v0.1.0
-```
+  -d tensorchord/vchord-postgres:pg17-v0.1.0-amd64
+
 Then you can connect to the database using the `psql` command line tool. The default username is `postgres`, and the default password is `mysecretpassword`.
 ```bash
 psql -h localhost -p 5432 -U postgres
-``` -->
+```
 Run the following SQL to ensure the extension is enabled.
 
 ```SQL
@@ -77,9 +78,15 @@ Supported distance functions are:
 
 <!-- ### Range Query
 
+> [!NOTE]  
+> Due to the limitation of postgresql query planner, we cannot support the range query like `SELECT embedding <-> '[3,1,2]' as distance WHERE distance < 0.1 ORDER BY distance` directly.
+
 To query vectors within a certain distance range, you can use the following syntax.
 ```SQL
-
+-- Query vectors within a certain distance range
+-- sphere(center, radius) means the vectors within the sphere with the center and radius, aka range query
+-- <<->> is L2 distance, <<#>> is inner product, <<=>> is cosine distance
+SELECT vec FROM t WHERE vec <<->> sphere('[0.24, 0.24, 0.24]'::vector, 0.012) 
 ``` -->
 
 ### Query Performance Tuning
@@ -92,8 +99,9 @@ SET vchordrq.probes = 100;
 
 -- Set epsilon to control the reranking precision.
 -- Larger value means more rerank for higher recall rate.
--- Recommended range: 1.0–1.9.
-SET vchordrq.epsilon = 1.0;
+-- Don't change it unless you only have limited memory.
+-- Recommended range: 1.0–1.9. Default value is 1.9.
+SET vchordrq.epsilon = 1.9;
 
 -- vchordrq relies on a projection matrix to optimize performance.
 -- Add your vector dimensions to the `prewarm_dim` list to reduce latency.
@@ -118,8 +126,12 @@ SET jit = off;
 ALTER SYSTEM SET shared_buffers = '8GB';
 ```
 
-<!-- ### Indexing
-TODO prewarm -->
+### Indexing prewarm
+To prewarm the index, you can use the following SQL. It will significantly improve performance when using limited memory.
+```SQL
+-- vchordrq_prewarm(index_name::regclass) to prewarm the index into the shared buffer
+SELECT vchordrq_prewarm('gist_train_embedding_idx'::regclass)"
+```
 
 
 ### Index Build Time
@@ -182,7 +194,7 @@ cargo pgrx install --release --sudo # To install the extension into the system p
 
 ## Limitations
 - Data Type Support: Currently, only the `f32` data type is supported for vectors, and the dimensionality is limited to 1600. (Dimension support improvements are planned for future updates.)
-- Architecture Compatibility: The fast-scan kernel is optimized for x86_64 architectures. While it runs on aarch64, performance may be significantly lower.
+- Architecture Compatibility: The fast-scan kernel is optimized for x86_64 architectures. While it runs on aarch64, performance may be lower.
 - KMeans Clustering: The built-in KMeans clustering is not yet fully optimized and may require substantial memory. We strongly recommend using external centroid precomputation for efficient index construction.
 
 
