@@ -181,7 +181,7 @@ cargo pgrx install --release --sudo # To install the extension into the system p
 ```
 
 ## Limitations
-- Data Type Support: Currently, only the `f32` data type is supported for vectors, and the dimensionality is limited to 2000. (Dimension support improvements are planned for future updates.)
+- Data Type Support: Currently, only the `f32` data type is supported for vectors, and the dimensionality is limited to 1600. (Dimension support improvements are planned for future updates.)
 - Architecture Compatibility: The fast-scan kernel is optimized for x86_64 architectures. While it runs on aarch64, performance may be significantly lower.
 - KMeans Clustering: The built-in KMeans clustering is not yet fully optimized and may require substantial memory. We strongly recommend using external centroid precomputation for efficient index construction.
 
