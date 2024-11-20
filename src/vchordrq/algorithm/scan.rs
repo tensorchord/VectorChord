@@ -1,8 +1,8 @@
-use crate::algorithm::rabitq;
-use crate::algorithm::rabitq::fscan_process_lowerbound;
-use crate::algorithm::tuples::*;
-use crate::algorithm::vectors;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::rabitq;
+use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
+use crate::vchordrq::algorithm::tuples::*;
+use crate::vchordrq::algorithm::vectors;
 use base::always_equal::AlwaysEqual;
 use base::distance::Distance;
 use base::distance::DistanceKind;
@@ -29,7 +29,7 @@ pub fn scan(
     let height_of_root = meta_tuple.height_of_root;
     assert_eq!(dims as usize, vector.len(), "invalid vector dimensions");
     assert_eq!(height_of_root as usize, 1 + probes.len(), "invalid probes");
-    let vector = rabitq::project(&vector);
+    let vector = crate::projection::project(&vector);
     let is_residual = meta_tuple.is_residual;
     let default_lut = if !is_residual {
         Some(rabitq::fscan_preprocess(&vector))

@@ -1,6 +1,6 @@
-use crate::algorithm::tuples::VectorTuple;
-use crate::index::utils::distance;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::tuples::VectorTuple;
+use crate::vchordrq::index::utils::distance;
 use base::distance::Distance;
 use base::distance::DistanceKind;
 

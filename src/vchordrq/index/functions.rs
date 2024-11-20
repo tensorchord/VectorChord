@@ -1,5 +1,5 @@
-use crate::algorithm::prewarm::prewarm;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::prewarm::prewarm;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass};
 

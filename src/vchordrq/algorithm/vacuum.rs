@@ -1,5 +1,5 @@
-use crate::algorithm::tuples::*;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::tuples::*;
 use base::search::Pointer;
 
 pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -> bool) {

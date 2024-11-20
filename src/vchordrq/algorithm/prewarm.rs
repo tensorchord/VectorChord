@@ -1,6 +1,6 @@
-use crate::algorithm::tuples::*;
-use crate::algorithm::vectors;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::tuples::*;
+use crate::vchordrq::algorithm::vectors;
 use std::fmt::Write;
 
 pub fn prewarm(relation: Relation, height: i32) -> String {

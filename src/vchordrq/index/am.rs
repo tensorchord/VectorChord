@@ -1,22 +1,21 @@
-use crate::algorithm;
-use crate::algorithm::build::{HeapRelation, Reporter};
-use crate::index::am_options::{Opfamily, Reloption};
-use crate::index::am_scan::Scanner;
-use crate::index::utils::{ctid_to_pointer, pointer_to_ctid};
-use crate::index::{am_options, am_scan};
 use crate::postgres::Relation;
-use crate::utils::cells::PgCell;
+use crate::vchordrq::algorithm;
+use crate::vchordrq::algorithm::build::{HeapRelation, Reporter};
+use crate::vchordrq::index::am_options::{Opfamily, Reloption};
+use crate::vchordrq::index::am_scan::Scanner;
+use crate::vchordrq::index::utils::{ctid_to_pointer, pointer_to_ctid};
+use crate::vchordrq::index::{am_options, am_scan};
 use base::search::Pointer;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
 
-static RELOPT_KIND_RABBITHOLE: PgCell<pgrx::pg_sys::relopt_kind::Type> = unsafe { PgCell::new(0) };
+static mut RELOPT_KIND_VCHORDRQ: pgrx::pg_sys::relopt_kind::Type = 0;
 
 pub unsafe fn init() {
     unsafe {
-        RELOPT_KIND_RABBITHOLE.set(pgrx::pg_sys::add_reloption_kind());
+        (&raw mut RELOPT_KIND_VCHORDRQ).write(pgrx::pg_sys::add_reloption_kind());
         pgrx::pg_sys::add_string_reloption(
-            RELOPT_KIND_RABBITHOLE.get(),
+            (&raw const RELOPT_KIND_VCHORDRQ).read(),
             c"options".as_ptr(),
             c"Vector index options, represented as a TOML string.".as_ptr(),
             c"".as_ptr(),
@@ -88,7 +87,7 @@ pub unsafe extern "C" fn amoptions(reloptions: Datum, validate: bool) -> *mut pg
         pgrx::pg_sys::build_reloptions(
             reloptions,
             validate,
-            RELOPT_KIND_RABBITHOLE.get(),
+            (&raw const RELOPT_KIND_VCHORDRQ).read(),
             size_of::<Reloption>(),
             Reloption::TAB.as_ptr(),
             Reloption::TAB.len() as _,
@@ -254,8 +253,7 @@ pub unsafe extern "C" fn ambuild(
         index_relation.clone(),
         reporter.clone(),
     );
-    if let Some(leader) =
-        unsafe { RabbitholeLeader::enter(heap, index, (*index_info).ii_Concurrent) }
+    if let Some(leader) = unsafe { VchordrqLeader::enter(heap, index, (*index_info).ii_Concurrent) }
     {
         unsafe {
             parallel_build(
@@ -299,7 +297,7 @@ pub unsafe extern "C" fn ambuild(
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
 }
 
-struct RabbitholeShared {
+struct VchordrqShared {
     /* Immutable state */
     heaprelid: pgrx::pg_sys::Oid,
     indexrelid: pgrx::pg_sys::Oid,
@@ -324,15 +322,15 @@ fn is_mvcc_snapshot(snapshot: *mut pgrx::pg_sys::SnapshotData) -> bool {
     )
 }
 
-struct RabbitholeLeader {
+struct VchordrqLeader {
     pcxt: *mut pgrx::pg_sys::ParallelContext,
     nparticipants: i32,
-    vchordrqshared: *mut RabbitholeShared,
+    vchordrqshared: *mut VchordrqShared,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     snapshot: pgrx::pg_sys::Snapshot,
 }
 
-impl RabbitholeLeader {
+impl VchordrqLeader {
     pub unsafe fn enter(
         heap: pgrx::pg_sys::Relation,
         index: pgrx::pg_sys::Relation,
@@ -389,7 +387,7 @@ impl RabbitholeLeader {
         let est_tablescandesc =
             unsafe { pgrx::pg_sys::table_parallelscan_estimate(heap, snapshot) };
         unsafe {
-            estimate_chunk(&mut (*pcxt).estimator, size_of::<RabbitholeShared>());
+            estimate_chunk(&mut (*pcxt).estimator, size_of::<VchordrqShared>());
             estimate_keys(&mut (*pcxt).estimator, 1);
             estimate_chunk(&mut (*pcxt).estimator, est_tablescandesc);
             estimate_keys(&mut (*pcxt).estimator, 1);
@@ -409,9 +407,9 @@ impl RabbitholeLeader {
 
         let vchordrqshared = unsafe {
             let vchordrqshared =
-                pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<RabbitholeShared>())
-                    .cast::<RabbitholeShared>();
-            vchordrqshared.write(RabbitholeShared {
+                pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<VchordrqShared>())
+                    .cast::<VchordrqShared>();
+            vchordrqshared.write(VchordrqShared {
                 heaprelid: (*heap).rd_id,
                 indexrelid: (*index).rd_id,
                 isconcurrent,
@@ -471,7 +469,7 @@ impl RabbitholeLeader {
     }
 }
 
-impl Drop for RabbitholeLeader {
+impl Drop for VchordrqLeader {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             unsafe {
@@ -493,7 +491,7 @@ pub unsafe extern "C" fn vchordrq_parallel_build_main(
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
     let vchordrqshared = unsafe {
-        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<RabbitholeShared>()
+        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordrqShared>()
     };
     let tablescandesc = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000002, false)
@@ -530,7 +528,7 @@ unsafe fn parallel_build(
     heap: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
-    vchordrqshared: *mut RabbitholeShared,
+    vchordrqshared: *mut VchordrqShared,
     mut reporter: Option<PgReporter>,
 ) {
     #[derive(Debug, Clone)]

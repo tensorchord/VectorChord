@@ -1,14 +1,14 @@
-use crate::algorithm::k_means;
-use crate::algorithm::rabitq;
-use crate::algorithm::tuples::*;
-use crate::algorithm::vectors;
-use crate::index::am_options::Opfamily;
 use crate::postgres::BufferWriteGuard;
 use crate::postgres::Relation;
-use crate::types::RabbitholeBuildOptions;
-use crate::types::RabbitholeExternalBuildOptions;
-use crate::types::RabbitholeInternalBuildOptions;
+use crate::types::VchordrqBuildOptions;
+use crate::types::VchordrqExternalBuildOptions;
 use crate::types::VchordrqIndexingOptions;
+use crate::types::VchordrqInternalBuildOptions;
+use crate::vchordrq::algorithm::k_means;
+use crate::vchordrq::algorithm::rabitq;
+use crate::vchordrq::algorithm::tuples::*;
+use crate::vchordrq::algorithm::vectors;
+use crate::vchordrq::index::am_options::Opfamily;
 use base::distance::DistanceKind;
 use base::index::VectorOptions;
 use base::scalar::ScalarLike;
@@ -40,12 +40,12 @@ pub fn build<T: HeapRelation, R: Reporter>(
     let is_residual =
         vchordrq_options.residual_quantization && vector_options.d == DistanceKind::L2;
     let structures = match vchordrq_options.build {
-        RabbitholeBuildOptions::External(external_build) => Structure::extern_build(
+        VchordrqBuildOptions::External(external_build) => Structure::extern_build(
             vector_options.clone(),
             heap_relation.opfamily(),
             external_build.clone(),
         ),
-        RabbitholeBuildOptions::Internal(internal_build) => {
+        VchordrqBuildOptions::Internal(internal_build) => {
             let mut tuples_total = 0_u64;
             let samples = {
                 let mut rand = rand::thread_rng();
@@ -149,16 +149,16 @@ impl Structure {
     }
     fn internal_build(
         vector_options: VectorOptions,
-        internal_build: RabbitholeInternalBuildOptions,
+        internal_build: VchordrqInternalBuildOptions,
         mut samples: Vec<Vec<f32>>,
     ) -> Vec<Self> {
         use std::iter::once;
         for sample in samples.iter_mut() {
-            *sample = rabitq::project(sample);
+            *sample = crate::projection::project(sample);
         }
         let mut result = Vec::<Self>::new();
         for w in internal_build.lists.iter().rev().copied().chain(once(1)) {
-            let means = crate::algorithm::parallelism::RayonParallelism::scoped(
+            let means = crate::vchordrq::algorithm::parallelism::RayonParallelism::scoped(
                 internal_build.build_threads as _,
                 Arc::new(|| {
                     pgrx::check_for_interrupts!();
@@ -199,10 +199,10 @@ impl Structure {
     fn extern_build(
         vector_options: VectorOptions,
         _opfamily: Opfamily,
-        external_build: RabbitholeExternalBuildOptions,
+        external_build: VchordrqExternalBuildOptions,
     ) -> Vec<Self> {
         use std::collections::BTreeMap;
-        let RabbitholeExternalBuildOptions { table } = external_build;
+        let VchordrqExternalBuildOptions { table } = external_build;
         let query = format!("SELECT id, parent, vector FROM {table};");
         let mut parents = BTreeMap::new();
         let mut vectors = BTreeMap::new();
@@ -226,7 +226,7 @@ impl Structure {
                 if vector_options.dims != vector.as_borrowed().dims() {
                     pgrx::error!("extern build: incorrect dimension, id = {id}");
                 }
-                vectors.insert(id, rabitq::project(vector.slice()));
+                vectors.insert(id, crate::projection::project(vector.slice()));
             }
         });
         let mut children = parents

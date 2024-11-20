@@ -1,9 +1,9 @@
 use super::am_options::Opfamily;
-use crate::algorithm::scan::scan;
-use crate::gucs::executing::epsilon;
-use crate::gucs::executing::max_scan_tuples;
-use crate::gucs::executing::probes;
 use crate::postgres::Relation;
+use crate::vchordrq::algorithm::scan::scan;
+use crate::vchordrq::gucs::executing::epsilon;
+use crate::vchordrq::gucs::executing::max_scan_tuples;
+use crate::vchordrq::gucs::executing::probes;
 use base::distance::Distance;
 use base::search::*;
 use base::vector::*;

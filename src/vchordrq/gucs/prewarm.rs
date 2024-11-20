@@ -20,7 +20,7 @@ pub fn prewarm() {
         if let Ok(prewarm_dim) = prewarm_dim.to_str() {
             for dim in prewarm_dim.split(',') {
                 if let Ok(dim) = dim.trim().parse::<usize>() {
-                    crate::algorithm::rabitq::prewarm(dim as _);
+                    crate::projection::prewarm(dim as _);
                 } else {
                     pgrx::warning!("{dim:?} is not a valid integer");
                 }

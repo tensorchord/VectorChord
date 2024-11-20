@@ -3,18 +3,18 @@ use validator::{Validate, ValidationError, ValidationErrors};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-pub struct RabbitholeInternalBuildOptions {
-    #[serde(default = "RabbitholeInternalBuildOptions::default_lists")]
-    #[validate(length(min = 1, max = 8), custom(function = RabbitholeInternalBuildOptions::validate_lists))]
+pub struct VchordrqInternalBuildOptions {
+    #[serde(default = "VchordrqInternalBuildOptions::default_lists")]
+    #[validate(length(min = 1, max = 8), custom(function = VchordrqInternalBuildOptions::validate_lists))]
     pub lists: Vec<u32>,
-    #[serde(default = "RabbitholeInternalBuildOptions::default_spherical_centroids")]
+    #[serde(default = "VchordrqInternalBuildOptions::default_spherical_centroids")]
     pub spherical_centroids: bool,
-    #[serde(default = "RabbitholeInternalBuildOptions::default_build_threads")]
+    #[serde(default = "VchordrqInternalBuildOptions::default_build_threads")]
     #[validate(range(min = 1, max = 255))]
     pub build_threads: u16,
 }
 
-impl RabbitholeInternalBuildOptions {
+impl VchordrqInternalBuildOptions {
     fn default_lists() -> Vec<u32> {
         vec![1000]
     }
@@ -35,7 +35,7 @@ impl RabbitholeInternalBuildOptions {
     }
 }
 
-impl Default for RabbitholeInternalBuildOptions {
+impl Default for VchordrqInternalBuildOptions {
     fn default() -> Self {
         Self {
             lists: Self::default_lists(),
@@ -47,27 +47,27 @@ impl Default for RabbitholeInternalBuildOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-pub struct RabbitholeExternalBuildOptions {
+pub struct VchordrqExternalBuildOptions {
     pub table: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
-pub enum RabbitholeBuildOptions {
-    Internal(RabbitholeInternalBuildOptions),
-    External(RabbitholeExternalBuildOptions),
+pub enum VchordrqBuildOptions {
+    Internal(VchordrqInternalBuildOptions),
+    External(VchordrqExternalBuildOptions),
 }
 
-impl Default for RabbitholeBuildOptions {
+impl Default for VchordrqBuildOptions {
     fn default() -> Self {
         Self::Internal(Default::default())
     }
 }
 
-impl Validate for RabbitholeBuildOptions {
+impl Validate for VchordrqBuildOptions {
     fn validate(&self) -> Result<(), ValidationErrors> {
-        use RabbitholeBuildOptions::*;
+        use VchordrqBuildOptions::*;
         match self {
             Internal(internal_build) => internal_build.validate(),
             External(external_build) => external_build.validate(),
@@ -80,7 +80,7 @@ impl Validate for RabbitholeBuildOptions {
 pub struct VchordrqIndexingOptions {
     #[serde(default = "VchordrqIndexingOptions::default_residual_quantization")]
     pub residual_quantization: bool,
-    pub build: RabbitholeBuildOptions,
+    pub build: VchordrqBuildOptions,
 }
 
 impl VchordrqIndexingOptions {
