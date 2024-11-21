@@ -58,7 +58,7 @@ impl Page {
         assert!(self.header.pd_upper as usize <= size_of::<Self>());
         let lower = self.header.pd_lower as usize;
         let upper = self.header.pd_upper as usize;
-        assert!(lower < upper);
+        assert!(lower <= upper);
         ((lower - offset_of!(PageHeaderData, pd_linp)) / size_of::<ItemIdData>()) as u16
     }
     pub fn get(&self, i: u16) -> Option<&[u8]> {
