@@ -390,7 +390,7 @@ impl<'a, T> Tape<'a, T> {
     }
 }
 
-impl<'a, T> Tape<'a, T>
+impl<T> Tape<'_, T>
 where
     T: rkyv::Serialize<AllocSerializer<8192>>,
 {
