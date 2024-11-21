@@ -33,7 +33,7 @@ jobs:
       matrix:
         arch: ["x86_64", "aarch64"]
     env:
-      PGRX_IMAGE: "kemingy/pgrx:0.12.8"
+      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.8"
 
     steps:
       - uses: actions/checkout@v4
