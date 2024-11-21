@@ -38,7 +38,11 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             let i = write.get_mut().alloc(&tuple).unwrap();
             break 'h0_vector (write.id(), i);
         }
-        let mut current = relation.read(1).get().get_opaque().fast_forward;
+        let mut current = relation
+            .read(meta_tuple.forwards_first)
+            .get()
+            .get_opaque()
+            .skip;
         let mut changed = false;
         loop {
             let read = relation.read(current);
@@ -53,13 +57,17 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             };
             if flag {
                 drop(read);
-                let mut write = relation.write(current);
+                let mut write = relation.write(current, true);
                 if let Some(i) = write.get_mut().alloc(&tuple) {
                     break (current, i);
                 }
                 if write.get().get_opaque().next == u32::MAX {
                     if changed {
-                        relation.write(1).get_mut().get_opaque_mut().fast_forward = write.id();
+                        relation
+                            .write(meta_tuple.forwards_first, false)
+                            .get_mut()
+                            .get_opaque_mut()
+                            .skip = write.id();
                     }
                     let mut extend = relation.extend(true);
                     write.get_mut().get_opaque_mut().next = extend.id();
@@ -209,7 +217,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
         };
         if flag {
             drop(read);
-            let mut write = relation.write(current);
+            let mut write = relation.write(current, false);
             for i in 1..=write.get().len() {
                 let flag = put(
                     write.get_mut().get_mut(i).expect("data corruption"),

@@ -289,6 +289,7 @@ pub unsafe extern "C" fn ambuild(
                 payload,
                 vector,
                 opfamily.distance_kind(),
+                true,
             );
             indtuples += 1;
             reporter.tuples_done(indtuples);
@@ -617,6 +618,7 @@ unsafe fn parallel_build(
             payload,
             vector,
             opfamily.distance_kind(),
+            true,
         );
         unsafe {
             let indtuples;
@@ -705,6 +707,7 @@ pub unsafe extern "C" fn aminsert(
             pointer,
             vector.into_vec(),
             opfamily.distance_kind(),
+            false,
         );
     }
     false

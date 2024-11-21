@@ -11,7 +11,13 @@ use base::search::Pointer;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_kind: DistanceKind) {
+pub fn insert(
+    relation: Relation,
+    payload: Pointer,
+    vector: Vec<f32>,
+    distance_kind: DistanceKind,
+    in_building: bool,
+) {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()
@@ -38,50 +44,14 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                 chain,
             })
             .unwrap();
-            chain = Some('chain: {
-                if let Some(mut write) = relation.search(tuple.len()) {
-                    let i = write.get_mut().alloc(&tuple).unwrap();
-                    break 'chain (write.id(), i);
-                }
-                let mut current = relation.read(1).get().get_opaque().fast_forward;
-                let mut changed = false;
-                loop {
-                    let read = relation.read(current);
-                    let flag = 'flag: {
-                        if read.get().freespace() as usize >= tuple.len() {
-                            break 'flag true;
-                        }
-                        if read.get().get_opaque().next == u32::MAX {
-                            break 'flag true;
-                        }
-                        false
-                    };
-                    if flag {
-                        drop(read);
-                        let mut write = relation.write(current);
-                        if let Some(i) = write.get_mut().alloc(&tuple) {
-                            break 'chain (current, i);
-                        }
-                        if write.get().get_opaque().next == u32::MAX {
-                            if changed {
-                                relation.write(1).get_mut().get_opaque_mut().fast_forward =
-                                    write.id();
-                            }
-                            let mut extend = relation.extend(true);
-                            write.get_mut().get_opaque_mut().next = extend.id();
-                            if let Some(i) = extend.get_mut().alloc(&tuple) {
-                                break 'chain (extend.id(), i);
-                            } else {
-                                panic!("a tuple cannot even be fit in a fresh page");
-                            }
-                        }
-                        current = write.get().get_opaque().next;
-                    } else {
-                        current = read.get().get_opaque().next;
-                    }
-                    changed = true;
-                }
-            });
+            chain = Some(append(
+                relation.clone(),
+                meta_tuple.vectors_first,
+                &tuple,
+                true,
+                true,
+                true,
+            ));
         }
         chain.unwrap()
     };
@@ -168,7 +138,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
     } else {
         rabitq::code(dims, &vector)
     };
-    let h0_tuple = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
+    let tuple = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
         mean: h0_vector,
         payload: h0_payload,
         dis_u_2: code.dis_u_2,
@@ -178,38 +148,64 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
         t: code.t(),
     })
     .unwrap();
-    let first = list.0;
+    append(relation, list.0, &tuple, false, in_building, in_building);
+}
+
+fn append(
+    relation: Relation,
+    first: u32,
+    tuple: &[u8],
+    tracking_freespace: bool,
+    skipping_traversal: bool,
+    updating_skip: bool,
+) -> (u32, u16) {
+    if tracking_freespace {
+        if let Some(mut write) = relation.search(tuple.len()) {
+            let i = write.get_mut().alloc(tuple).unwrap();
+            return (write.id(), i);
+        }
+    }
     assert!(first != u32::MAX);
     let mut current = first;
     loop {
         let read = relation.read(current);
-        let flag = 'flag: {
-            if read.get().freespace() as usize >= h0_tuple.len() {
-                break 'flag true;
-            }
-            if read.get().get_opaque().next == u32::MAX {
-                break 'flag true;
-            }
-            false
-        };
-        if flag {
+        if read.get().freespace() as usize >= tuple.len()
+            || read.get().get_opaque().next == u32::MAX
+        {
             drop(read);
-            let mut write = relation.write(current);
-            if write.get_mut().alloc(&h0_tuple).is_some() {
-                return;
+            let mut write = relation.write(current, tracking_freespace);
+            if let Some(i) = write.get_mut().alloc(tuple) {
+                return (current, i);
             }
             if write.get().get_opaque().next == u32::MAX {
-                let mut extend = relation.extend(false);
+                let mut extend = relation.extend(tracking_freespace);
                 write.get_mut().get_opaque_mut().next = extend.id();
-                if extend.get_mut().alloc(&h0_tuple).is_some() {
-                    return;
+                drop(write);
+                if let Some(i) = extend.get_mut().alloc(tuple) {
+                    let result = (extend.id(), i);
+                    drop(extend);
+                    if updating_skip {
+                        let mut past = relation.write(first, tracking_freespace);
+                        let skip = &mut past.get_mut().get_opaque_mut().skip;
+                        assert!(*skip != u32::MAX);
+                        *skip = std::cmp::max(*skip, result.0);
+                    }
+                    return result;
                 } else {
                     panic!("a tuple cannot even be fit in a fresh page");
                 }
             }
-            current = write.get().get_opaque().next;
+            if skipping_traversal && current == first && write.get().get_opaque().skip != first {
+                current = write.get().get_opaque().skip;
+            } else {
+                current = write.get().get_opaque().next;
+            }
         } else {
-            current = read.get().get_opaque().next;
+            if skipping_traversal && current == first && read.get().get_opaque().skip != first {
+                current = read.get().get_opaque().skip;
+            } else {
+                current = read.get().get_opaque().next;
+            }
         }
     }
 }

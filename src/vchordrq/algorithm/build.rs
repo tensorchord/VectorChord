@@ -71,10 +71,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
     };
     let mut meta = Tape::create(&relation, false);
     assert_eq!(meta.first(), 0);
-    let mut forwards = Tape::<std::convert::Infallible>::create(&relation, false);
-    assert_eq!(forwards.first(), 1);
     let mut vectors = Tape::create(&relation, true);
-    assert_eq!(vectors.first(), 2);
     let mut pointer_of_means = Vec::<Vec<(u32, u16)>>::new();
     for i in 0..structures.len() {
         let mut level = Vec::new();
@@ -125,13 +122,11 @@ pub fn build<T: HeapRelation, R: Reporter>(
         }
         pointer_of_firsts.push(level);
     }
-    forwards.head.get_mut().get_opaque_mut().fast_forward = vectors.first();
     meta.push(&MetaTuple {
         dims,
         height_of_root: structures.len() as u32,
         is_residual,
         vectors_first: vectors.first(),
-        forwards_first: forwards.first(),
         mean: pointer_of_means.last().unwrap()[0],
         first: pointer_of_firsts.last().unwrap()[0],
     });
@@ -336,7 +331,8 @@ struct Tape<'a, T> {
 
 impl<'a, T> Tape<'a, T> {
     fn create(relation: &'a Relation, tracking_freespace: bool) -> Self {
-        let head = relation.extend(tracking_freespace);
+        let mut head = relation.extend(tracking_freespace);
+        head.get_mut().get_opaque_mut().skip = head.id();
         let first = head.id();
         Self {
             relation,
@@ -351,7 +347,7 @@ impl<'a, T> Tape<'a, T> {
     }
 }
 
-impl<'a, T> Tape<'a, T>
+impl<T> Tape<'_, T>
 where
     T: rkyv::Serialize<AllocSerializer<8192>>,
 {

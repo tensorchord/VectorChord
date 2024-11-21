@@ -7,7 +7,6 @@ pub struct MetaTuple {
     pub height_of_root: u32,
     pub is_residual: bool,
     pub vectors_first: u32,
-    pub forwards_first: u32,
     // raw vector
     pub mean: (u32, u16),
     // for meta tuple, it's pointers to next level

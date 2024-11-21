@@ -24,7 +24,7 @@ const _: () = assert!(align_of::<Page>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usi
 const _: () = assert!(size_of::<Page>() == pgrx::pg_sys::BLCKSZ as usize);
 
 impl Page {
-    pub fn init_mut(this: &mut MaybeUninit<Self>, tracking_freespace: bool) -> &mut Self {
+    pub fn init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
         unsafe {
             pgrx::pg_sys::PageInit(
                 this.as_mut_ptr() as pgrx::pg_sys::Page,
@@ -33,8 +33,7 @@ impl Page {
             );
             (&raw mut (*this.as_mut_ptr()).opaque).write(Opaque {
                 next: u32::MAX,
-                tracking_freespace,
-                fast_forward: u32::MAX,
+                skip: u32::MAX,
             });
         }
         let this = unsafe { MaybeUninit::assume_init_mut(this) };
@@ -159,8 +158,7 @@ impl Page {
 #[repr(C, align(8))]
 pub struct Opaque {
     pub next: u32,
-    pub tracking_freespace: bool,
-    pub fast_forward: u32,
+    pub skip: u32,
 }
 
 const _: () = assert!(align_of::<Opaque>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
@@ -195,6 +193,7 @@ pub struct BufferWriteGuard {
     page: NonNull<Page>,
     state: *mut pgrx::pg_sys::GenericXLogState,
     id: u32,
+    tracking_freespace: bool,
 }
 
 impl BufferWriteGuard {
@@ -215,7 +214,7 @@ impl Drop for BufferWriteGuard {
             if std::thread::panicking() {
                 pgrx::pg_sys::GenericXLogAbort(self.state);
             } else {
-                if self.get().get_opaque().tracking_freespace {
+                if self.tracking_freespace {
                     pgrx::pg_sys::RecordPageWithFreeSpace(
                         self.raw,
                         self.id,
@@ -257,7 +256,7 @@ impl Relation {
             BufferReadGuard { buf, page, id }
         }
     }
-    pub fn write(&self, id: u32) -> BufferWriteGuard {
+    pub fn write(&self, id: u32, tracking_freespace: bool) -> BufferWriteGuard {
         assert!(id != u32::MAX, "no such page");
         unsafe {
             use pgrx::pg_sys::{
@@ -284,6 +283,7 @@ impl Relation {
                 page: page.cast(),
                 state,
                 id,
+                tracking_freespace,
             }
         }
     }
@@ -310,13 +310,14 @@ impl Relation {
                     .cast::<MaybeUninit<Page>>(),
             )
             .expect("failed to get page");
-            Page::init_mut(page.as_mut(), tracking_freespace);
+            Page::init_mut(page.as_mut());
             BufferWriteGuard {
                 raw: self.raw,
                 buf,
                 page: page.cast(),
                 state,
                 id: pgrx::pg_sys::BufferGetBlockNumber(buf),
+                tracking_freespace,
             }
         }
     }
@@ -327,8 +328,7 @@ impl Relation {
                 if id == u32::MAX {
                     return None;
                 }
-                let write = self.write(id);
-                assert!(write.get().get_opaque().tracking_freespace);
+                let write = self.write(id, true);
                 if write.get().freespace() < freespace as _ {
                     // the free space is recorded incorrectly
                     pgrx::pg_sys::RecordPageWithFreeSpace(

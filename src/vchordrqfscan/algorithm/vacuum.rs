@@ -45,7 +45,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
             let mut current = first;
             while current != u32::MAX {
                 delay();
-                let mut h0_guard = relation.write(current);
+                let mut h0_guard = relation.write(current, false);
                 for i in 1..=h0_guard.get().len() {
                     let h0_tuple = h0_guard
                         .get()
@@ -119,7 +119,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
             };
             if flag {
                 drop(read);
-                let mut write = relation.write(current);
+                let mut write = relation.write(current, true);
                 for i in 1..=write.get().len() {
                     let Some(vector_tuple) = write.get().get(i) else {
                         continue;
