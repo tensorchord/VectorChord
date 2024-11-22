@@ -32,7 +32,7 @@ docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d tensorchord/vchord-postgres:pg17-v0.1.0-amd64
+  -d tensorchord/vchord-postgres:pg17-v0.1.0
 
 Then you can connect to the database using the `psql` command line tool. The default username is `postgres`, and the default password is `mysecretpassword`.
 ```bash
