@@ -127,3 +127,18 @@ jobs:
             PG_VERSION=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
             PGVECTOR=0.8.0
+      - name: Build and push Enterprise image to Docker Registry
+        uses: docker/build-push-action@v6
+        if: ${{ matrix.version != '17' }}
+        with:
+          context: ./docker/pg-cnpg
+          push: true
+          platforms: "linux/amd64"
+          file: ./docker/pg-cnpg/Dockerfile
+          build-args: |
+            PG_MAJOR=${{ matrix.version }}
+            SEMVER=${{ env.SEMVER }}
+            LIB_DIR=/usr/lib/x86_64-linux-gnu 
+            TARGETARCH=amd64
+            PGVECTOR=0.8.0
+          tags: tensorchord/vchord-cnpg:${{ matrix.version }}-v${{ env.SEMVER }}
