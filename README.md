@@ -33,8 +33,10 @@ docker run \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
   -d tensorchord/vchord-postgres:pg17-v0.1.0
+```
 
 Then you can connect to the database using the `psql` command line tool. The default username is `postgres`, and the default password is `mysecretpassword`.
+
 ```bash
 psql -h localhost -p 5432 -U postgres
 ```
@@ -44,7 +46,7 @@ Run the following SQL to ensure the extension is enabled.
 CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 ```
 
-And make sure to add vchord.so to the shared_preload_libraries in postgresql.conf.
+And make sure to add `vchord.so` to the `shared_preload_libraries` in `postgresql.conf`.
 
 ```SQL
 -- Add vchord and pgvector to shared_preload_libraries --
