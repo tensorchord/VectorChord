@@ -82,7 +82,6 @@ jobs:
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
-        platform: ["amd64", "arm64"]
     env:
       SEMVER: ${{ needs.semver.outputs.SEMVER }}
     steps:
@@ -92,9 +91,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download $SEMVER --pattern "vchord-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb" --output vchord-binary-release.deb
           mkdir -p build
-          cp vchord-binary-release.deb ./build/vchord-pg${{ matrix.version }}_${SEMVER}_${{ matrix.platform }}.deb
+          for arch in amd64 arm64; do
+            gh release download $SEMVER --pattern "vchord-pg${{ matrix.version }}_${SEMVER}_${arch}.deb" --output ./build/vchord-pg${{ matrix.version }}_${SEMVER}_${arch}.deb
+          done
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -109,19 +109,21 @@ jobs:
         with:
           context: .
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: "linux/amd64,linux/arm64"
           file: ./docker/binary.Dockerfile
-          tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ matrix.platform }}
+          tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${{ env.SEMVER }}
+          build-args: |
+            PG_VERSION=${{ matrix.version }}
+            SEMVER=${{ env.SEMVER }}
       - name: Push PostgreSQL release to Docker Registry
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: "linux/amd64,linux/arm64"
           file: ./docker/Dockerfile
-          tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ matrix.platform }}
+          tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
             PGVECTOR=0.8.0
-            PLATFORM=${{ matrix.platform }}
