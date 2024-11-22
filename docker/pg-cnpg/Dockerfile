@@ -19,7 +19,7 @@ ARG ALTDIR=/var/lib/postgresql/data/tensorchord
 
 USER root
 
-COPY --from binary /workspace/vchord-pg${PG_VERSION}_${SEMVER}_${TARGETARCH}.deb /tmp/vchord.deb
+COPY --from=binary /workspace/vchord-pg${PG_VERSION}_${SEMVER}_${TARGETARCH}.deb /tmp/vchord.deb
 RUN apt-get install -y /tmp/vchord.deb && rm -f /tmp/vchord.deb
 
 # PGDATA is set in pg-slim and used by dependents on this image.
