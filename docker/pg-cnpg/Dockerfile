@@ -1,5 +1,8 @@
 ARG PG_MAJOR
+ARG SEMVER
 ARG TARGETARCH
+
+FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
 
 FROM rust:1.78-bookworm as builder
 ARG TRUNK_VER=0.12.25
@@ -16,7 +19,7 @@ ARG ALTDIR=/var/lib/postgresql/data/tensorchord
 
 USER root
 
-COPY ../build/vchord-pg${PG_VERSION}_${SEMVER}_${TARGETARCH}.deb /tmp/vchord.deb
+COPY --from binary /workspace/vchord-pg${PG_VERSION}_${SEMVER}_${TARGETARCH}.deb /tmp/vchord.deb
 RUN apt-get install -y /tmp/vchord.deb && rm -f /tmp/vchord.deb
 
 # PGDATA is set in pg-slim and used by dependents on this image.
