@@ -18,8 +18,11 @@ jobs:
         version: [14, 15, 16]
         platform: ["amd64"]
     container:
-      image: tensorchord/vchord-cnpg:${{ matrix.version }}-v${{ github.event.inputs.version }}
+      image: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ github.event.inputs.version }}
       options: --user root
+      credentials:
+        username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
+        password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
     env:
       PGHOST: "localhost"
       PGPORT: "5432"
