@@ -2,10 +2,10 @@ FROM ubuntu:22.04
 
 # 14, 15, 16, 17
 ARG PG_MAJOR
-ARG DEBIAN_FRONTEND=noninteractive
 ARG ALTDIR=/var/lib/postgresql/data/tensorchord
-ENV TZ=Etc/UTC
-ENV PGDATA /var/lib/postgresql/data
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC \
+    PGDATA=/var/lib/postgresql/data
 
 # Get latest package updates
 RUN set -eux; \
@@ -27,7 +27,7 @@ RUN set -eux; \
       locales curl ca-certificates gnupg lsb-release lbzip2 git cmake \
     ; \
     rm -rf /var/lib/apt/lists/*; \
-          localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+    localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 ENV LANG en_US.utf8
 
 RUN mkdir /docker-entrypoint-initdb.d

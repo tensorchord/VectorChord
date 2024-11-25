@@ -38,11 +38,11 @@ RUN set -xe; \
 		python3-setuptools \
 	; \
 	pip3 install --upgrade pip; \
-# TODO: Remove --no-deps once https://github.com/pypa/pip/issues/9644 is solved
+    # TODO: Remove --no-deps once https://github.com/pypa/pip/issues/9644 is solved
 	pip3 install --no-deps -r requirements.txt; \
-  apt-get autoremove -y; \
-  apt-get clean; \
-	rm -rf /var/lib/apt/lists/*;
+    apt-get autoremove -y; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*;
 
 RUN chown -R postgres:postgres ${ALTDIR}/${PG_MAJOR} && \
     chmod -R 0700 ${ALTDIR}/${PG_MAJOR}

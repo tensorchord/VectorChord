@@ -1,24 +1,43 @@
 name: Trunk install test workflow
 
 on:
+  release:
+    types: [created]
   workflow_dispatch:
     inputs:
-      version:
-        type: string
-        description: Version
+      tag:
+        description: 'tag name (semver without v-prefix)'
         required: true
+        type: string
 
 jobs:
+  semver:
+    runs-on: ubuntu-latest
+    outputs:
+      SEMVER: ${{ steps.semver.outputs.SEMVER }}
+    steps:
+      - uses: actions/github-script@v7
+        id: semver
+        with:
+          script: |
+            const tag = "${{ github.event.inputs.tag }}" || "${{ github.event.release.tag_name }}";
+            console.log(`Tag: ${tag}`);
+            const r = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+            if (!r.test(tag)) {
+              core.setFailed(`Action failed with an invalid semver.`);
+            }
+            core.setOutput('SEMVER', tag);
   test:
     name: Run tests
     runs-on:
       - ubuntu-latest
+    needs: ["semver"]
     strategy:
       matrix:
         version: [14, 15, 16]
         platform: ["amd64"]
     container:
-      image: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ github.event.inputs.version }}
+      image: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ needs.semver.outputs.SEMVER }}
       options: --user root
       credentials:
         username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
