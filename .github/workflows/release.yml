@@ -127,6 +127,11 @@ jobs:
             PG_VERSION=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
             PGVECTOR=0.8.0
+      - name: Login to modelzai Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
+          password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
       - name: Build and push Enterprise image to Docker Registry
         uses: docker/build-push-action@v6
         if: ${{ matrix.version != '17' }}
@@ -141,4 +146,4 @@ jobs:
             LIB_DIR=/usr/lib/x86_64-linux-gnu 
             TARGETARCH=amd64
             PGVECTOR=0.8.0
-          tags: tensorchord/vchord-cnpg:${{ matrix.version }}-v${{ env.SEMVER }}
+          tags: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ env.SEMVER }}
