@@ -1,49 +1,38 @@
 <div align="center">
 <h1 align=center>VectorChord</h1>
-<h4 align=center>Host 100M 768-dim vector (250GB+) on an AWS i4i.xlarge machine ($250/month) with 4 vCPUs and 32GB of RAM using VectorChord.</h4>
+<h4 align=center>Effortlessly host 100 million 768-dimensional vectors (250GB+) on an AWS i4i.xlarge instance ($250/month), featuring 4 vCPUs and 32GB of RAM with VectorChord.</h4>
 </div>
 
 <p align=center>
 <a href="https://discord.gg/KqswhpVgdU"><img alt="discord invitation link" src="https://dcbadge.vercel.app/api/server/KqswhpVgdU?style=flat"></a>
-<a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=social" alt="trackgit-views" /></a>
-<a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" /></a>
-<p>Prior release: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" /></a></p>
-<!-- <a href="https://github.com/tensorchord/VectorChord#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/VectorChord/main"></a> -->
+<a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=social" alt="Twitter" /></a>
+<a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" alt="Docker pulls" /></a>
+<p>Prior release: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a></p>
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, succeeding the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project.
+VectorChord (vchord) is a powerful PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, building upon the foundation laid by the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project.
 
-<div align="center">
-<img src="https://github.com/user-attachments/assets/f077629a-0dda-4e63-943f-b5653336f851" alt="benchmark" width="450"/>
-</div>
+With VectorChord, you can store 400,000 vectors for just $1, enabling significant savings: 6x more vectors compared to Pinecone's optimized storage and 26x more than pgvector/pgvecto.rs for the same price[^1]. For further insights, check out our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql).
 
-You can store 400k vectors for only $1, allowing you to save significantly: 6x more vectors compared to Pinecone (storage optimized instance) and 26x more than pgvector/pgvecto.rs for the same price[^1]. Please checkout our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
-
-[^1]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dim vectors and 95% recall.
+[^1]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dimensional vectors and 95% recall.
 
 ## Features
 
-VectorChord offers impressive performance improvements over ogvecto.rs and pgvector's HNSW index:
+VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 
-**Blazing-Fast Queries**: Enjoy up to 5x faster queries compared to pgvector's HNSW, while maintaining the same recall level.
-
-**High-Throughput Updates**: Experience insert throughput that is 16x faster than pgvector's HNSW.
-
-**Lightning-Fast Index Building**: Build indexes up to 16x faster than pgvector's HNSW with precomputed centroids, taking just 1.5 minutes for 1 million 960-dimensional vectors.
+**⚡ Enhanced Performance**: Delivering optimized operations with up to 5x faster queries, 16x higher insert throughput, and 16x quicker index building compared to pgvector's HNSW implementation.
 
 <div align="center">
 <img src="https://github.com/user-attachments/assets/e176628f-742f-4d6e-adc9-25d4b97e0588" alt="benchmark" width="450"/>
 </div>
 
-**External Index Build**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
+**💰 Affordable Vector Search**: Query 100M 768-dimensional vectors using just 32GB of memory, achieving 35ms P50 latency with top10 recall@95%, helping you keep infrastructure costs down while maintaining high search quality.
 
-**Disk-Friendly Performance**: Query LAION-100M 768-dimensional vectors using just 32 GB of memory, achieving 35 ms P50 latency with top-10 recall at 95%.
+**🔌 Seamless Integration**: Fully compatible with pgvector data types and syntax while providing optimal defaults out of the box - no manual parameter tuning needed. Just drop in VectorChord for enhanced performance.
 
-**Seamless Compatibility**: Fully compatible with pgvector data types while providing faster indexing and querying.
+**🔧 External Index Build**: Leverage IVF to build indexes externally (e.g., on GPU) for faster KMeans clustering, combined with RaBitQ[^2] compression to efficiently store vectors while maintaining search quality through autonomous reranking.
 
-**Simple Configuration**: No need for manual tweaking of quantization or rerank parameters—optimal defaults are ready out of the box.
-
-**Advanced Quantization**: Utilizes cutting-edge RaBitQ technology to compress float vectors into compact bit representations with autonomous reranking.
+[^2]: Gao, Jianyang, and Cheng Long. "RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search." Proceedings of the ACM on Management of Data 2.3 (2024): 1-27.
 
 ## Quick Start
 For new users, we recommend using the Docker image to get started quickly.
