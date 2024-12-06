@@ -17,9 +17,7 @@ VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-perfo
 <img src="https://github.com/user-attachments/assets/f077629a-0dda-4e63-943f-b5653336f851" alt="benchmark" width="450"/>
 </div>
 
-You can store 400k vectors for only $1, allowing you to save significantly: 6x more vectors compared to Pinecone (storage optimized instance) and 26x more than pgvector/pgvecto.rs for the same price[^1].
-
-Please checkout our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
+You can store 400k vectors for only $1, allowing you to save significantly: 6x more vectors compared to Pinecone (storage optimized instance) and 26x more than pgvector/pgvecto.rs for the same price[^1]. Please checkout our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
 
 [^1]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dim vectors and 95% recall.
 
