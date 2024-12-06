@@ -11,19 +11,41 @@
 <!-- <a href="https://github.com/tensorchord/VectorChord#contributors-"><img alt="all-contributors" src="https://img.shields.io/github/all-contributors/tensorchord/VectorChord/main"></a> -->
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search. It serves as the successor to the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project. 
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, succeeding the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project.
 
-VectorChord incorporates the insights and lessons learned from pgvecto.rs, providing faster query speeds, more flexible build options, significantly enhanced index build performance, and greater stability. It is entirely based on Postgres storage, allowing for physical replication and WAL incremental backups for index. This also enables effective ssd usage to reduce memory requirements and can easily handle vectors ranging from hundreds of millions to multi billions of entries.
+<div align="center">
+<img src="https://github.com/user-attachments/assets/f077629a-0dda-4e63-943f-b5653336f851" alt="benchmark" width="350"/>
+</div>
+
+You can store 400k vectors for only $1, allowing you to save significantly: 6x more vectors compared to Pinecone (storage optimized instance) and 26x more than pgvector/pgvecto.rs for the same price[^1].
+
+Please checkout our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
+
+[^1]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dim vectors and 95% recall.
 
 ## Features
-- **Blazing-Fast Queries**: Achieve up to 3x faster queries compared to pgvector's HNSW, maintaining the same recall level.
-- **High-throughput Update**: Achieve 16x faster insert throughput compared to pgvector's HNSW.
-- **External Index Precomputation**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
-- **Lightning-Fast Index Building**: Build index up to 20x faster than pgvector hnsw with precomputed centroids. (1.5 min for 1M 960-dim vectors)
-- **Advanced Quantization**: Uses cutting-edge RaBitQ to compress float vectors into compact bit representations with autonomous reranking.
-- **Disk-Friendly Performance**: Query laion-100M 768-dim vectors using just 32GB of memory, achieving 35ms P50 latency with top10 recall@95%.
-- **Seamless Compatibility**: Compatible with pgvector data types while delivering faster indexing and querying.
-- **Simple Configuration**: No need to tweak quantization or rerank parameters — best defaults are provided out of the box.
+
+VectorChord offers impressive performance improvements over ogvecto.rs and pgvector's HNSW index:
+
+**Blazing-Fast Queries**: Enjoy up to 5x faster queries compared to pgvector's HNSW, while maintaining the same recall level.
+
+**High-Throughput Updates**: Experience insert throughput that is 16x faster than pgvector's HNSW.
+
+**Lightning-Fast Index Building**: Build indexes up to 16x faster than pgvector's HNSW with precomputed centroids, taking just 1.5 minutes for 1 million 960-dimensional vectors.
+
+<div align="center">
+<img src="https://github.com/user-attachments/assets/e176628f-742f-4d6e-adc9-25d4b97e0588" alt="benchmark" width="350"/>
+</div>
+
+**External Index Build**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
+
+**Disk-Friendly Performance**: Query LAION-100M 768-dimensional vectors using just 32 GB of memory, achieving 35 ms P50 latency with top-10 recall at 95%.
+
+**Seamless Compatibility**: Fully compatible with pgvector data types while providing faster indexing and querying.
+
+**Simple Configuration**: No need for manual tweaking of quantization or rerank parameters—optimal defaults are ready out of the box.
+
+**Advanced Quantization**: Utilizes cutting-edge RaBitQ technology to compress float vectors into compact bit representations with autonomous reranking.
 
 ## Quick Start
 For new users, we recommend using the Docker image to get started quickly.
@@ -201,4 +223,3 @@ cargo pgrx install --release --sudo # To install the extension into the system p
 
 ## License
 This project is licensed under the [GNU Affero General Public License v3.0](./LICENSE) and as commercial software. For commercial licensing, please contact us at support@tensorchord.ai.
-
