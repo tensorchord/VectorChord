@@ -10,7 +10,7 @@
 <p>Prior release: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a></p>
 </p>
 
-VectorChord (vchord) is a powerful PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, building upon the foundation laid by the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project.
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, and serves as the successor to [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs).
 
 With VectorChord, you can store 400,000 vectors for just $1, enabling significant savings: 6x more vectors compared to Pinecone's optimized storage and 26x more than pgvector/pgvecto.rs for the same price[^1]. For further insights, check out our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql).
 
