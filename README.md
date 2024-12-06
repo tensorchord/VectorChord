@@ -14,7 +14,7 @@
 VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, succeeding the [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) project.
 
 <div align="center">
-<img src="https://github.com/user-attachments/assets/f077629a-0dda-4e63-943f-b5653336f851" alt="benchmark" width="350"/>
+<img src="https://github.com/user-attachments/assets/f077629a-0dda-4e63-943f-b5653336f851" alt="benchmark" width="450"/>
 </div>
 
 You can store 400k vectors for only $1, allowing you to save significantly: 6x more vectors compared to Pinecone (storage optimized instance) and 26x more than pgvector/pgvecto.rs for the same price[^1].
@@ -34,7 +34,7 @@ VectorChord offers impressive performance improvements over ogvecto.rs and pgvec
 **Lightning-Fast Index Building**: Build indexes up to 16x faster than pgvector's HNSW with precomputed centroids, taking just 1.5 minutes for 1 million 960-dimensional vectors.
 
 <div align="center">
-<img src="https://github.com/user-attachments/assets/e176628f-742f-4d6e-adc9-25d4b97e0588" alt="benchmark" width="350"/>
+<img src="https://github.com/user-attachments/assets/e176628f-742f-4d6e-adc9-25d4b97e0588" alt="benchmark" width="450"/>
 </div>
 
 **External Index Build**: Built on IVF, VectorChord enables KMeans clustering to be performed externally (e.g., on a GPU) and seamlessly imported into the database.
