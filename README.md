@@ -207,4 +207,11 @@ cargo pgrx install --release --sudo # To install the extension into the system p
 
 
 ## License
-This project is licensed under the [GNU Affero General Public License v3.0](./LICENSE) and as commercial software. For commercial licensing, please contact us at support@tensorchord.ai.
+
+This software is licensed under a dual license model:
+
+1. **GNU Affero General Public License v3 (AGPLv3)**: You may use, modify, and distribute this software under the terms of the AGPLv3.
+
+2. **Elastic License v2 (ELv2)**: You may also use, modify, and distribute this software under the Elastic License v2, which has specific restrictions.
+
+You may choose either license based on your needs. If you have any questions or requests regarding the licenses, please contact us <vectorchord-inquiry@tensorchord.ai>.
