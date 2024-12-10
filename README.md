@@ -214,4 +214,4 @@ This software is licensed under a dual license model:
 
 2. **Elastic License v2 (ELv2)**: You may also use, modify, and distribute this software under the Elastic License v2, which has specific restrictions.
 
-You may choose either license based on your needs. If you have any questions or requests regarding the licenses, please contact us <vectorchord-inquiry@tensorchord.ai>.
+You may choose either license based on your needs. We welcome any commercial collaboration or support, so please email us <vectorchord-inquiry@tensorchord.ai> with any questions or requests regarding the licenses.
