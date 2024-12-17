@@ -6,9 +6,9 @@ FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
 
 FROM modelzai/pg_later:0.2.0 as pg_later
 
-FROM rust:1.78-bookworm as builder
-ARG TRUNK_VER=0.12.25
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse 
+FROM rust:1.82-bookworm as builder
+ARG TRUNK_VER=0.15.6
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 RUN cargo install --version $TRUNK_VER pg-trunk
 
 FROM modelzai/pg-slim:${PG_MAJOR}-${TARGETARCH}
