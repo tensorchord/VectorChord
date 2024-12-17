@@ -4,6 +4,8 @@ ARG TARGETARCH
 
 FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
 
+FROM modelzai/pg_later:0.2.0 as pg_later
+
 FROM rust:1.78-bookworm as builder
 ARG TRUNK_VER=0.12.25
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse 
@@ -131,6 +133,13 @@ RUN trunk install plpython3u
 
 # Install pgvector
 RUN trunk install pgvector --version ${PGVECTOR}
+
+# Install pgmq
+RUN trunk install pgmq --version 1.4.5
+
+# Install pg_later
+COPY --from=pg_later /workspace/pg_later/target/release/pg_later-pg${PG_MAJOR}/usr/share/postgresql/${PG_MAJOR}/extension/ /var/lib/postgresql/data/tensorchord/extension/
+COPY --from=pg_later /workspace/pg_later/target/release/pg_later-pg${PG_MAJOR}/usr/lib/postgresql/${PG_MAJOR}/lib/ /var/lib/postgresql/data/tensorchord/${PG_MAJOR}/lib/
 
 # Clone and build AWS SDK for C++
 RUN git clone https://github.com/aws/aws-sdk-cpp.git && \
