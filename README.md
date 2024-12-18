@@ -7,7 +7,7 @@
 <a href="https://discord.gg/KqswhpVgdU"><img alt="discord invitation link" src="https://dcbadge.vercel.app/api/server/KqswhpVgdU?style=flat"></a>
 <a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=social" alt="Twitter" /></a>
 <a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" alt="Docker pulls" /></a>
-<p>Prior release: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a></p>
+<p>Docker pull for pgvecto.rs: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a></p>
 </p>
 
 VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, and serves as the successor to [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs).
@@ -29,6 +29,8 @@ VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 **🔌 Seamless Integration**: Fully compatible with pgvector data types and syntax while providing optimal defaults out of the box - no manual parameter tuning needed. Just drop in VectorChord for enhanced performance.
 
 **🔧 External Index Build**: Leverage IVF to build indexes externally (e.g., on GPU) for faster KMeans clustering, combined with RaBitQ[^2] compression to efficiently store vectors while maintaining search quality through autonomous reranking.
+
+**📏 Long Vector Support**: Store and search vectors up to 65,535 dimensions, enabling the use of the best high-dimensional models like text-embedding-3-large with ease.
 
 [^2]: Gao, Jianyang, and Cheng Long. "RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search." Proceedings of the ACM on Management of Data 2.3 (2024): 1-27.
 
@@ -63,11 +65,21 @@ ALTER SYSTEM SET shared_preload_libraries = 'vchord.so';
 To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
 
 ```SQL
+-- Set residual_quantization to true and spherical_centroids to false for L2 distance --
 CREATE INDEX ON gist_train USING vchordrq (embedding vector_l2_ops) WITH (options = $$
 residual_quantization = true
 [build.internal]
 lists = [4096]
 spherical_centroids = false
+$$);
+
+
+-- Set residual_quantization to false and spherical_centroids to true for cos/dot distance --
+CREATE INDEX ON laion USING vchordrq (embedding vector_cos_ops) WITH (options = $$
+residual_quantization = false
+[build.internal]
+lists = [4096]
+spherical_centroids = true
 $$);
 ```
 
@@ -201,9 +213,7 @@ cargo pgrx install --release --sudo # To install the extension into the system p
 ```
 
 ## Limitations
-- Data Type Support: Currently, only the `f32` data type is supported for vectors.
-- Architecture Compatibility: The fast-scan kernel is optimized for x86_64 architectures. While it runs on aarch64, performance may be lower.
-- KMeans Clustering: The built-in KMeans clustering is not yet fully optimized and may require substantial memory. We strongly recommend using external centroid precomputation for efficient index construction.
+- KMeans Clustering: The built-in KMeans clustering depends on multi-thread in-memory build and may require substantial memory. We strongly recommend using external centroid precomputation for efficient index construction.
 
 
 ## License
