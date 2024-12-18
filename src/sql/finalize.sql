@@ -156,6 +156,9 @@ CREATE OPERATOR FAMILY vector_cosine_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_l2_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_ip_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_cosine_ops USING vchordrq;
+CREATE OPERATOR FAMILY scalar8_l2_ops USING vchordrq;
+CREATE OPERATOR FAMILY scalar8_ip_ops USING vchordrq;
+CREATE OPERATOR FAMILY scalar8_cosine_ops USING vchordrq;
 
 CREATE OPERATOR FAMILY vector_l2_ops USING Vchordrqfscan;
 CREATE OPERATOR FAMILY vector_ip_ops USING Vchordrqfscan;
@@ -198,6 +201,24 @@ CREATE OPERATOR CLASS halfvec_cosine_ops
     OPERATOR 1 <=> (halfvec, halfvec) FOR ORDER BY float_ops,
     OPERATOR 2 <<=>> (halfvec, sphere_halfvec) FOR SEARCH,
     FUNCTION 1 _vchordrq_support_halfvec_cosine_ops();
+
+CREATE OPERATOR CLASS scalar8_l2_ops
+    FOR TYPE scalar8 USING vchordrq FAMILY scalar8_l2_ops AS
+    OPERATOR 1 <-> (scalar8, scalar8) FOR ORDER BY float_ops,
+    OPERATOR 2 <<->> (scalar8, sphere_scalar8) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_scalar8_l2_ops();
+
+CREATE OPERATOR CLASS scalar8_ip_ops
+    FOR TYPE scalar8 USING vchordrq FAMILY scalar8_ip_ops AS
+    OPERATOR 1 <#> (scalar8, scalar8) FOR ORDER BY float_ops,
+    OPERATOR 2 <<#>> (scalar8, sphere_scalar8) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_scalar8_ip_ops();
+
+CREATE OPERATOR CLASS scalar8_cosine_ops
+    FOR TYPE scalar8 USING vchordrq FAMILY scalar8_cosine_ops AS
+    OPERATOR 1 <=> (scalar8, scalar8) FOR ORDER BY float_ops,
+    OPERATOR 2 <<=>> (scalar8, sphere_scalar8) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_scalar8_cosine_ops();
 
 CREATE OPERATOR CLASS vector_l2_ops
     FOR TYPE vector USING Vchordrqfscan FAMILY vector_l2_ops AS

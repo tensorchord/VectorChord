@@ -1,5 +1,5 @@
 use crate::postgres::Relation;
-use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
+use crate::vchordrq::algorithm::rabitq::process_lowerbound;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
 use base::always_equal::AlwaysEqual;
@@ -31,7 +31,7 @@ pub fn insert<V: Vector>(
     let vector = vector.as_borrowed();
     let is_residual = meta_tuple.is_residual;
     let default_lut = if !is_residual {
-        Some(V::rabitq_fscan_preprocess(vector))
+        Some(V::rabitq_preprocess(vector))
     } else {
         None
     };
@@ -74,7 +74,7 @@ pub fn insert<V: Vector>(
         let mut results = Vec::new();
         {
             let lut = if is_residual {
-                &V::rabitq_fscan_preprocess(
+                &V::rabitq_preprocess(
                     V::residual(vector, list.1.as_ref().map(|x| x.as_borrowed()).unwrap())
                         .as_borrowed(),
                 )
@@ -91,7 +91,7 @@ pub fn insert<V: Vector>(
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = process_lowerbound(
                         distance_kind,
                         dims,
                         lut,

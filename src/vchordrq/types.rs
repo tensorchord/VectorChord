@@ -1,3 +1,4 @@
+use crate::types::scalar8::{Scalar8Borrowed, Scalar8Owned};
 use base::distance::DistanceKind;
 use base::vector::{VectBorrowed, VectOwned};
 use half::f16;
@@ -103,12 +104,14 @@ impl VchordrqIndexingOptions {
 pub enum OwnedVector {
     Vecf32(VectOwned<f32>),
     Vecf16(VectOwned<f16>),
+    Scalar8(Scalar8Owned),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum BorrowedVector<'a> {
     Vecf32(VectBorrowed<'a, f32>),
     Vecf16(VectBorrowed<'a, f16>),
+    Scalar8(Scalar8Borrowed<'a>),
 }
 
 #[repr(u8)]
@@ -116,6 +119,7 @@ pub enum BorrowedVector<'a> {
 pub enum VectorKind {
     Vecf32,
     Vecf16,
+    Scalar8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
@@ -132,12 +136,14 @@ pub struct VectorOptions {
 }
 
 impl VectorOptions {
-    pub fn validate_self(&self) -> Result<(), ValidationError> {
+    fn validate_self(&self) -> Result<(), ValidationError> {
         match (self.v, self.d, self.dims) {
             (VectorKind::Vecf32, DistanceKind::L2, 1..65536) => Ok(()),
             (VectorKind::Vecf32, DistanceKind::Dot, 1..65536) => Ok(()),
             (VectorKind::Vecf16, DistanceKind::L2, 1..65536) => Ok(()),
             (VectorKind::Vecf16, DistanceKind::Dot, 1..65536) => Ok(()),
+            (VectorKind::Scalar8, DistanceKind::L2, 1..65536) => Ok(()),
+            (VectorKind::Scalar8, DistanceKind::Dot, 1..65536) => Ok(()),
             _ => Err(ValidationError::new("not valid vector options")),
         }
     }

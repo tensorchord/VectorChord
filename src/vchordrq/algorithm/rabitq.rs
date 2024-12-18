@@ -61,11 +61,11 @@ pub fn code(dims: u32, vector: &[f32]) -> Code {
 
 pub type Lut = (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>));
 
-pub fn fscan_preprocess(vector: &[f32]) -> Lut {
+pub fn preprocess(vector: &[f32]) -> Lut {
     use base::simd::quantize;
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
     let (k, b, qvector) = quantize::quantize(vector, 15.0);
-    let qvector_sum = if vector.len() <= 4369 {
+    let qvector_sum = if qvector.len() <= 4369 {
         base::simd::u8::reduce_sum_of_x_as_u16(&qvector) as f32
     } else {
         base::simd::u8::reduce_sum_of_x_as_u32(&qvector) as f32
@@ -73,7 +73,7 @@ pub fn fscan_preprocess(vector: &[f32]) -> Lut {
     (dis_v_2, b, k, qvector_sum, binarize(&qvector))
 }
 
-pub fn fscan_process_lowerbound(
+pub fn process_lowerbound(
     distance_kind: DistanceKind,
     _dims: u32,
     lut: &Lut,
@@ -104,7 +104,7 @@ pub fn fscan_process_lowerbound(
     }
 }
 
-fn binarize(vector: &[u8]) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
+pub fn binarize(vector: &[u8]) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
     let n = vector.len();
     let mut t0 = vec![0u64; n.div_ceil(64)];
     let mut t1 = vec![0u64; n.div_ceil(64)];
