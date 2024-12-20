@@ -35,34 +35,12 @@ pub fn insert<V: Vector>(
     } else {
         None
     };
-    let h0_vector = {
-        let (metadata, slices) = V::vector_split(vector);
-        let mut chain = Err(metadata);
-        for i in (0..slices.len()).rev() {
-            let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple::<V> {
-                slice: slices[i].to_vec(),
-                payload: Some(payload.as_u64()),
-                chain,
-            })
-            .unwrap();
-            chain = Ok(append(
-                relation.clone(),
-                meta_tuple.vectors_first,
-                &tuple,
-                true,
-                true,
-                true,
-            ));
-        }
-        chain.ok().unwrap()
-    };
     let h0_payload = payload.as_u64();
     let mut list = {
-        let Some((_, original)) = vectors::vector_dist::<V>(
+        let Some((_, original)) = vectors::vector_dist_by_mean::<V>(
             relation.clone(),
             vector,
             meta_tuple.mean,
-            None,
             None,
             is_residual,
         ) else {
@@ -117,11 +95,10 @@ pub fn insert<V: Vector>(
         {
             while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
                 let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
-                let Some((Some(dis_u), original)) = vectors::vector_dist::<V>(
+                let Some((Some(dis_u), original)) = vectors::vector_dist_by_mean::<V>(
                     relation.clone(),
                     vector,
                     mean,
-                    None,
                     Some(distance_kind),
                     is_residual,
                 ) else {
@@ -145,7 +122,6 @@ pub fn insert<V: Vector>(
         V::rabitq_code(dims, vector)
     };
     let tuple = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
-        mean: h0_vector,
         payload: h0_payload,
         dis_u_2: code.dis_u_2,
         factor_ppc: code.factor_ppc,

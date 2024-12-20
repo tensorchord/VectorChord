@@ -366,4 +366,7 @@ impl Relation {
             )
         }
     }
+    pub fn raw(&self) -> pgrx::pg_sys::Relation {
+        self.raw
+    }
 }
