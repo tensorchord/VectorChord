@@ -27,3 +27,18 @@ fn _vchordrq_support_halfvec_ip_ops() -> String {
 fn _vchordrq_support_halfvec_cosine_ops() -> String {
     "halfvec_cosine_ops".to_string()
 }
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchordrq_support_scalar8_l2_ops() -> String {
+    "scalar8_l2_ops".to_string()
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchordrq_support_scalar8_ip_ops() -> String {
+    "scalar8_ip_ops".to_string()
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchordrq_support_scalar8_cosine_ops() -> String {
+    "scalar8_cosine_ops".to_string()
+}

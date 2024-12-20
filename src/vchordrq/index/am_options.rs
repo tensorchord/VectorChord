@@ -2,6 +2,8 @@ use crate::datatype::memory_pgvector_halfvec::PgvectorHalfvecInput;
 use crate::datatype::memory_pgvector_halfvec::PgvectorHalfvecOutput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorInput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
+use crate::datatype::memory_scalar8::Scalar8Input;
+use crate::datatype::memory_scalar8::Scalar8Output;
 use crate::datatype::typmod::Typmod;
 use crate::vchordrq::types::VchordrqIndexingOptions;
 use crate::vchordrq::types::VectorOptions;
@@ -62,6 +64,9 @@ fn convert_name_to_vd(name: &str) -> Option<(VectorKind, PgDistanceKind)> {
         Some("halfvec_l2") => Some((VectorKind::Vecf16, PgDistanceKind::L2)),
         Some("halfvec_ip") => Some((VectorKind::Vecf16, PgDistanceKind::Dot)),
         Some("halfvec_cosine") => Some((VectorKind::Vecf16, PgDistanceKind::Cos)),
+        Some("scalar8_l2") => Some((VectorKind::Scalar8, PgDistanceKind::L2)),
+        Some("scalar8_ip") => Some((VectorKind::Scalar8, PgDistanceKind::Dot)),
+        Some("scalar8_cosine") => Some((VectorKind::Scalar8, PgDistanceKind::Cos)),
         _ => None,
     }
 }
@@ -140,6 +145,10 @@ impl Opfamily {
                 let vector = unsafe { PgvectorHalfvecInput::from_datum(datum, false).unwrap() };
                 self.preprocess(BorrowedVector::Vecf16(vector.as_borrowed()))
             }
+            VectorKind::Scalar8 => {
+                let vector = unsafe { Scalar8Input::from_datum(datum, false).unwrap() };
+                self.preprocess(BorrowedVector::Scalar8(vector.as_borrowed()))
+            }
         };
         Some(vector)
     }
@@ -161,6 +170,10 @@ impl Opfamily {
                 .get_by_index::<PgvectorHalfvecOutput>(NonZero::new(1).unwrap())
                 .unwrap()
                 .map(|vector| self.preprocess(BorrowedVector::Vecf16(vector.as_borrowed()))),
+            VectorKind::Scalar8 => tuple
+                .get_by_index::<Scalar8Output>(NonZero::new(1).unwrap())
+                .unwrap()
+                .map(|vector| self.preprocess(BorrowedVector::Scalar8(vector.as_borrowed()))),
         };
         let radius = tuple.get_by_index::<f32>(NonZero::new(2).unwrap()).unwrap();
         (center, radius)
@@ -175,6 +188,9 @@ impl Opfamily {
             (B::Vecf16(x), PgDistanceKind::L2) => O::Vecf16(x.own()),
             (B::Vecf16(x), PgDistanceKind::Dot) => O::Vecf16(x.own()),
             (B::Vecf16(x), PgDistanceKind::Cos) => O::Vecf16(x.function_normalize()),
+            (B::Scalar8(x), PgDistanceKind::L2) => O::Scalar8(x.own()),
+            (B::Scalar8(x), PgDistanceKind::Dot) => O::Scalar8(x.own()),
+            (B::Scalar8(x), PgDistanceKind::Cos) => O::Scalar8(x.function_normalize()),
         }
     }
     pub fn process(self, x: Distance) -> f32 {
