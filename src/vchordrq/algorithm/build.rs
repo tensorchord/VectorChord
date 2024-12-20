@@ -85,7 +85,6 @@ pub fn build<V: Vector, T: HeapRelation<V>, R: Reporter>(
             let mut chain = Err(metadata);
             for i in (0..slices.len()).rev() {
                 chain = Ok(vectors.push(&VectorTuple {
-                    payload: None,
                     slice: slices[i].to_vec(),
                     chain,
                 }));
