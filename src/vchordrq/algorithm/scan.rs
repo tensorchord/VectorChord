@@ -12,12 +12,13 @@ use std::collections::BinaryHeap;
 
 pub fn scan<V: Vector>(
     relation: Relation,
-    vector: V,
+    raw_vector: V,
     distance_kind: DistanceKind,
     probes: Vec<u32>,
     epsilon: f32,
+    fetch_vector: impl Fn(u64) -> Option<V> + Copy + 'static,
 ) -> impl Iterator<Item = (Distance, Pointer)> {
-    let vector = vector.as_borrowed();
+    let vector = raw_vector.as_borrowed();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get()
@@ -37,11 +38,10 @@ pub fn scan<V: Vector>(
         None
     };
     let mut lists: Vec<_> = vec![{
-        let Some((_, original)) = vectors::vector_dist::<V>(
+        let Some((_, original)) = vectors::vector_dist_by_mean::<V>(
             relation.clone(),
             vector.as_borrowed(),
             meta_tuple.mean,
-            None,
             None,
             is_residual,
         ) else {
@@ -100,11 +100,10 @@ pub fn scan<V: Vector>(
         std::iter::from_fn(|| {
             while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
                 let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
-                let Some((Some(dis_u), original)) = vectors::vector_dist::<V>(
+                let Some((Some(dis_u), original)) = vectors::vector_dist_by_mean::<V>(
                     relation.clone(),
                     vector.as_borrowed(),
                     mean,
-                    None,
                     Some(distance_kind),
                     is_residual,
                 ) else {
@@ -158,11 +157,7 @@ pub fn scan<V: Vector>(
                         ),
                         epsilon,
                     );
-                    results.push((
-                        Reverse(lowerbounds),
-                        AlwaysEqual(h0_tuple.mean),
-                        AlwaysEqual(h0_tuple.payload),
-                    ));
+                    results.push((Reverse(lowerbounds), AlwaysEqual(h0_tuple.payload)));
                 }
                 current = h0_guard.get().get_opaque().next;
             }
@@ -171,14 +166,13 @@ pub fn scan<V: Vector>(
         let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
         std::iter::from_fn(move || {
             while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-                let (_, AlwaysEqual(mean), AlwaysEqual(pay_u)) = heap.pop().unwrap();
-                let Some((Some(dis_u), _)) = vectors::vector_dist::<V>(
-                    relation.clone(),
-                    vector.as_borrowed(),
-                    mean,
-                    Some(pay_u),
+                let (_, AlwaysEqual(pay_u)) = heap.pop().unwrap();
+                let Some((Some(dis_u), _)) = vectors::vector_dist_by_fetch::<V>(
+                    raw_vector.as_borrowed(),
+                    pay_u,
                     Some(distance_kind),
                     false,
+                    fetch_vector,
                 ) else {
                     continue;
                 };
