@@ -203,14 +203,34 @@ impl Structure {
     ) -> Vec<Self> {
         use std::collections::BTreeMap;
         let VchordrqExternalBuildOptions { table } = external_build;
-        let query = format!("SELECT id, parent, vector FROM {table};");
+        let dump_query = format!("SELECT id, parent, vector FROM {table};");
+        let table_name = table.split('.').last().unwrap().to_string();
+        let type_check_query = format!(
+            "SELECT COUNT(*)::INTEGER 
+            FROM pg_catalog.pg_extension e
+            LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
+            LEFT JOIN information_schema.columns i ON i.udt_schema = n.nspname
+            WHERE e.extname = 'vector' AND i.udt_name = 'vector' 
+            AND i.table_name = '{table_name}' AND i.column_name = 'vector';"
+        );
         let mut parents = BTreeMap::new();
         let mut vectors = BTreeMap::new();
         pgrx::spi::Spi::connect(|client| {
             use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
             use base::vector::VectorBorrowed;
             use pgrx::pg_sys::panic::ErrorReportable;
-            let table = client.select(&query, None, None).unwrap_or_report();
+            // Check the column of centroid table named `vector`, which type should be pgvector::vector
+            let type_check = client
+                .select(&type_check_query, None, None)
+                .unwrap_or_report();
+            let count: Result<Option<i32>, _> = type_check.first().get_by_name("count");
+            if count != Ok(Some(1)) {
+                pgrx::warning!("{:?}", count);
+                pgrx::error!(
+                    "extern build: `vector` column should be pgvector::vector type at the centroid table"
+                );
+            }
+            let table = client.select(&dump_query, None, None).unwrap_or_report();
             for row in table {
                 let id: Option<i32> = row.get_by_name("id").unwrap();
                 let parent: Option<i32> = row.get_by_name("parent").unwrap();
@@ -220,7 +240,7 @@ impl Structure {
                 let pop = parents.insert(id, parent);
                 if pop.is_some() {
                     pgrx::error!(
-                        "external build: there are at least two lines have same id, id = {id}"
+                        "extern build: there are at least two lines have same id, id = {id}"
                     );
                 }
                 if vector_options.dims != vector.as_borrowed().dims() {
@@ -263,7 +283,7 @@ impl Structure {
                     parent.push(id);
                 } else {
                     pgrx::error!(
-                        "external build: parent does not exist, id = {id}, parent = {parent}"
+                        "extern build: parent does not exist, id = {id}, parent = {parent}"
                     );
                 }
             } else {

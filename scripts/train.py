@@ -170,7 +170,7 @@ def kmeans_cluster(
             verbose=True,
             niter=niter,
             seed=SEED,
-            spherical=metric == "cos",
+            spherical=metric != "l2",
         )
         child_kmeans.train(child_train)
         centroids.append(child_kmeans.centroids)

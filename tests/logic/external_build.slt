@@ -1,0 +1,79 @@
+statement ok
+CREATE TABLE t (val0 vector(3), val1 halfvec(3));
+
+statement ok
+INSERT INTO t (val0, val1) 
+SELECT 
+    ARRAY[random(), random(), random()]::real[]::vector, 
+    ARRAY[random(), random(), random()]::real[]::halfvec
+FROM generate_series(1, 100);
+
+statement ok
+CREATE TABLE vector_centroid (id integer, parent integer, vector vector(3));
+
+statement ok
+INSERT INTO vector_centroid (id, vector) VALUES 
+    (0, '[1.0, 0.0, 0.0]'),
+    (1, '[0.0, 1.0, 0.0]'),
+    (2, '[0.0, 0.0, 1.0]');
+
+statement ok
+CREATE TABLE bad_type_centroid (id integer, parent integer, vector halfvec(3));
+
+statement ok
+INSERT INTO bad_type_centroid (id, vector) VALUES 
+    (0, '[1.0, 0.0, 0.0]'),
+    (1, '[0.0, 1.0, 0.0]'),
+    (2, '[0.0, 0.0, 1.0]');
+
+statement ok
+CREATE TABLE bad_duplicate_id (id integer, parent integer, vector vector(3));
+
+statement ok
+INSERT INTO bad_duplicate_id (id, vector) VALUES 
+    (1, '[1.0, 0.0, 0.0]'),
+    (1, '[0.0, 1.0, 0.0]'),
+    (2, '[0.0, 0.0, 1.0]');
+
+# external build for vector column
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.vector_centroid'
+$$);
+
+# external build for halfvec column
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val1 halfvec_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.vector_centroid'
+$$);
+
+# failed: bad vector bad_type
+
+statement error extern build: `vector` column should be pgvector::vector type at the centroid table
+CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.bad_type_centroid'
+$$);
+
+# failed: duplicate id
+
+statement error extern build: there are at least two lines have same id, id = 1
+CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.bad_duplicate_id'
+$$);
+
+statement ok
+DROP TABLE t, vector_centroid, bad_type_centroid, bad_duplicate_id;
