@@ -27,13 +27,22 @@ INSERT INTO halfvec_centroid (id, vector) VALUES
     (2, '[0.0, 0.0, 1.0]');
 
 statement ok
-CREATE TABLE bad_type_centroid (id integer, parent integer, vector real[]);
+CREATE TABLE real_centroid (id integer, parent integer, vector real[]);
 
 statement ok
-INSERT INTO bad_type_centroid (id, vector) VALUES 
+INSERT INTO real_centroid (id, vector) VALUES 
     (0, '{1.0, 0.0, 0.0}'),
     (1, '{0.0, 1.0, 0.0}'),
     (2, '{0.0, 0.0, 1.0}');
+
+statement ok
+CREATE TABLE bad_type_centroid (id integer, parent integer, vector integer);
+
+statement ok
+INSERT INTO bad_type_centroid (id, vector) VALUES 
+    (0, 0),
+    (1, 0),
+    (2, 0);
 
 statement ok
 CREATE TABLE bad_duplicate_id (id integer, parent integer, vector vector(3));
@@ -74,9 +83,19 @@ residual_quantization = true
 table = 'public.halfvec_centroid'
 $$);
 
+# external build for halfvec column by a real[] table
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.real_centroid'
+$$);
+
 # failed: bad vector data type
 
-statement error external build: `vector` column should be a pgvector type at the external table
+statement error cannot cast type integer to (.*)vector
 CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
 WITH (options = $$
 residual_quantization = true
@@ -95,4 +114,4 @@ table = 'public.bad_duplicate_id'
 $$);
 
 statement ok
-DROP TABLE t, vector_centroid, bad_type_centroid, bad_duplicate_id;
+DROP TABLE t, vector_centroid, halfvec_centroid, real_centroid, bad_type_centroid, bad_duplicate_id;

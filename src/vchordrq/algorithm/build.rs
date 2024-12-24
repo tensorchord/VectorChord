@@ -203,37 +203,23 @@ impl Structure {
     ) -> Vec<Self> {
         use std::collections::BTreeMap;
         let VchordrqExternalBuildOptions { table } = external_build;
-        let table_name = table.split('.').last().unwrap().to_string();
         let mut parents = BTreeMap::new();
         let mut vectors = BTreeMap::new();
         pgrx::spi::Spi::connect(|client| {
             use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
             use base::vector::VectorBorrowed;
             use pgrx::pg_sys::panic::ErrorReportable;
-            // Get the schema of pgvector
-            let schema_query = format!(
-                "SELECT n.nspname::TEXT 
+            let schema_query = "SELECT n.nspname::TEXT 
                 FROM pg_catalog.pg_extension e
                 LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
-                LEFT JOIN information_schema.columns i ON i.udt_schema = n.nspname
-                WHERE e.extname = 'vector' AND i.table_name = '{table_name}' AND i.column_name = 'vector';");
-            let nspname: Vec<String> = client
-                .select(&schema_query, None, None)
+                WHERE e.extname = 'vector';";
+            let pgvector_schema: String = client
+                .select(schema_query, None, None)
                 .unwrap_or_report()
-                .map(|data| {
-                    data.get_by_name("nspname")
-                        .expect("external build: cannot get schema of pgvector")
-                        .expect("external build: cannot get schema of pgvector")
-                })
-                .collect();
-            // Check the `vector` column is pgvector-based type
-            let pgvector_schema = if let [schema] = &nspname[..] {
-                schema.clone()
-            } else {
-                pgrx::error!(
-                    "external build: `vector` column should be a pgvector type at the external table"
-                );
-            };
+                .first()
+                .get_by_name("nspname")
+                .expect("external build: cannot get schema of pgvector")
+                .expect("external build: cannot get schema of pgvector");
             let dump_query =
                 format!("SELECT id, parent, vector::{pgvector_schema}.vector FROM {table};");
             let centroids = client.select(&dump_query, None, None).unwrap_or_report();
