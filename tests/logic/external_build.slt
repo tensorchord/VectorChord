@@ -18,13 +18,22 @@ INSERT INTO vector_centroid (id, vector) VALUES
     (2, '[0.0, 0.0, 1.0]');
 
 statement ok
-CREATE TABLE bad_type_centroid (id integer, parent integer, vector halfvec(3));
+CREATE TABLE halfvec_centroid (id integer, parent integer, vector halfvec(3));
 
 statement ok
-INSERT INTO bad_type_centroid (id, vector) VALUES 
+INSERT INTO halfvec_centroid (id, vector) VALUES 
     (0, '[1.0, 0.0, 0.0]'),
     (1, '[0.0, 1.0, 0.0]'),
     (2, '[0.0, 0.0, 1.0]');
+
+statement ok
+CREATE TABLE bad_type_centroid (id integer, parent integer, vector real[]);
+
+statement ok
+INSERT INTO bad_type_centroid (id, vector) VALUES 
+    (0, '{1.0, 0.0, 0.0}'),
+    (1, '{0.0, 1.0, 0.0}'),
+    (2, '{0.0, 0.0, 1.0}');
 
 statement ok
 CREATE TABLE bad_duplicate_id (id integer, parent integer, vector vector(3));
@@ -55,9 +64,19 @@ residual_quantization = true
 table = 'public.vector_centroid'
 $$);
 
-# failed: bad vector bad_type
+# external build for halfvec column by a halfvec table
 
-statement error extern build: `vector` column should be pgvector::vector type at the centroid table
+statement ok
+CREATE INDEX ON t USING vchordrq (val1 halfvec_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.external]
+table = 'public.halfvec_centroid'
+$$);
+
+# failed: bad vector data type
+
+statement error external build: `vector` column should be a pgvector type at the external table
 CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
 WITH (options = $$
 residual_quantization = true
@@ -67,7 +86,7 @@ $$);
 
 # failed: duplicate id
 
-statement error extern build: there are at least two lines have same id, id = 1
+statement error external build: there are at least two lines have same id, id = 1
 CREATE INDEX ON t USING vchordrq (val0 vector_l2_ops)
 WITH (options = $$
 residual_quantization = true
