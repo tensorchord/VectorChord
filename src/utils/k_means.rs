@@ -151,7 +151,7 @@ fn rabitq_index<P: Parallelism>(
     parallelism
         .into_par_iter(0..n)
         .map(|i| {
-            fn gen(mut qvector: Vec<u8>) -> Vec<u8> {
+            fn generate(mut qvector: Vec<u8>) -> Vec<u8> {
                 let dims = qvector.len() as u32;
                 let t = dims.div_ceil(4);
                 qvector.resize(qvector.len().next_multiple_of(4), 0);
@@ -222,7 +222,7 @@ fn rabitq_index<P: Parallelism>(
                 } else {
                     u8::reduce_sum_of_x_as_u32(&qvector) as f32
                 };
-                (dis_v_2, b, k, qvector_sum, gen(qvector))
+                (dis_v_2, b, k, qvector_sum, generate(qvector))
             };
 
             let mut result = (Distance::INFINITY, 0);

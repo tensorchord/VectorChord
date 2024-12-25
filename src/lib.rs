@@ -6,6 +6,7 @@
 #![allow(clippy::int_plus_one)]
 #![allow(clippy::unused_unit)]
 #![allow(clippy::infallible_destructuring_match)]
+#![feature(strict_provenance_lints)]
 
 mod datatype;
 mod postgres;

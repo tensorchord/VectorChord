@@ -8,7 +8,7 @@
 macro_rules! symbol {
     ($t:ident) => {
         paste::paste! {
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             #[doc(hidden)]
             #[pgrx::pg_guard]
             extern "C" fn [<$t _wrapper>](_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> pgrx::pg_sys::Datum {
@@ -17,7 +17,7 @@ macro_rules! symbol {
                     stringify!($t),
                 );
             }
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             #[doc(hidden)]
             pub extern "C" fn [<pg_finfo_ $t _wrapper>]() -> &'static ::pgrx::pg_sys::Pg_finfo_record {
                 const V1_API: ::pgrx::pg_sys::Pg_finfo_record = ::pgrx::pg_sys::Pg_finfo_record {

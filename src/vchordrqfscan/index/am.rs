@@ -487,7 +487,7 @@ impl Drop for VchordrqfscanLeader {
 }
 
 #[pgrx::pg_guard]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn vchordrqfscan_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,

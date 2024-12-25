@@ -20,7 +20,7 @@ pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
-base = { git = "https://github.com/tensorchord/pgvecto.rs.git", rev = "0374439c8593ead1f61fc2477a4b79a49fcdceb8" }
+base = { git = "https://github.com/tensorchord/pgvecto.rs.git", rev = "9d87afd75ca3dd6819da2a0a38d9fefdfb5b1c74" }
 
 # lock algebra version forever so that the QR decomposition never changes for same input
 nalgebra = "=0.33.0"
@@ -31,7 +31,7 @@ rkyv = { version = "=0.7.45", features = ["validation"] }
 half = { version = "2.4.1", features = ["rkyv"] }
 log = "0.4.22"
 paste = "1"
-pgrx = { version = "=0.12.8", default-features = false, features = ["cshim"] }
+pgrx = { version = "=0.12.9", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.1.0"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
@@ -39,12 +39,17 @@ rand_distr = "0.4.3"
 rayon = "1.10.0"
 serde = "1"
 toml = "0.8.19"
-validator = { version = "0.18.1", features = ["derive"] }
+validator = { version = "0.19.0", features = ["derive"] }
 
 [patch.crates-io]
 half = { git = "https://github.com/tensorchord/half-rs.git" }
 
 [lints]
+rust.fuzzy_provenance_casts = "deny"
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(feature, values("pg12"))',
+    'cfg(pgrx_embed)',
+] }
 rust.unsafe_op_in_unsafe_fn = "deny"
 rust.unused_lifetimes = "warn"
 rust.unused_qualifications = "warn"
