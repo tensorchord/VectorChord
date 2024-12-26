@@ -38,14 +38,16 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
-        arch: ["x86_64"]
+        runner: ["ubicloud-standard-4", "ubicloud-standard-4-arm"]
     env:
-      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9"
+      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9-nightly-2024-12-25"
       SQLLOGICTEST: "0.22.0"
+      ARCH: ${{ matrix.runner == 'ubicloud-standard-4' && 'x86_64' || 'aarch64' }}
+      PLATFORM: ${{ matrix.runner == 'ubicloud-standard-4' && 'amd64' || 'arm64' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -69,18 +71,16 @@ jobs:
         env:
           SEMVER: "0.0.0"
           VERSION: ${{ matrix.version }}
-          ARCH: ${{ matrix.arch }}
-          PLATFORM: "amd64"
           PROFILE: "opt"
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
           ./tools/package.sh
           docker build -t vchord:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 
       - name: Setup SQL Logic Test
         run: |
-          curl -fsSL -o sqllogictest.tar.gz https://github.com/risinglightdb/sqllogictest-rs/releases/download/v${SQLLOGICTEST}/sqllogictest-bin-v${SQLLOGICTEST}-${{ matrix.arch }}-unknown-linux-musl.tar.gz
+          curl -fsSL -o sqllogictest.tar.gz https://github.com/risinglightdb/sqllogictest-rs/releases/download/v${SQLLOGICTEST}/sqllogictest-bin-v${SQLLOGICTEST}-$ARCH-unknown-linux-musl.tar.gz
           tar -xzf sqllogictest.tar.gz
           mv sqllogictest /usr/local/bin/
 

@@ -33,15 +33,17 @@ jobs:
             core.setOutput('SEMVER', tag);
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: ["semver"]
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
-        arch: ["x86_64", "aarch64"]
+        runner: ["ubicloud-standard-4", "ubicloud-standard-4-arm"]
     env:
-      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9"
+      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9-nightly-2024-12-25"
       SEMVER: ${{ needs.semver.outputs.SEMVER }}
+      ARCH: ${{ matrix.runner == 'ubicloud-standard-4' && 'x86_64' || 'aarch64' }}
+      PLATFORM: ${{ matrix.runner == 'ubicloud-standard-4' && 'amd64' || 'arm64' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -64,13 +66,11 @@ jobs:
       - name: Build
         env:
           VERSION: ${{ matrix.version }}
-          ARCH: ${{ matrix.arch }}
-          PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
           PROFILE: "release"
           GH_TOKEN: ${{ github.token }}
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash -e SEMVER=${SEMVER} $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target ${{ matrix.arch }}-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS --entrypoint bash -e SEMVER=${SEMVER} $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
           ./tools/package.sh
           ls ./build
           gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
