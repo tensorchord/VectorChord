@@ -1,5 +1,6 @@
 use super::am_options::Opfamily;
 use crate::postgres::Relation;
+use crate::types::scalar8::Scalar8Owned;
 use crate::vchordrq::algorithm::scan::scan;
 use crate::vchordrq::algorithm::tuples::Vector;
 use crate::vchordrq::gucs::executing::epsilon;
@@ -98,6 +99,25 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                     let vbase = scan::<VectOwned<f16>>(
                         relation,
                         VectOwned::<f16>::from_owned(vector.clone()),
+                        opfamily.distance_kind(),
+                        probes(),
+                        epsilon(),
+                    );
+                    *scanner = Scanner::Vbase {
+                        vbase: if let Some(max_scan_tuples) = max_scan_tuples() {
+                            Box::new(vbase.take(max_scan_tuples as usize))
+                        } else {
+                            Box::new(vbase)
+                        },
+                        threshold: *threshold,
+                        recheck: *recheck,
+                        opfamily: *opfamily,
+                    };
+                }
+                VectorKind::Scalar8 => {
+                    let vbase = scan::<Scalar8Owned>(
+                        relation,
+                        Scalar8Owned::from_owned(vector.clone()),
                         opfamily.distance_kind(),
                         probes(),
                         epsilon(),

@@ -1,5 +1,5 @@
 use crate::postgres::Relation;
-use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
+use crate::vchordrq::algorithm::rabitq::process_lowerbound;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
 use base::always_equal::AlwaysEqual;
@@ -32,7 +32,7 @@ pub fn scan<V: Vector>(
     let vector = V::random_projection(vector);
     let is_residual = meta_tuple.is_residual;
     let default_lut = if !is_residual {
-        Some(V::rabitq_fscan_preprocess(vector.as_borrowed()))
+        Some(V::rabitq_preprocess(vector.as_borrowed()))
     } else {
         None
     };
@@ -53,7 +53,7 @@ pub fn scan<V: Vector>(
         let mut results = Vec::new();
         for list in lists {
             let lut = if is_residual {
-                &V::rabitq_fscan_preprocess(
+                &V::rabitq_preprocess(
                     V::residual(
                         vector.as_borrowed(),
                         list.1.as_ref().map(|x| x.as_borrowed()).unwrap(),
@@ -73,7 +73,7 @@ pub fn scan<V: Vector>(
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = process_lowerbound(
                         distance_kind,
                         dims,
                         lut,
@@ -125,7 +125,7 @@ pub fn scan<V: Vector>(
         let mut results = Vec::new();
         for list in lists {
             let lut = if is_residual {
-                &V::rabitq_fscan_preprocess(
+                &V::rabitq_preprocess(
                     V::residual(
                         vector.as_borrowed(),
                         list.1.as_ref().map(|x| x.as_borrowed()).unwrap(),
@@ -145,7 +145,7 @@ pub fn scan<V: Vector>(
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = process_lowerbound(
                         distance_kind,
                         dims,
                         lut,

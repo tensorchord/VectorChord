@@ -1,4 +1,5 @@
 use crate::postgres::Relation;
+use crate::types::scalar8::Scalar8Owned;
 use crate::vchordrq::algorithm;
 use crate::vchordrq::algorithm::build::{HeapRelation, Reporter};
 use crate::vchordrq::algorithm::tuples::Vector;
@@ -234,6 +235,9 @@ pub unsafe extern "C" fn ambuild(
     if let Err(errors) = Validate::validate(&vchordrq_options) {
         pgrx::error!("error while validating options: {}", errors);
     }
+    if matches!(vector_options.v, VectorKind::Scalar8) && vchordrq_options.residual_quantization {
+        pgrx::error!("error while validating options: could not apply residual vector quantization on quantized vectors");
+    }
     let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
         heap,
@@ -252,6 +256,13 @@ pub unsafe extern "C" fn ambuild(
             reporter.clone(),
         ),
         VectorKind::Vecf16 => algorithm::build::build::<VectOwned<f16>, Heap, _>(
+            vector_options,
+            vchordrq_options,
+            heap_relation.clone(),
+            index_relation.clone(),
+            reporter.clone(),
+        ),
+        VectorKind::Scalar8 => algorithm::build::build::<Scalar8Owned, Heap, _>(
             vector_options,
             vchordrq_options,
             heap_relation.clone(),
@@ -313,6 +324,23 @@ pub unsafe extern "C" fn ambuild(
                     true,
                     |(pointer, vector)| {
                         algorithm::insert::insert::<VectOwned<f16>>(
+                            unsafe { Relation::new(index) },
+                            pointer,
+                            vector,
+                            opfamily.distance_kind(),
+                            true,
+                        );
+                        indtuples += 1;
+                        reporter.tuples_done(indtuples);
+                    },
+                );
+            }
+            VectorKind::Scalar8 => {
+                HeapRelation::<Scalar8Owned>::traverse(
+                    &heap_relation,
+                    true,
+                    |(pointer, vector)| {
+                        algorithm::insert::insert::<Scalar8Owned>(
                             unsafe { Relation::new(index) },
                             pointer,
                             vector,
@@ -683,6 +711,29 @@ unsafe fn parallel_build(
                 }
             });
         }
+        VectorKind::Scalar8 => {
+            HeapRelation::<Scalar8Owned>::traverse(&heap_relation, true, |(pointer, vector)| {
+                algorithm::insert::insert::<Scalar8Owned>(
+                    index_relation.clone(),
+                    pointer,
+                    vector,
+                    opfamily.distance_kind(),
+                    true,
+                );
+                unsafe {
+                    let indtuples;
+                    {
+                        pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+                        (*vchordrqshared).indtuples += 1;
+                        indtuples = (*vchordrqshared).indtuples;
+                        pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
+                    }
+                    if let Some(reporter) = reporter.as_mut() {
+                        reporter.tuples_done(indtuples);
+                    }
+                }
+            });
+        }
     }
     unsafe {
         pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
@@ -760,6 +811,13 @@ pub unsafe extern "C" fn aminsert(
                 unsafe { Relation::new(index) },
                 pointer,
                 VectOwned::<f16>::from_owned(vector),
+                opfamily.distance_kind(),
+                false,
+            ),
+            VectorKind::Scalar8 => algorithm::insert::insert::<Scalar8Owned>(
+                unsafe { Relation::new(index) },
+                pointer,
+                Scalar8Owned::from_owned(vector),
                 opfamily.distance_kind(),
                 false,
             ),
@@ -900,6 +958,13 @@ pub unsafe extern "C" fn ambulkdelete(
             callback,
         ),
         VectorKind::Vecf16 => algorithm::vacuum::vacuum::<VectOwned<f16>>(
+            unsafe { Relation::new((*info).index) },
+            || unsafe {
+                pgrx::pg_sys::vacuum_delay_point();
+            },
+            callback,
+        ),
+        VectorKind::Scalar8 => algorithm::vacuum::vacuum::<Scalar8Owned>(
             unsafe { Relation::new((*info).index) },
             || unsafe {
                 pgrx::pg_sys::vacuum_delay_point();
