@@ -42,12 +42,12 @@ jobs:
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
-        runner: ["ubicloud-standard-4", "ubicloud-standard-4-arm"]
+        runner: ["ubuntu-latest"]
     env:
       PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9-nightly-2024-12-25"
       SQLLOGICTEST: "0.22.0"
-      ARCH: ${{ matrix.runner == 'ubicloud-standard-4' && 'x86_64' || 'aarch64' }}
-      PLATFORM: ${{ matrix.runner == 'ubicloud-standard-4' && 'amd64' || 'arm64' }}
+      ARCH: "x86_64"
+      PLATFORM: "amd64"
 
     steps:
       - uses: actions/checkout@v4
