@@ -1,9 +1,8 @@
 # CNPG only support Debian 12 (Bookworm)
 FROM ubuntu:22.04
 
-ARG PGRX_VERSION=0.12.9
-ARG SCCACHE_VERSION=0.9.0
-ARG TOOLCHAIN_CHANNEL=nightly
+ARG PGRX_VERSION
+ARG RUST_TOOLCHAIN
 ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -11,7 +10,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=en_US.UTF-8 \
     RUSTFLAGS="-Dwarnings" \
     RUST_BACKTRACE=1 \
-    CARGO_TERM_COLOR=always
+    CARGO_TERM_COLOR=always \
+    SCCACHE_VERSION=0.9.0
 
 RUN set -eux; \
     apt update; \
@@ -48,12 +48,8 @@ RUN chown -R ubuntu:ubuntu /usr/share/postgresql/ /usr/lib/postgresql/
 USER ubuntu
 ENV PATH="$PATH:/home/ubuntu/.cargo/bin"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN rustup target add $(uname -m)-unknown-linux-gnu
 
-WORKDIR /workspace
-COPY rust-toolchain.toml /workspace/rust-toolchain.toml
-# check whether toolchain channel match the one in rust-toolchain.toml
-RUN rustup show active-toolchain | grep "^${TOOLCHAIN_CHANNEL}"
+RUN rustup toolchain install ${RUST_TOOLCHAIN}
 RUN rustup target add $(uname -m)-unknown-linux-gnu
 
 RUN cargo install cargo-pgrx --locked --version=${PGRX_VERSION}
@@ -63,4 +59,4 @@ RUN set -ex; \
         cargo pgrx init --pg$v=/usr/lib/postgresql/$v/bin/pg_config; \
     done;
 
-ENTRYPOINT [ "cargo" ]
+CMD [ "/bin/bash" ]

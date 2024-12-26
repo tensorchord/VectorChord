@@ -60,14 +60,14 @@ jobs:
       - name: Clippy
         run: |
           for v in {14..17}; do
-            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
+            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo clippy --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v" -- -D warnings
           done
       - name: Build
         run: |
           for v in {14..17}; do
-            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
+            docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --target ${{ matrix.arch }}-unknown-linux-gnu --features "pg$v"
           done
       - name: Test
         run: |
           # pg agnostic tests
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE test --no-fail-fast --target ${{ matrix.arch }}-unknown-linux-gnu --features pg17
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo test --no-fail-fast --target ${{ matrix.arch }}-unknown-linux-gnu --features pg17

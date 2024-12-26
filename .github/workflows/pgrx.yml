@@ -7,8 +7,8 @@ on:
         description: 'pgrx version'
         required: true
         type: string
-      channel:
-        description: 'rust toolchain channel'
+      toolchain:
+        description: 'additional rust toolchain'
         required: true
         type: string
 
@@ -47,5 +47,5 @@ jobs:
           platforms: "linux/amd64,linux/arm64"
           build-args: |
             PGRX_VERSION=${{ github.event.inputs.version }}
-            TOOLCHAIN_CHANNEL=${{ github.event.inputs.channel }}
-          tags: ${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ github.event.inputs.channel }}
+            RUST_TOOLCHAIN=${{ github.event.inputs.toolchain }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.event.inputs.version }}-${{ github.event.inputs.toolchain }}
