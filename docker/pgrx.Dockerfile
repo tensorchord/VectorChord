@@ -1,8 +1,10 @@
 # CNPG only support Debian 12 (Bookworm)
 FROM ubuntu:22.04
 
-ARG PGRX_VERSION=0.12.8
-ARG SCCACHE_VERSION=0.8.2
+ARG PGRX_VERSION=0.12.9
+ARG SCCACHE_VERSION=0.9.0
+ARG TOOLCHAIN_CHANNEL=nightly
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
@@ -18,17 +20,16 @@ RUN set -eux; \
         ca-certificates \
         build-essential \
         postgresql-common gnupg \
-        crossbuild-essential-arm64 \
-        qemu-user-static \
         libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
 
-RUN apt -y install lsb-release wget software-properties-common gnupg; \
+RUN set -eux; \
+    apt -y install lsb-release wget software-properties-common gnupg; \
     curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | bash -s -- 18; \
     update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
 
 # set up sccache
 RUN set -ex; \
-    curl -fsSL -o sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz; \
+    curl -fsSL -o sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-$(uname -m)-unknown-linux-musl.tar.gz; \
     tar -xzf sccache.tar.gz --strip-components=1; \
     rm sccache.tar.gz; \
     mv sccache /usr/local/bin/
@@ -47,16 +48,13 @@ RUN chown -R ubuntu:ubuntu /usr/share/postgresql/ /usr/lib/postgresql/
 USER ubuntu
 ENV PATH="$PATH:/home/ubuntu/.cargo/bin"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+RUN rustup target add $(uname -m)-unknown-linux-gnu
 
 WORKDIR /workspace
 COPY rust-toolchain.toml /workspace/rust-toolchain.toml
-RUN rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
-
-# ref: https://github.com/pgcentralfoundation/pgrx/blob/develop/docs/src/extension/build/cross-compile.md
-RUN set -ex; \
-    echo 'target.aarch64-unknown-linux-gnu.linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml; \
-    echo 'target.aarch64-unknown-linux-gnu.runner = ["qemu-aarch64-static", "-L", "/usr/aarch64-linux-gnu"]' >> ~/.cargo/config.toml
+# check whether toolchain channel match the one in rust-toolchain.toml
+RUN rustup show active-toolchain | grep "^${TOOLCHAIN_CHANNEL}"
+RUN rustup target add $(uname -m)-unknown-linux-gnu
 
 RUN cargo install cargo-pgrx --locked --version=${PGRX_VERSION}
 
