@@ -49,6 +49,7 @@ USER ubuntu
 ENV PATH="$PATH:/home/ubuntu/.cargo/bin"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
+WORKDIR /workspace
 RUN rustup toolchain install ${RUST_TOOLCHAIN}
 RUN rustup target add $(uname -m)-unknown-linux-gnu
 
