@@ -28,12 +28,16 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: ["x86_64", "aarch64"]
+        include:
+          - runner: "ubicloud-standard-4"
+            arch: "x86_64"
+          - runner: "ubicloud-standard-4-arm"
+            arch: "aarch64"
+    runs-on: ${{ matrix.runner }}
     env:
-      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9"
+      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9-nightly-2024-12-25"
 
     steps:
       - uses: actions/checkout@v4
