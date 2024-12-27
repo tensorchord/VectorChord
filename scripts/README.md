@@ -5,7 +5,7 @@ Users can choose to build the package with the provided docker image or create t
 - (option 1) With `vectorchord-pgrx` Image
 
 ```shell
-# use the 
+# use the required version of `pgrx` and `rust`
 export PGRX_VERSION=$(awk -F'version = "=|"' '/^pgrx\s*=.*version/ {print $2}' Cargo.toml)
 export RUST_TOOLCHAIN=$(awk -F'"' '/^\s*channel\s*=/ {print $2}' rust-toolchain.toml)
 export PGRX_IMAGE=ghcr.io/tensorchord/vectorchord-pgrx:$PGRX_VERSION-$RUST_TOOLCHAIN
