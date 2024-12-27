@@ -1,19 +1,43 @@
 ## Build Docker
 
+Users can choose to build the package with the provided docker image or create the development environment by themselves.
+
+- (option 1) With `vectorchord-pgrx` Image
+
+```shell
+# use the 
+export PGRX_VERSION=$(awk -F'version = "=|"' '/^pgrx\s*=.*version/ {print $2}' Cargo.toml)
+export RUST_TOOLCHAIN=$(awk -F'"' '/^\s*channel\s*=/ {print $2}' rust-toolchain.toml)
+export PGRX_IMAGE=ghcr.io/tensorchord/vectorchord-pgrx:$PGRX_VERSION-$RUST_TOOLCHAIN
+
+docker run --rm -v .:/workspace $PGRX_IMAGE cargo build --lib --features pg16 --profile opt
+docker run --rm -v .:/workspace $PGRX_IMAGE ./tools/schema.sh --features pg16 --profile opt
+```
+
+- (option 2) With Local Development Environment
+
 ```shell
 sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
 cargo install --locked cargo-pgrx
 cargo pgrx init
 cargo build --package vchord --lib --features pg16 --profile opt
 ./tools/schema.sh --features pg16 --profile opt
+```
 
+- build the debian package
+
+```shell
 export SEMVER="0.0.0"
 export VERSION="16"
 export ARCH="x86_64"
 export PLATFORM="amd64"
 export PROFILE="opt"
 ./tools/package.sh
+```
 
+- build the docker image
+
+```shell
 docker build -t vchord:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
 ```
 

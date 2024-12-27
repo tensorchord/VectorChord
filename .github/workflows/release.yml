@@ -70,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --features pg$VERSION --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS -e SEMVER=${SEMVER} $PGRX_IMAGE ./tools/schema.sh --features pg$VERSION --profile $PROFILE 
+          docker run --rm -v .:/workspace $CACHE_ENVS -e SEMVER=${SEMVER} $PGRX_IMAGE ./tools/schema.sh --features pg$VERSION --profile $PROFILE
           ./tools/package.sh
           ls ./build
           gh release upload --clobber $SEMVER ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb

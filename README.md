@@ -204,7 +204,12 @@ $$);
 
 To simplify the workflow, we provide end-to-end scripts for external index pre-computation, see [scripts](./scripts/README.md#run-external-index-precomputation-toolkit).
 
+### Build the Postgres Docker Image with VectorChord extension
+
+Follow the steps in [Dev Guidance](./scripts/README.md#build-docker).
+
 ### Installing From Source
+
 Install pgrx according to [pgrx's instruction](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#getting-started).
 ```bash
 cargo install --locked cargo-pgrx
