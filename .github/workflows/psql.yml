@@ -3,7 +3,7 @@ name: PostgresSQL
 on:
   pull_request:
     paths:
-      - '.github/workflows/rust.yml'
+      - '.github/workflows/psql.yml'
       - 'src/**'
       - 'Cargo.lock'
       - 'Cargo.toml'
@@ -15,7 +15,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/rust.yml'
+      - '.github/workflows/psql.yml'
       - 'src/**'
       - 'Cargo.lock'
       - 'Cargo.toml'
