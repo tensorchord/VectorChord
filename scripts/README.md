@@ -4,8 +4,8 @@
 sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
 cargo install --locked cargo-pgrx
 cargo pgrx init
-cargo build --package vchord --lib --features pg16 --target x86_64-unknown-linux-gnu --profile opt
-./tools/schema.sh --features pg16 --target x86_64-unknown-linux-gnu --profile opt
+cargo build --package vchord --lib --features pg16 --profile opt
+./tools/schema.sh --features pg16 --profile opt
 
 export SEMVER="0.0.0"
 export VERSION="16"

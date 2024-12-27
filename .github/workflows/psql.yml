@@ -73,8 +73,8 @@ jobs:
           VERSION: ${{ matrix.version }}
           PROFILE: "opt"
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --target $ARCH-unknown-linux-gnu --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --features pg${{ matrix.version }} --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --profile $PROFILE
           ./tools/package.sh
           docker build -t vchord:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 
