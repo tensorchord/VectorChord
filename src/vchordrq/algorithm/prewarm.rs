@@ -1,13 +1,12 @@
-use crate::postgres::Relation;
+use super::RelationRead;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
 use std::fmt::Write;
 
-pub fn prewarm<V: Vector>(relation: Relation, height: i32) -> String {
+pub fn prewarm<V: Vector>(relation: impl RelationRead + Clone, height: i32) -> String {
     let mut message = String::new();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
-        .get()
         .get(1)
         .map(rkyv::check_archived_root::<MetaTuple>)
         .expect("data corruption")
@@ -37,9 +36,8 @@ pub fn prewarm<V: Vector>(relation: Relation, height: i32) -> String {
                 counter += 1;
                 pgrx::check_for_interrupts!();
                 let h1_guard = relation.read(current);
-                for i in 1..=h1_guard.get().len() {
+                for i in 1..=h1_guard.len() {
                     let h1_tuple = h1_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
@@ -47,7 +45,7 @@ pub fn prewarm<V: Vector>(relation: Relation, height: i32) -> String {
                     vectors::vector_warm::<V>(relation.clone(), h1_tuple.mean);
                     results.push(h1_tuple.first);
                 }
-                current = h1_guard.get().get_opaque().next;
+                current = h1_guard.get_opaque().next;
             }
         }
         writeln!(message, "number of tuples: {}", results.len()).unwrap();
@@ -66,16 +64,15 @@ pub fn prewarm<V: Vector>(relation: Relation, height: i32) -> String {
                 counter += 1;
                 pgrx::check_for_interrupts!();
                 let h0_guard = relation.read(current);
-                for i in 1..=h0_guard.get().len() {
+                for i in 1..=h0_guard.len() {
                     let _h0_tuple = h0_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
                     results.push(());
                 }
-                current = h0_guard.get().get_opaque().next;
+                current = h0_guard.get_opaque().next;
             }
         }
         writeln!(message, "number of tuples: {}", results.len()).unwrap();

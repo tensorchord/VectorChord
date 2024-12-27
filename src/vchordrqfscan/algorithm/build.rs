@@ -167,7 +167,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
         }
         pointer_of_firsts.push(level);
     }
-    forwards.head.get_mut().get_opaque_mut().skip = vectors.first();
+    forwards.head.get_opaque_mut().skip = vectors.first();
     meta.push(&MetaTuple {
         dims,
         height_of_root: structures.len() as u32,
@@ -399,13 +399,13 @@ where
 {
     fn push(&mut self, x: &T) -> (u32, u16) {
         let bytes = rkyv::to_bytes(x).expect("failed to serialize");
-        if let Some(i) = self.head.get_mut().alloc(&bytes) {
+        if let Some(i) = self.head.alloc(&bytes) {
             (self.head.id(), i)
         } else {
             let next = self.relation.extend(self.tracking_freespace);
-            self.head.get_mut().get_opaque_mut().next = next.id();
+            self.head.get_opaque_mut().next = next.id();
             self.head = next;
-            if let Some(i) = self.head.get_mut().alloc(&bytes) {
+            if let Some(i) = self.head.alloc(&bytes) {
                 (self.head.id(), i)
             } else {
                 panic!("tuple is too large to fit in a fresh page")

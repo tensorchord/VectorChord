@@ -1,7 +1,8 @@
-use crate::postgres::Relation;
+use super::RelationWrite;
 use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
+use crate::vchordrq::algorithm::PageGuard;
 use base::always_equal::AlwaysEqual;
 use base::distance::Distance;
 use base::distance::DistanceKind;
@@ -11,7 +12,7 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
 pub fn insert<V: Vector>(
-    relation: Relation,
+    relation: impl RelationWrite + Clone,
     payload: Pointer,
     vector: V,
     distance_kind: DistanceKind,
@@ -20,7 +21,6 @@ pub fn insert<V: Vector>(
     let vector = vector.as_borrowed();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
-        .get()
         .get(1)
         .map(rkyv::check_archived_root::<MetaTuple>)
         .expect("data corruption")
@@ -84,9 +84,8 @@ pub fn insert<V: Vector>(
             let mut current = list.0;
             while current != u32::MAX {
                 let h1_guard = relation.read(current);
-                for i in 1..=h1_guard.get().len() {
+                for i in 1..=h1_guard.len() {
                     let h1_tuple = h1_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
@@ -110,7 +109,7 @@ pub fn insert<V: Vector>(
                         AlwaysEqual(h1_tuple.first),
                     ));
                 }
-                current = h1_guard.get().get_opaque().next;
+                current = h1_guard.get_opaque().next;
             }
         }
         let mut heap = BinaryHeap::from(results);
@@ -155,11 +154,18 @@ pub fn insert<V: Vector>(
         t: code.t(),
     })
     .unwrap();
-    append(relation, list.0, &tuple, false, in_building, in_building);
+    append(
+        relation.clone(),
+        list.0,
+        &tuple,
+        false,
+        in_building,
+        in_building,
+    );
 }
 
 fn append(
-    relation: Relation,
+    relation: impl RelationWrite,
     first: u32,
     tuple: &[u8],
     tracking_freespace: bool,
@@ -168,7 +174,7 @@ fn append(
 ) -> (u32, u16) {
     if tracking_freespace {
         if let Some(mut write) = relation.search(tuple.len()) {
-            let i = write.get_mut().alloc(tuple).unwrap();
+            let i = write.alloc(tuple).unwrap();
             return (write.id(), i);
         }
     }
@@ -176,24 +182,22 @@ fn append(
     let mut current = first;
     loop {
         let read = relation.read(current);
-        if read.get().freespace() as usize >= tuple.len()
-            || read.get().get_opaque().next == u32::MAX
-        {
+        if read.freespace() as usize >= tuple.len() || read.get_opaque().next == u32::MAX {
             drop(read);
             let mut write = relation.write(current, tracking_freespace);
-            if let Some(i) = write.get_mut().alloc(tuple) {
+            if let Some(i) = write.alloc(tuple) {
                 return (current, i);
             }
-            if write.get().get_opaque().next == u32::MAX {
+            if write.get_opaque().next == u32::MAX {
                 let mut extend = relation.extend(tracking_freespace);
-                write.get_mut().get_opaque_mut().next = extend.id();
+                write.get_opaque_mut().next = extend.id();
                 drop(write);
-                if let Some(i) = extend.get_mut().alloc(tuple) {
+                if let Some(i) = extend.alloc(tuple) {
                     let result = (extend.id(), i);
                     drop(extend);
                     if updating_skip {
                         let mut past = relation.write(first, tracking_freespace);
-                        let skip = &mut past.get_mut().get_opaque_mut().skip;
+                        let skip = &mut past.get_opaque_mut().skip;
                         assert!(*skip != u32::MAX);
                         *skip = std::cmp::max(*skip, result.0);
                     }
@@ -202,16 +206,16 @@ fn append(
                     panic!("a tuple cannot even be fit in a fresh page");
                 }
             }
-            if skipping_traversal && current == first && write.get().get_opaque().skip != first {
-                current = write.get().get_opaque().skip;
+            if skipping_traversal && current == first && write.get_opaque().skip != first {
+                current = write.get_opaque().skip;
             } else {
-                current = write.get().get_opaque().next;
+                current = write.get_opaque().next;
             }
         } else {
-            if skipping_traversal && current == first && read.get().get_opaque().skip != first {
-                current = read.get().get_opaque().skip;
+            if skipping_traversal && current == first && read.get_opaque().skip != first {
+                current = read.get_opaque().skip;
             } else {
-                current = read.get().get_opaque().next;
+                current = read.get_opaque().next;
             }
         }
     }

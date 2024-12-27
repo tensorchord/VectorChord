@@ -1,7 +1,7 @@
-use crate::postgres::BufferWriteGuard;
-use crate::postgres::Relation;
+use super::RelationWrite;
 use crate::vchordrq::algorithm::rabitq;
 use crate::vchordrq::algorithm::tuples::*;
+use crate::vchordrq::algorithm::PageGuard;
 use crate::vchordrq::index::am_options::Opfamily;
 use crate::vchordrq::types::VchordrqBuildOptions;
 use crate::vchordrq::types::VchordrqExternalBuildOptions;
@@ -32,7 +32,7 @@ pub fn build<V: Vector, T: HeapRelation<V>, R: Reporter>(
     vector_options: VectorOptions,
     vchordrq_options: VchordrqIndexingOptions,
     heap_relation: T,
-    relation: Relation,
+    relation: impl RelationWrite,
     mut reporter: R,
 ) {
     let dims = vector_options.dims;
@@ -75,7 +75,7 @@ pub fn build<V: Vector, T: HeapRelation<V>, R: Reporter>(
     };
     let mut meta = Tape::create(&relation, false);
     assert_eq!(meta.first(), 0);
-    let mut vectors = Tape::<VectorTuple<V>>::create(&relation, true);
+    let mut vectors = Tape::<VectorTuple<V>, _>::create(&relation, true);
     let mut pointer_of_means = Vec::<Vec<(u32, u16)>>::new();
     for i in 0..structures.len() {
         let mut level = Vec::new();
@@ -99,10 +99,10 @@ pub fn build<V: Vector, T: HeapRelation<V>, R: Reporter>(
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
             if i == 0 {
-                let tape = Tape::<Height0Tuple>::create(&relation, false);
+                let tape = Tape::<Height0Tuple, _>::create(&relation, false);
                 level.push(tape.first());
             } else {
-                let mut tape = Tape::<Height1Tuple>::create(&relation, false);
+                let mut tape = Tape::<Height1Tuple, _>::create(&relation, false);
                 let h2_mean = &structures[i].means[j];
                 let h2_children = &structures[i].children[j];
                 for child in h2_children.iter().copied() {
@@ -361,18 +361,18 @@ impl Structure {
     }
 }
 
-struct Tape<'a, T> {
-    relation: &'a Relation,
-    head: BufferWriteGuard,
+struct Tape<'a: 'b, 'b, T, R: 'b + RelationWrite> {
+    relation: &'a R,
+    head: R::WriteGuard<'b>,
     first: u32,
     tracking_freespace: bool,
     _phantom: PhantomData<fn(T) -> T>,
 }
 
-impl<'a, T> Tape<'a, T> {
-    fn create(relation: &'a Relation, tracking_freespace: bool) -> Self {
+impl<'a: 'b, 'b, T, R: 'b + RelationWrite> Tape<'a, 'b, T, R> {
+    fn create(relation: &'a R, tracking_freespace: bool) -> Self {
         let mut head = relation.extend(tracking_freespace);
-        head.get_mut().get_opaque_mut().skip = head.id();
+        head.get_opaque_mut().skip = head.id();
         let first = head.id();
         Self {
             relation,
@@ -387,19 +387,19 @@ impl<'a, T> Tape<'a, T> {
     }
 }
 
-impl<T> Tape<'_, T>
+impl<'a: 'b, 'b, T, R: 'b + RelationWrite> Tape<'a, 'b, T, R>
 where
     T: rkyv::Serialize<AllocSerializer<8192>>,
 {
     fn push(&mut self, x: &T) -> (u32, u16) {
         let bytes = rkyv::to_bytes(x).expect("failed to serialize");
-        if let Some(i) = self.head.get_mut().alloc(&bytes) {
+        if let Some(i) = self.head.alloc(&bytes) {
             (self.head.id(), i)
         } else {
             let next = self.relation.extend(self.tracking_freespace);
-            self.head.get_mut().get_opaque_mut().next = next.id();
+            self.head.get_opaque_mut().next = next.id();
             self.head = next;
-            if let Some(i) = self.head.get_mut().alloc(&bytes) {
+            if let Some(i) = self.head.alloc(&bytes) {
                 (self.head.id(), i)
             } else {
                 panic!("tuple is too large to fit in a fresh page")

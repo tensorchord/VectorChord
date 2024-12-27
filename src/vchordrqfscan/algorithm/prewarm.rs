@@ -6,7 +6,6 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
     let mut message = String::new();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
-        .get()
         .get(1)
         .map(rkyv::check_archived_root::<MetaTuple>)
         .expect("data corruption")
@@ -22,7 +21,6 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
         {
             let vector_guard = relation.read(meta_tuple.mean.0);
             let vector_tuple = vector_guard
-                .get()
                 .get(meta_tuple.mean.1)
                 .map(rkyv::check_archived_root::<VectorTuple>)
                 .expect("data corruption")
@@ -43,9 +41,8 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
                 counter += 1;
                 pgrx::check_for_interrupts!();
                 let h1_guard = relation.read(current);
-                for i in 1..=h1_guard.get().len() {
+                for i in 1..=h1_guard.len() {
                     let h1_tuple = h1_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
@@ -56,7 +53,6 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
                             let mean = h1_tuple.mean[j];
                             let vector_guard = relation.read(mean.0);
                             let vector_tuple = vector_guard
-                                .get()
                                 .get(mean.1)
                                 .map(rkyv::check_archived_root::<VectorTuple>)
                                 .expect("data corruption")
@@ -65,7 +61,7 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
                         }
                     }
                 }
-                current = h1_guard.get().get_opaque().next;
+                current = h1_guard.get_opaque().next;
             }
         }
         writeln!(message, "number of tuples: {}", results.len()).unwrap();
@@ -84,9 +80,8 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
                 counter += 1;
                 pgrx::check_for_interrupts!();
                 let h0_guard = relation.read(current);
-                for i in 1..=h0_guard.get().len() {
+                for i in 1..=h0_guard.len() {
                     let h0_tuple = h0_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
@@ -97,7 +92,7 @@ pub fn prewarm(relation: Relation, height: i32) -> String {
                         }
                     }
                 }
-                current = h0_guard.get().get_opaque().next;
+                current = h0_guard.get_opaque().next;
             }
         }
         writeln!(message, "number of tuples: {}", results.len()).unwrap();

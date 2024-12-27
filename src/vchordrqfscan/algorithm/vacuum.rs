@@ -8,7 +8,6 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
     {
         let meta_guard = relation.read(0);
         let meta_tuple = meta_guard
-            .get()
             .get(1)
             .map(rkyv::check_archived_root::<MetaTuple>)
             .expect("data corruption")
@@ -20,9 +19,8 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                 let mut current = first;
                 while current != u32::MAX {
                     let h1_guard = relation.read(current);
-                    for i in 1..=h1_guard.get().len() {
+                    for i in 1..=h1_guard.len() {
                         let h1_tuple = h1_guard
-                            .get()
                             .get(i)
                             .map(rkyv::check_archived_root::<Height1Tuple>)
                             .expect("data corruption")
@@ -33,7 +31,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                             }
                         }
                     }
-                    current = h1_guard.get().get_opaque().next;
+                    current = h1_guard.get_opaque().next;
                 }
             }
             results
@@ -46,9 +44,8 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
             while current != u32::MAX {
                 delay();
                 let mut h0_guard = relation.write(current, false);
-                for i in 1..=h0_guard.get().len() {
+                for i in 1..=h0_guard.len() {
                     let h0_tuple = h0_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
@@ -64,7 +61,6 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                     if flag {
                         // todo: use mutable API
                         let mut temp = h0_guard
-                            .get()
                             .get(i)
                             .map(rkyv::from_bytes::<Height0Tuple>)
                             .expect("data corruption")
@@ -76,14 +72,13 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                         }
                         let temp = rkyv::to_bytes::<_, 8192>(&temp).expect("failed to serialize");
                         h0_guard
-                            .get_mut()
                             .get_mut(i)
                             .expect("data corruption")
                             .copy_from_slice(&temp);
                     }
                 }
                 // todo: cross-tuple vacuum so that we can skip a tuple
-                current = h0_guard.get().get_opaque().next;
+                current = h0_guard.get_opaque().next;
             }
         }
     }
@@ -92,7 +87,6 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
         let mut current = {
             let meta_guard = relation.read(0);
             let meta_tuple = meta_guard
-                .get()
                 .get(1)
                 .map(rkyv::check_archived_root::<MetaTuple>)
                 .expect("data corruption")
@@ -103,8 +97,8 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
             delay();
             let read = relation.read(current);
             let flag = 'flag: {
-                for i in 1..=read.get().len() {
-                    let Some(vector_tuple) = read.get().get(i) else {
+                for i in 1..=read.len() {
+                    let Some(vector_tuple) = read.get(i) else {
                         continue;
                     };
                     let vector_tuple = rkyv::check_archived_root::<VectorTuple>(vector_tuple)
@@ -120,21 +114,21 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
             if flag {
                 drop(read);
                 let mut write = relation.write(current, true);
-                for i in 1..=write.get().len() {
-                    let Some(vector_tuple) = write.get().get(i) else {
+                for i in 1..=write.len() {
+                    let Some(vector_tuple) = write.get(i) else {
                         continue;
                     };
                     let vector_tuple = rkyv::check_archived_root::<VectorTuple>(vector_tuple)
                         .expect("data corruption");
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
                         if callback(Pointer::new(payload)) {
-                            write.get_mut().free(i);
+                            write.free(i);
                         }
                     }
                 }
-                current = write.get().get_opaque().next;
+                current = write.get_opaque().next;
             } else {
-                current = read.get().get_opaque().next;
+                current = read.get_opaque().next;
             }
         }
     }

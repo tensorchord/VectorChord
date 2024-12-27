@@ -1,11 +1,11 @@
 use super::tuples::Vector;
-use crate::postgres::Relation;
+use super::RelationRead;
 use crate::vchordrq::algorithm::tuples::VectorTuple;
 use base::distance::Distance;
 use base::distance::DistanceKind;
 
 pub fn vector_dist<V: Vector>(
-    relation: Relation,
+    relation: impl RelationRead,
     vector: V::Borrowed<'_>,
     mean: (u32, u16),
     payload: Option<u64>,
@@ -25,7 +25,7 @@ pub fn vector_dist<V: Vector>(
             return None;
         };
         let vector_guard = relation.read(mean.0);
-        let Some(vector_tuple) = vector_guard.get().get(mean.1) else {
+        let Some(vector_tuple) = vector_guard.get(mean.1) else {
             // fails consistency check
             return None;
         };
@@ -54,11 +54,11 @@ pub fn vector_dist<V: Vector>(
     ))
 }
 
-pub fn vector_warm<V: Vector>(relation: Relation, mean: (u32, u16)) {
+pub fn vector_warm<V: Vector>(relation: impl RelationRead, mean: (u32, u16)) {
     let mut cursor = Ok(mean);
     while let Ok(mean) = cursor {
         let vector_guard = relation.read(mean.0);
-        let Some(vector_tuple) = vector_guard.get().get(mean.1) else {
+        let Some(vector_tuple) = vector_guard.get(mean.1) else {
             // fails consistency check
             return;
         };

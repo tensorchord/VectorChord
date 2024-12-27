@@ -1,4 +1,5 @@
 use std::mem::{offset_of, MaybeUninit};
+use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
 const _: () = assert!(
@@ -45,6 +46,14 @@ impl Page {
         let this = unsafe { MaybeUninit::assume_init_mut(this) };
         assert_eq!(offset_of!(Self, opaque), this.header.pd_special as usize);
         this
+    }
+    #[allow(dead_code)]
+    pub fn clone_into_boxed(&self) -> Box<Self> {
+        let mut result = Box::new_uninit();
+        unsafe {
+            std::ptr::copy(self as *const Self, result.as_mut_ptr(), 1);
+            result.assume_init()
+        }
     }
     pub fn get_opaque(&self) -> &Opaque {
         &self.opaque
@@ -170,12 +179,17 @@ pub struct BufferReadGuard {
 }
 
 impl BufferReadGuard {
-    pub fn get(&self) -> &Page {
-        unsafe { self.page.as_ref() }
-    }
     #[allow(dead_code)]
     pub fn id(&self) -> u32 {
         self.id
+    }
+}
+
+impl Deref for BufferReadGuard {
+    type Target = Page;
+
+    fn deref(&self) -> &Page {
+        unsafe { self.page.as_ref() }
     }
 }
 
@@ -197,14 +211,22 @@ pub struct BufferWriteGuard {
 }
 
 impl BufferWriteGuard {
-    pub fn get(&self) -> &Page {
-        unsafe { self.page.as_ref() }
-    }
-    pub fn get_mut(&mut self) -> &mut Page {
-        unsafe { self.page.as_mut() }
-    }
     pub fn id(&self) -> u32 {
         self.id
+    }
+}
+
+impl Deref for BufferWriteGuard {
+    type Target = Page;
+
+    fn deref(&self) -> &Page {
+        unsafe { self.page.as_ref() }
+    }
+}
+
+impl DerefMut for BufferWriteGuard {
+    fn deref_mut(&mut self) -> &mut Page {
+        unsafe { self.page.as_mut() }
     }
 }
 
@@ -215,11 +237,7 @@ impl Drop for BufferWriteGuard {
                 pgrx::pg_sys::GenericXLogAbort(self.state);
             } else {
                 if self.tracking_freespace {
-                    pgrx::pg_sys::RecordPageWithFreeSpace(
-                        self.raw,
-                        self.id,
-                        self.get().freespace() as _,
-                    );
+                    pgrx::pg_sys::RecordPageWithFreeSpace(self.raw, self.id, self.freespace() as _);
                     pgrx::pg_sys::FreeSpaceMapVacuumRange(self.raw, self.id, self.id + 1);
                 }
                 pgrx::pg_sys::GenericXLogFinish(self.state);
@@ -329,18 +347,23 @@ impl Relation {
                     return None;
                 }
                 let write = self.write(id, true);
-                if write.get().freespace() < freespace as _ {
+                if write.freespace() < freespace as _ {
                     // the free space is recorded incorrectly
-                    pgrx::pg_sys::RecordPageWithFreeSpace(
-                        self.raw,
-                        id,
-                        write.get().freespace() as _,
-                    );
+                    pgrx::pg_sys::RecordPageWithFreeSpace(self.raw, id, write.freespace() as _);
                     pgrx::pg_sys::FreeSpaceMapVacuumRange(self.raw, id, id + 1);
                     continue;
                 }
                 return Some(write);
             }
+        }
+    }
+    #[allow(dead_code)]
+    pub fn len(&self) -> u32 {
+        unsafe {
+            pgrx::pg_sys::RelationGetNumberOfBlocksInFork(
+                self.raw,
+                pgrx::pg_sys::ForkNumber::MAIN_FORKNUM,
+            )
         }
     }
 }

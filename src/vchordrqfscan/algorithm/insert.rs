@@ -14,7 +14,6 @@ use std::collections::BinaryHeap;
 pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_kind: DistanceKind) {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
-        .get()
         .get(1)
         .map(rkyv::check_archived_root::<MetaTuple>)
         .expect("data corruption")
@@ -35,22 +34,18 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
         })
         .unwrap();
         if let Some(mut write) = relation.search(tuple.len()) {
-            let i = write.get_mut().alloc(&tuple).unwrap();
+            let i = write.alloc(&tuple).unwrap();
             break 'h0_vector (write.id(), i);
         }
-        let mut current = relation
-            .read(meta_tuple.forwards_first)
-            .get()
-            .get_opaque()
-            .skip;
+        let mut current = relation.read(meta_tuple.forwards_first).get_opaque().skip;
         let mut changed = false;
         loop {
             let read = relation.read(current);
             let flag = 'flag: {
-                if read.get().freespace() as usize >= tuple.len() {
+                if read.freespace() as usize >= tuple.len() {
                     break 'flag true;
                 }
-                if read.get().get_opaque().next == u32::MAX {
+                if read.get_opaque().next == u32::MAX {
                     break 'flag true;
                 }
                 false
@@ -58,28 +53,27 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             if flag {
                 drop(read);
                 let mut write = relation.write(current, true);
-                if let Some(i) = write.get_mut().alloc(&tuple) {
+                if let Some(i) = write.alloc(&tuple) {
                     break (current, i);
                 }
-                if write.get().get_opaque().next == u32::MAX {
+                if write.get_opaque().next == u32::MAX {
                     if changed {
                         relation
                             .write(meta_tuple.forwards_first, false)
-                            .get_mut()
                             .get_opaque_mut()
                             .skip = write.id();
                     }
                     let mut extend = relation.extend(true);
-                    write.get_mut().get_opaque_mut().next = extend.id();
-                    if let Some(i) = extend.get_mut().alloc(&tuple) {
+                    write.get_opaque_mut().next = extend.id();
+                    if let Some(i) = extend.alloc(&tuple) {
                         break (extend.id(), i);
                     } else {
                         panic!("a tuple cannot even be fit in a fresh page");
                     }
                 }
-                current = write.get().get_opaque().next;
+                current = write.get_opaque().next;
             } else {
-                current = read.get().get_opaque().next;
+                current = read.get_opaque().next;
             }
             changed = true;
         }
@@ -90,7 +84,6 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
         if is_residual {
             let vector_guard = relation.read(meta_tuple.mean.0);
             let vector_tuple = vector_guard
-                .get()
                 .get(meta_tuple.mean.1)
                 .map(rkyv::check_archived_root::<VectorTuple>)
                 .expect("data corruption")
@@ -111,9 +104,8 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             let mut current = list.0;
             while current != u32::MAX {
                 let h1_guard = relation.read(current);
-                for i in 1..=h1_guard.get().len() {
+                for i in 1..=h1_guard.len() {
                     let h1_tuple = h1_guard
-                        .get()
                         .get(i)
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
@@ -141,7 +133,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                         }
                     }
                 }
-                current = h1_guard.get().get_opaque().next;
+                current = h1_guard.get_opaque().next;
             }
         }
         let mut heap = BinaryHeap::from(results);
@@ -151,7 +143,6 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                 let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
                 let vector_guard = relation.read(mean.0);
                 let vector_tuple = vector_guard
-                    .get()
                     .get(mean.1)
                     .map(rkyv::check_archived_root::<VectorTuple>)
                     .expect("data corruption")
@@ -196,9 +187,8 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
     loop {
         let read = relation.read(current);
         let flag = 'flag: {
-            for i in 1..=read.get().len() {
+            for i in 1..=read.len() {
                 let h0_tuple = read
-                    .get()
                     .get(i)
                     .map(rkyv::check_archived_root::<Height0Tuple>)
                     .expect("data corruption")
@@ -207,10 +197,10 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                     break 'flag true;
                 }
             }
-            if read.get().freespace() as usize >= dummy.len() {
+            if read.freespace() as usize >= dummy.len() {
                 break 'flag true;
             }
-            if read.get().get_opaque().next == u32::MAX {
+            if read.get_opaque().next == u32::MAX {
                 break 'flag true;
             }
             false
@@ -218,9 +208,9 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
         if flag {
             drop(read);
             let mut write = relation.write(current, false);
-            for i in 1..=write.get().len() {
+            for i in 1..=write.len() {
                 let flag = put(
-                    write.get_mut().get_mut(i).expect("data corruption"),
+                    write.get_mut(i).expect("data corruption"),
                     dims,
                     &code,
                     h0_vector,
@@ -230,9 +220,9 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                     return;
                 }
             }
-            if let Some(i) = write.get_mut().alloc(&dummy) {
+            if let Some(i) = write.alloc(&dummy) {
                 let flag = put(
-                    write.get_mut().get_mut(i).expect("data corruption"),
+                    write.get_mut(i).expect("data corruption"),
                     dims,
                     &code,
                     h0_vector,
@@ -241,12 +231,12 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                 assert!(flag, "a put fails even on a fresh tuple");
                 return;
             }
-            if write.get().get_opaque().next == u32::MAX {
+            if write.get_opaque().next == u32::MAX {
                 let mut extend = relation.extend(false);
-                write.get_mut().get_opaque_mut().next = extend.id();
-                if let Some(i) = extend.get_mut().alloc(&dummy) {
+                write.get_opaque_mut().next = extend.id();
+                if let Some(i) = extend.alloc(&dummy) {
                     let flag = put(
-                        extend.get_mut().get_mut(i).expect("data corruption"),
+                        extend.get_mut(i).expect("data corruption"),
                         dims,
                         &code,
                         h0_vector,
@@ -258,9 +248,9 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
                     panic!("a tuple cannot even be fit in a fresh page");
                 }
             }
-            current = write.get().get_opaque().next;
+            current = write.get_opaque().next;
         } else {
-            current = read.get().get_opaque().next;
+            current = read.get_opaque().next;
         }
     }
 }

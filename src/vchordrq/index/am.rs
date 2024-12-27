@@ -289,6 +289,7 @@ pub unsafe extern "C" fn ambuild(
     } else {
         let mut indtuples = 0;
         reporter.tuples_done(indtuples);
+        let relation = unsafe { Relation::new(index) };
         match opfamily.vector_kind() {
             VectorKind::Vecf32 => {
                 HeapRelation::<VectOwned<f32>>::traverse(
@@ -296,7 +297,7 @@ pub unsafe extern "C" fn ambuild(
                     true,
                     |(pointer, vector)| {
                         algorithm::insert::insert::<VectOwned<f32>>(
-                            unsafe { Relation::new(index) },
+                            relation.clone(),
                             pointer,
                             vector,
                             opfamily.distance_kind(),
@@ -313,7 +314,7 @@ pub unsafe extern "C" fn ambuild(
                     true,
                     |(pointer, vector)| {
                         algorithm::insert::insert::<VectOwned<f16>>(
-                            unsafe { Relation::new(index) },
+                            relation.clone(),
                             pointer,
                             vector,
                             opfamily.distance_kind(),
@@ -627,6 +628,7 @@ unsafe fn parallel_build(
     }
 
     let index_relation = unsafe { Relation::new(index) };
+
     let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap, tablescandesc) };
     let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
