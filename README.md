@@ -12,7 +12,7 @@
 
 VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, and serves as the successor to [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs).
 
-With VectorChord, you can store 400,000 vectors for just $1, enabling significant savings: 6x more vectors compared to Pinecone's optimized storage and 26x more than pgvector/pgvecto.rs for the same price[^1]. For further insights, check out our [launch blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql).
+With VectorChord, you can store 400,000 vectors for just $1, enabling significant savings: 6x more vectors compared to Pinecone's optimized storage and 26x more than pgvector/pgvecto.rs for the same price[^1]. For further insights, check out our [launch blog post](https://blog.vectorchord.ai/vectorchord-store-400k-vectors-for-1-in-postgresql).
 
 [^1]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dimensional vectors and 95% recall.
 
@@ -22,7 +22,7 @@ VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 
 **⚡ Enhanced Performance**: Delivering optimized operations with up to 5x faster queries, 16x higher insert throughput, and 16x quicker[^3] index building compared to pgvector's HNSW implementation.
 
-[^3]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dimensional vectors. Please checkout our [blog post](https://blog.pgvecto.rs/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
+[^3]: Based on [MyScale Benchmark](https://myscale.github.io/benchmark/#/) with 768-dimensional vectors. Please checkout our [blog post](https://blog.vectorchord.ai/vectorchord-store-400k-vectors-for-1-in-postgresql) for more details.
 
 **💰 Affordable Vector Search**: Query 100M 768-dimensional vectors using just 32GB of memory, achieving 35ms P50 latency with top10 recall@95%, helping you keep infrastructure costs down while maintaining high search quality.
 
