@@ -6,7 +6,7 @@ use crate::vchordrq::index::am_options::{Opfamily, Reloption};
 use crate::vchordrq::index::am_scan::Scanner;
 use crate::vchordrq::index::utils::{ctid_to_pointer, pointer_to_ctid};
 use crate::vchordrq::index::{am_options, am_scan};
-use crate::vchordrq::types::VectorKind;
+use crate::vchordrq::types::{OwnedVector, VectorKind};
 use base::search::Pointer;
 use base::vector::VectOwned;
 use half::f16;
@@ -855,7 +855,9 @@ pub unsafe extern "C" fn amgettuple(
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
     let relation = unsafe { Relation::new((*scan).indexRelation) };
-    if let Some((pointer, recheck)) = am_scan::scan_next(scanner, relation) {
+    if let Some((pointer, recheck)) =
+        am_scan::scan_next(scanner, relation, unsafe { (*scan).heapRelation })
+    {
         let ctid = pointer_to_ctid(pointer);
         unsafe {
             (*scan).xs_heaptid = ctid;
@@ -918,4 +920,47 @@ pub unsafe extern "C" fn amvacuumcleanup(
     _stats: *mut pgrx::pg_sys::IndexBulkDeleteResult,
 ) -> *mut pgrx::pg_sys::IndexBulkDeleteResult {
     std::ptr::null_mut()
+}
+
+pub(super) unsafe fn fetch_vector(
+    opfamily: Opfamily,
+    heap_relation: pgrx::pg_sys::Relation,
+    attnum: i16,
+    payload: u64,
+) -> Option<OwnedVector> {
+    unsafe {
+        let slot = pgrx::pg_sys::table_slot_create(heap_relation, std::ptr::null_mut());
+        let table_am = (*heap_relation).rd_tableam;
+        let fetch_row_version = (*table_am).tuple_fetch_row_version.unwrap();
+        let mut ctid = pointer_to_ctid(Pointer::new(payload));
+        fetch_row_version(
+            heap_relation,
+            &mut ctid,
+            &raw mut pgrx::pg_sys::SnapshotAnyData,
+            slot,
+        );
+        assert!(attnum > 0);
+        if attnum > (*slot).tts_nvalid {
+            pgrx::pg_sys::slot_getsomeattrs(slot, attnum as i32);
+        }
+        let result = opfamily.datum_to_vector(
+            (*slot).tts_values.add(attnum as usize - 1).read(),
+            (*slot).tts_isnull.add(attnum as usize - 1).read(),
+        );
+        if !slot.is_null() {
+            pgrx::pg_sys::ExecDropSingleTupleTableSlot(slot);
+        }
+        result
+    }
+}
+
+pub(super) unsafe fn get_attribute_number_from_index(
+    index: pgrx::pg_sys::Relation,
+) -> pgrx::pg_sys::AttrNumber {
+    unsafe {
+        let a = (*index).rd_index;
+        let natts = (*a).indnatts;
+        assert!(natts == 1);
+        (*a).indkey.values.as_slice(natts as _)[0]
+    }
 }

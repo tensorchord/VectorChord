@@ -5,6 +5,7 @@ use crate::vchordrq::algorithm::tuples::Vector;
 use crate::vchordrq::gucs::executing::epsilon;
 use crate::vchordrq::gucs::executing::max_scan_tuples;
 use crate::vchordrq::gucs::executing::probes;
+use crate::vchordrq::index::am::{fetch_vector, get_attribute_number_from_index};
 use crate::vchordrq::types::OwnedVector;
 use crate::vchordrq::types::VectorKind;
 use base::distance::Distance;
@@ -19,7 +20,7 @@ pub enum Scanner {
         recheck: bool,
     },
     Vbase {
-        vbase: Box<dyn Iterator<Item = (Distance, Pointer)>>,
+        vbase: Box<dyn Iterator<Item = (Distance, Pointer)> + 'static>,
         threshold: Option<f32>,
         recheck: bool,
         opfamily: Opfamily,
@@ -66,14 +67,19 @@ pub fn scan_make(
     }
 }
 
-pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, bool)> {
+pub fn scan_next(
+    scanner: &mut Scanner,
+    relation: Relation,
+    heap: pgrx::pg_sys::Relation,
+) -> Option<(Pointer, bool)> {
+    let index = relation.raw();
     if let Scanner::Initial {
         vector,
         threshold,
         recheck,
     } = scanner
     {
-        if let Some((vector, opfamily)) = vector.as_ref() {
+        if let Some((vector, opfamily)) = vector.clone() {
             match opfamily.vector_kind() {
                 VectorKind::Vecf32 => {
                     let vbase = scan::<VectOwned<f32>>(
@@ -82,6 +88,14 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                         opfamily.distance_kind(),
                         probes(),
                         epsilon(),
+                        move |payload| unsafe {
+                            Some(VectOwned::<f32>::from_owned(fetch_vector(
+                                opfamily,
+                                heap,
+                                get_attribute_number_from_index(index),
+                                payload,
+                            )?))
+                        },
                     );
                     *scanner = Scanner::Vbase {
                         vbase: if let Some(max_scan_tuples) = max_scan_tuples() {
@@ -91,7 +105,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                         },
                         threshold: *threshold,
                         recheck: *recheck,
-                        opfamily: *opfamily,
+                        opfamily,
                     };
                 }
                 VectorKind::Vecf16 => {
@@ -101,6 +115,14 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                         opfamily.distance_kind(),
                         probes(),
                         epsilon(),
+                        move |payload| unsafe {
+                            Some(VectOwned::<f16>::from_owned(fetch_vector(
+                                opfamily,
+                                heap,
+                                get_attribute_number_from_index(index),
+                                payload,
+                            )?))
+                        },
                     );
                     *scanner = Scanner::Vbase {
                         vbase: if let Some(max_scan_tuples) = max_scan_tuples() {
@@ -110,7 +132,7 @@ pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, 
                         },
                         threshold: *threshold,
                         recheck: *recheck,
-                        opfamily: *opfamily,
+                        opfamily,
                     };
                 }
             }
