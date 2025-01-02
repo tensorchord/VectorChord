@@ -1,11 +1,11 @@
 use super::am_options;
-use crate::postgres::Relation;
+use crate::postgres::PostgresRelation;
 use crate::vchordrq::algorithm::prewarm::prewarm;
 use crate::vchordrq::types::VectorKind;
-use base::vector::VectOwned;
 use half::f16;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass};
+use vector::vect::VectOwned;
 
 #[pgrx::pg_extern(sql = "")]
 fn _vchordrq_prewarm(indexrelid: Oid, height: i32) -> String {
@@ -21,7 +21,7 @@ fn _vchordrq_prewarm(indexrelid: Oid, height: i32) -> String {
         pgrx::error!("{:?} is not a vchordrq index", pg_class.relname());
     }
     let index = unsafe { pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::ShareLock as _) };
-    let relation = unsafe { Relation::new(index) };
+    let relation = unsafe { PostgresRelation::new(index) };
     let opfamily = unsafe { am_options::opfamily(index) };
     let message = match opfamily.vector_kind() {
         VectorKind::Vecf32 => prewarm::<VectOwned<f32>>(relation, height),

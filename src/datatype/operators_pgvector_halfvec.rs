@@ -1,6 +1,7 @@
-use crate::datatype::memory_pgvector_halfvec::*;
-use base::vector::{VectBorrowed, VectorBorrowed};
+use crate::datatype::memory_pgvector_halfvec::{PgvectorHalfvecInput, PgvectorHalfvecOutput};
 use std::num::NonZero;
+use vector::VectorBorrowed;
+use vector::vect::VectBorrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
 fn _vchord_halfvec_sphere_l2_in(

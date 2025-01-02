@@ -1,17 +1,22 @@
-use crate::postgres::Relation;
 use crate::vchordrqfscan::algorithm::rabitq;
-use crate::vchordrqfscan::algorithm::rabitq::distance;
 use crate::vchordrqfscan::algorithm::rabitq::fscan_process_lowerbound;
 use crate::vchordrqfscan::algorithm::tuples::*;
-use base::always_equal::AlwaysEqual;
-use base::distance::Distance;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::simd::ScalarLike;
+use crate::vchordrqfscan::types::DistanceKind;
+use crate::vchordrqfscan::types::distance;
+use algorithm::{Page, PageGuard, RelationWrite};
+use always_equal::AlwaysEqual;
+use distance::Distance;
+use simd::Floating;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::num::NonZeroU64;
 
-pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_kind: DistanceKind) {
+pub fn insert(
+    relation: impl RelationWrite,
+    payload: NonZeroU64,
+    vector: Vec<f32>,
+    distance_kind: DistanceKind,
+) {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get(1)
@@ -30,7 +35,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
     let h0_vector = 'h0_vector: {
         let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple {
             vector: vector.clone(),
-            payload: Some(payload.as_u64()),
+            payload: Some(payload),
         })
         .unwrap();
         if let Some(mut write) = relation.search(tuple.len()) {
@@ -78,7 +83,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
             changed = true;
         }
     };
-    let h0_payload = payload.as_u64();
+    let h0_payload = payload;
     let mut list = (
         meta_tuple.first,
         if is_residual {
@@ -173,7 +178,7 @@ pub fn insert(relation: Relation, payload: Pointer, vector: Vec<f32>, distance_k
     let dummy = rkyv::to_bytes::<_, 8192>(&Height0Tuple {
         mask: [false; 32],
         mean: [(0, 0); 32],
-        payload: [0; 32],
+        payload: [NonZeroU64::MIN; 32],
         dis_u_2: [0.0f32; 32],
         factor_ppc: [0.0f32; 32],
         factor_ip: [0.0f32; 32],

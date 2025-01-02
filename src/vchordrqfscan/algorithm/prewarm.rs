@@ -1,8 +1,8 @@
-use crate::postgres::Relation;
 use crate::vchordrqfscan::algorithm::tuples::*;
+use algorithm::{Page, RelationRead};
 use std::fmt::Write;
 
-pub fn prewarm(relation: Relation, height: i32) -> String {
+pub fn prewarm(relation: impl RelationRead, height: i32) -> String {
     let mut message = String::new();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard

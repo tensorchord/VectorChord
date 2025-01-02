@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use crate::vchordrqfscan::algorithm::rabitq;
 use rkyv::{Archive, Deserialize, Serialize};
 
@@ -20,7 +22,7 @@ pub struct MetaTuple {
 pub struct VectorTuple {
     pub vector: Vec<f32>,
     // this field is saved only for vacuum
-    pub payload: Option<u64>,
+    pub payload: Option<NonZeroU64>,
 }
 
 #[derive(Clone, PartialEq, Archive, Serialize, Deserialize)]
@@ -46,7 +48,7 @@ pub struct Height0Tuple {
     // raw vector
     pub mean: [(u32, u16); 32],
     // for height 0 tuple, it's pointers to heap relation
-    pub payload: [u64; 32],
+    pub payload: [NonZeroU64; 32],
     // RaBitQ algorithm
     pub dis_u_2: [f32; 32],
     pub factor_ppc: [f32; 32],
@@ -60,7 +62,7 @@ pub fn put(
     dims: u32,
     code: &rabitq::Code,
     vector: (u32, u16),
-    payload: u64,
+    payload: NonZeroU64,
 ) -> bool {
     // todo: use mutable api
     let mut x = rkyv::from_bytes::<Height0Tuple>(bytes).expect("data corruption");

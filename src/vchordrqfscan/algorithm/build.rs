@@ -1,25 +1,24 @@
-use crate::postgres::BufferWriteGuard;
-use crate::postgres::Relation;
 use crate::vchordrqfscan::algorithm::rabitq;
 use crate::vchordrqfscan::algorithm::tuples::*;
 use crate::vchordrqfscan::index::am_options::Opfamily;
+use crate::vchordrqfscan::types::DistanceKind;
 use crate::vchordrqfscan::types::VchordrqfscanBuildOptions;
 use crate::vchordrqfscan::types::VchordrqfscanExternalBuildOptions;
 use crate::vchordrqfscan::types::VchordrqfscanIndexingOptions;
 use crate::vchordrqfscan::types::VchordrqfscanInternalBuildOptions;
 use crate::vchordrqfscan::types::VectorOptions;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::simd::ScalarLike;
+use algorithm::{Page, PageGuard, RelationWrite};
 use rand::Rng;
 use rkyv::ser::serializers::AllocSerializer;
+use simd::Floating;
 use std::marker::PhantomData;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 pub trait HeapRelation {
     fn traverse<F>(&self, progress: bool, callback: F)
     where
-        F: FnMut((Pointer, Vec<f32>));
+        F: FnMut((NonZeroU64, Vec<f32>));
     fn opfamily(&self) -> Opfamily;
 }
 
@@ -31,7 +30,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
     vector_options: VectorOptions,
     vchordrqfscan_options: VchordrqfscanIndexingOptions,
     heap_relation: T,
-    relation: Relation,
+    relation: impl RelationWrite,
     mut reporter: R,
 ) {
     let dims = vector_options.dims;
@@ -73,7 +72,7 @@ pub fn build<T: HeapRelation, R: Reporter>(
     };
     let mut meta = Tape::create(&relation, false);
     assert_eq!(meta.first(), 0);
-    let mut forwards = Tape::<std::convert::Infallible>::create(&relation, false);
+    let mut forwards = Tape::<std::convert::Infallible, _>::create(&relation, false);
     assert_eq!(forwards.first(), 1);
     let mut vectors = Tape::create(&relation, true);
     assert_eq!(vectors.first(), 2);
@@ -94,10 +93,10 @@ pub fn build<T: HeapRelation, R: Reporter>(
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
             if i == 0 {
-                let tape = Tape::<Height0Tuple>::create(&relation, false);
+                let tape = Tape::<Height0Tuple, _>::create(&relation, false);
                 level.push(tape.first());
             } else {
-                let mut tape = Tape::<Height1Tuple>::create(&relation, false);
+                let mut tape = Tape::<Height1Tuple, _>::create(&relation, false);
                 let mut cache = Vec::new();
                 let h2_mean = &structures[i].means[j];
                 let h2_children = &structures[i].children[j];
@@ -250,8 +249,8 @@ impl Structure {
         let mut vectors = BTreeMap::new();
         pgrx::spi::Spi::connect(|client| {
             use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
-            use base::vector::VectorBorrowed;
             use pgrx::pg_sys::panic::ErrorReportable;
+            use vector::VectorBorrowed;
             let table = client.select(&query, None, None).unwrap_or_report();
             for row in table {
                 let id: Option<i32> = row.get_by_name("id").unwrap();
@@ -368,16 +367,16 @@ impl Structure {
     }
 }
 
-struct Tape<'a, T> {
-    relation: &'a Relation,
-    head: BufferWriteGuard,
+struct Tape<'a, 'b, T, R: 'b + RelationWrite> {
+    relation: &'a R,
+    head: R::WriteGuard<'b>,
     first: u32,
     tracking_freespace: bool,
     _phantom: PhantomData<fn(T) -> T>,
 }
 
-impl<'a, T> Tape<'a, T> {
-    fn create(relation: &'a Relation, tracking_freespace: bool) -> Self {
+impl<'a: 'b, 'b, T, R: 'b + RelationWrite> Tape<'a, 'b, T, R> {
+    fn create(relation: &'a R, tracking_freespace: bool) -> Self {
         let head = relation.extend(tracking_freespace);
         let first = head.id();
         Self {
@@ -393,7 +392,7 @@ impl<'a, T> Tape<'a, T> {
     }
 }
 
-impl<T> Tape<'_, T>
+impl<'a: 'b, 'b, T, R: 'b + RelationWrite> Tape<'a, 'b, T, R>
 where
     T: rkyv::Serialize<AllocSerializer<8192>>,
 {

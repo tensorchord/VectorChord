@@ -34,7 +34,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   RUSTFLAGS: "-Dwarnings"
-  CARGO_PROFILE_OPT_BUILD_OVERRIDE_DEBUG: true
 
 jobs:
   test:
@@ -71,10 +70,9 @@ jobs:
         env:
           SEMVER: "0.0.0"
           VERSION: ${{ matrix.version }}
-          PROFILE: "opt"
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --features pg${{ matrix.version }} --profile $PROFILE
-          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --profile $PROFILE
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE cargo build --lib --features pg${{ matrix.version }} --release
+          docker run --rm -v .:/workspace $CACHE_ENVS $PGRX_IMAGE ./tools/schema.sh --features pg${{ matrix.version }} --release
           ./tools/package.sh
           docker build -t vchord:pg${{ matrix.version }} --build-arg PG_VERSION=${{ matrix.version }} -f ./docker/Dockerfile .
 

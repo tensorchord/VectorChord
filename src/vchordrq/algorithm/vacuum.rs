@@ -1,11 +1,11 @@
-use super::RelationWrite;
 use crate::vchordrq::algorithm::tuples::*;
-use base::search::Pointer;
+use algorithm::{Page, RelationWrite};
+use std::num::NonZeroU64;
 
 pub fn vacuum<V: Vector>(
     relation: impl RelationWrite,
     delay: impl Fn(),
-    callback: impl Fn(Pointer) -> bool,
+    callback: impl Fn(NonZeroU64) -> bool,
 ) {
     // step 1: vacuum height_0_tuple
     {
@@ -50,7 +50,7 @@ pub fn vacuum<V: Vector>(
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    if callback(Pointer::new(h0_tuple.payload)) {
+                    if callback(h0_tuple.payload) {
                         reconstruct_removes.push(i);
                     }
                 }
@@ -81,7 +81,7 @@ pub fn vacuum<V: Vector>(
                     let vector_tuple =
                         unsafe { rkyv::archived_root::<VectorTuple<V>>(vector_tuple) };
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
-                        if callback(Pointer::new(payload)) {
+                        if callback(payload) {
                             break 'flag true;
                         }
                     }
@@ -98,7 +98,7 @@ pub fn vacuum<V: Vector>(
                     let vector_tuple =
                         unsafe { rkyv::archived_root::<VectorTuple<V>>(vector_tuple) };
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
-                        if callback(Pointer::new(payload)) {
+                        if callback(payload) {
                             write.free(i);
                         }
                     }

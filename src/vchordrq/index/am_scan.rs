@@ -1,5 +1,5 @@
 use super::am_options::Opfamily;
-use crate::postgres::Relation;
+use crate::postgres::PostgresRelation;
 use crate::vchordrq::algorithm::scan::scan;
 use crate::vchordrq::algorithm::tuples::Vector;
 use crate::vchordrq::gucs::executing::epsilon;
@@ -7,10 +7,10 @@ use crate::vchordrq::gucs::executing::max_scan_tuples;
 use crate::vchordrq::gucs::executing::probes;
 use crate::vchordrq::types::OwnedVector;
 use crate::vchordrq::types::VectorKind;
-use base::distance::Distance;
-use base::search::*;
-use base::vector::VectOwned;
+use distance::Distance;
 use half::f16;
+use std::num::NonZeroU64;
+use vector::vect::VectOwned;
 
 pub enum Scanner {
     Initial {
@@ -19,7 +19,7 @@ pub enum Scanner {
         recheck: bool,
     },
     Vbase {
-        vbase: Box<dyn Iterator<Item = (Distance, Pointer)>>,
+        vbase: Box<dyn Iterator<Item = (Distance, NonZeroU64)>>,
         threshold: Option<f32>,
         recheck: bool,
         opfamily: Opfamily,
@@ -66,7 +66,7 @@ pub fn scan_make(
     }
 }
 
-pub fn scan_next(scanner: &mut Scanner, relation: Relation) -> Option<(Pointer, bool)> {
+pub fn scan_next(scanner: &mut Scanner, relation: PostgresRelation) -> Option<(NonZeroU64, bool)> {
     if let Scanner::Initial {
         vector,
         threshold,

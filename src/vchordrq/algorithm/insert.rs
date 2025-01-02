@@ -1,19 +1,18 @@
-use super::RelationWrite;
-use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
+use crate::vchordrq::algorithm::rabitq;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
-use crate::vchordrq::algorithm::PageGuard;
-use base::always_equal::AlwaysEqual;
-use base::distance::Distance;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::vector::VectorBorrowed;
+use crate::vchordrq::types::DistanceKind;
+use algorithm::{Page, PageGuard, RelationWrite};
+use always_equal::AlwaysEqual;
+use distance::Distance;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::num::NonZeroU64;
+use vector::VectorBorrowed;
 
 pub fn insert<V: Vector>(
     relation: impl RelationWrite + Clone,
-    payload: Pointer,
+    payload: NonZeroU64,
     vector: V,
     distance_kind: DistanceKind,
     in_building: bool,
@@ -41,7 +40,7 @@ pub fn insert<V: Vector>(
         for i in (0..slices.len()).rev() {
             let tuple = rkyv::to_bytes::<_, 8192>(&VectorTuple::<V> {
                 slice: slices[i].to_vec(),
-                payload: Some(payload.as_u64()),
+                payload: Some(payload),
                 chain,
             })
             .unwrap();
@@ -56,7 +55,7 @@ pub fn insert<V: Vector>(
         }
         chain.ok().unwrap()
     };
-    let h0_payload = payload.as_u64();
+    let h0_payload = payload;
     let mut list = {
         let Some((_, original)) = vectors::vector_dist::<V>(
             relation.clone(),
@@ -90,7 +89,7 @@ pub fn insert<V: Vector>(
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = rabitq::process_lowerbound(
                         distance_kind,
                         dims,
                         lut,

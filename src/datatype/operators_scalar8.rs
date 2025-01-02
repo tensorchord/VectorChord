@@ -1,7 +1,7 @@
 use crate::datatype::memory_scalar8::{Scalar8Input, Scalar8Output};
-use crate::types::scalar8::Scalar8Borrowed;
-use base::vector::*;
 use std::num::NonZero;
+use vector::VectorBorrowed;
+use vector::scalar8::Scalar8Borrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
 fn _vchord_scalar8_operator_ip(lhs: Scalar8Input<'_>, rhs: Scalar8Input<'_>) -> f32 {

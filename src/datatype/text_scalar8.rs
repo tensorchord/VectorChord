@@ -1,8 +1,8 @@
 use super::memory_scalar8::Scalar8Output;
 use crate::datatype::memory_scalar8::Scalar8Input;
-use crate::types::scalar8::Scalar8Borrowed;
 use pgrx::pg_sys::Oid;
 use std::ffi::{CStr, CString};
+use vector::scalar8::Scalar8Borrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
 fn _vchord_scalar8_in(input: &CStr, oid: Oid, typmod: i32) -> Scalar8Output {

@@ -19,7 +19,6 @@ impl Typmod {
             None
         }
     }
-    #[allow(dead_code)]
     pub fn into_option_string(self) -> Option<String> {
         use Typmod::*;
         match self {
@@ -27,7 +26,6 @@ impl Typmod {
             Dims(x) => Some(x.get().to_string()),
         }
     }
-    #[allow(dead_code)]
     pub fn into_i32(self) -> i32 {
         use Typmod::*;
         match self {

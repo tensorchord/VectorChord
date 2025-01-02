@@ -1,5 +1,3 @@
-use crate::types::scalar8::Scalar8Borrowed;
-use base::vector::*;
 use pgrx::datum::FromDatum;
 use pgrx::datum::IntoDatum;
 use pgrx::pg_sys::Datum;
@@ -11,6 +9,8 @@ use pgrx::pgrx_sql_entity_graph::metadata::SqlMapping;
 use pgrx::pgrx_sql_entity_graph::metadata::SqlTranslatable;
 use std::ops::Deref;
 use std::ptr::NonNull;
+use vector::VectorBorrowed;
+use vector::scalar8::Scalar8Borrowed;
 
 #[repr(C, align(8))]
 pub struct Scalar8Header {

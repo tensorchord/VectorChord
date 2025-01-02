@@ -1,14 +1,16 @@
 use crate::datatype::memory_pgvector_vector::PgvectorVectorInput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 use crate::datatype::typmod::Typmod;
-use crate::vchordrqfscan::types::*;
-use base::distance::*;
-use base::vector::VectorBorrowed;
+use crate::vchordrqfscan::types::{BorrowedVector, OwnedVector};
+use crate::vchordrqfscan::types::{DistanceKind, VectorKind};
+use crate::vchordrqfscan::types::{VchordrqfscanIndexingOptions, VectorOptions};
+use distance::Distance;
 use pgrx::datum::FromDatum;
 use pgrx::heap_tuple::PgHeapTuple;
 use serde::Deserialize;
 use std::ffi::CStr;
 use std::num::NonZero;
+use vector::VectorBorrowed;
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]

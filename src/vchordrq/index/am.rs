@@ -1,4 +1,4 @@
-use crate::postgres::Relation;
+use crate::postgres::PostgresRelation;
 use crate::vchordrq::algorithm;
 use crate::vchordrq::algorithm::build::{HeapRelation, Reporter};
 use crate::vchordrq::algorithm::tuples::Vector;
@@ -7,11 +7,11 @@ use crate::vchordrq::index::am_scan::Scanner;
 use crate::vchordrq::index::utils::{ctid_to_pointer, pointer_to_ctid};
 use crate::vchordrq::index::{am_options, am_scan};
 use crate::vchordrq::types::VectorKind;
-use base::search::Pointer;
-use base::vector::VectOwned;
 use half::f16;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
+use std::num::NonZeroU64;
+use vector::vect::VectOwned;
 
 static mut RELOPT_KIND_VCHORDRQ: pgrx::pg_sys::relopt_kind::Type = 0;
 
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn ambuild(
     impl<V: Vector> HeapRelation<V> for Heap {
         fn traverse<F>(&self, progress: bool, callback: F)
         where
-            F: FnMut((Pointer, V)),
+            F: FnMut((NonZeroU64, V)),
         {
             pub struct State<'a, F> {
                 pub this: &'a Heap,
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn ambuild(
                 _tuple_is_alive: bool,
                 state: *mut core::ffi::c_void,
             ) where
-                F: FnMut((Pointer, V)),
+                F: FnMut((NonZeroU64, V)),
             {
                 let state = unsafe { &mut *state.cast::<State<F>>() };
                 let opfamily = state.this.opfamily;
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn ambuild(
         opfamily,
     };
     let mut reporter = PgReporter {};
-    let index_relation = unsafe { Relation::new(index) };
+    let index_relation = unsafe { PostgresRelation::new(index) };
     match opfamily.vector_kind() {
         VectorKind::Vecf32 => algorithm::build::build::<VectOwned<f32>, Heap, _>(
             vector_options,
@@ -289,7 +289,7 @@ pub unsafe extern "C" fn ambuild(
     } else {
         let mut indtuples = 0;
         reporter.tuples_done(indtuples);
-        let relation = unsafe { Relation::new(index) };
+        let relation = unsafe { PostgresRelation::new(index) };
         match opfamily.vector_kind() {
             VectorKind::Vecf32 => {
                 HeapRelation::<VectOwned<f32>>::traverse(
@@ -575,7 +575,7 @@ unsafe fn parallel_build(
     impl<V: Vector> HeapRelation<V> for Heap {
         fn traverse<F>(&self, progress: bool, callback: F)
         where
-            F: FnMut((Pointer, V)),
+            F: FnMut((NonZeroU64, V)),
         {
             pub struct State<'a, F> {
                 pub this: &'a Heap,
@@ -590,7 +590,7 @@ unsafe fn parallel_build(
                 _tuple_is_alive: bool,
                 state: *mut core::ffi::c_void,
             ) where
-                F: FnMut((Pointer, V)),
+                F: FnMut((NonZeroU64, V)),
             {
                 let state = unsafe { &mut *state.cast::<State<F>>() };
                 let opfamily = state.this.opfamily;
@@ -627,7 +627,7 @@ unsafe fn parallel_build(
         }
     }
 
-    let index_relation = unsafe { Relation::new(index) };
+    let index_relation = unsafe { PostgresRelation::new(index) };
 
     let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap, tablescandesc) };
     let opfamily = unsafe { am_options::opfamily(index) };
@@ -716,14 +716,14 @@ pub unsafe extern "C" fn aminsert(
         let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
         match opfamily.vector_kind() {
             VectorKind::Vecf32 => algorithm::insert::insert::<VectOwned<f32>>(
-                unsafe { Relation::new(index) },
+                unsafe { PostgresRelation::new(index) },
                 pointer,
                 VectOwned::<f32>::from_owned(vector),
                 opfamily.distance_kind(),
                 false,
             ),
             VectorKind::Vecf16 => algorithm::insert::insert::<VectOwned<f16>>(
-                unsafe { Relation::new(index) },
+                unsafe { PostgresRelation::new(index) },
                 pointer,
                 VectOwned::<f16>::from_owned(vector),
                 opfamily.distance_kind(),
@@ -752,14 +752,14 @@ pub unsafe extern "C" fn aminsert(
         let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
         match opfamily.vector_kind() {
             VectorKind::Vecf32 => algorithm::insert::insert::<VectOwned<f32>>(
-                unsafe { Relation::new(index) },
+                unsafe { PostgresRelation::new(index) },
                 pointer,
                 VectOwned::<f32>::from_owned(vector),
                 opfamily.distance_kind(),
                 false,
             ),
             VectorKind::Vecf16 => algorithm::insert::insert::<VectOwned<f16>>(
-                unsafe { Relation::new(index) },
+                unsafe { PostgresRelation::new(index) },
                 pointer,
                 VectOwned::<f16>::from_owned(vector),
                 opfamily.distance_kind(),
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn amgettuple(
         pgrx::error!("scanning with a non-MVCC-compliant snapshot is not supported");
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
-    let relation = unsafe { Relation::new((*scan).indexRelation) };
+    let relation = unsafe { PostgresRelation::new((*scan).indexRelation) };
     if let Some((pointer, recheck)) = am_scan::scan_next(scanner, relation) {
         let ctid = pointer_to_ctid(pointer);
         unsafe {
@@ -892,17 +892,17 @@ pub unsafe extern "C" fn ambulkdelete(
     }
     let opfamily = unsafe { am_options::opfamily((*info).index) };
     let callback = callback.unwrap();
-    let callback = |p: Pointer| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
+    let callback = |p: NonZeroU64| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
     match opfamily.vector_kind() {
         VectorKind::Vecf32 => algorithm::vacuum::vacuum::<VectOwned<f32>>(
-            unsafe { Relation::new((*info).index) },
+            unsafe { PostgresRelation::new((*info).index) },
             || unsafe {
                 pgrx::pg_sys::vacuum_delay_point();
             },
             callback,
         ),
         VectorKind::Vecf16 => algorithm::vacuum::vacuum::<VectOwned<f16>>(
-            unsafe { Relation::new((*info).index) },
+            unsafe { PostgresRelation::new((*info).index) },
             || unsafe {
                 pgrx::pg_sys::vacuum_delay_point();
             },

@@ -3,16 +3,16 @@ use crate::datatype::memory_pgvector_halfvec::PgvectorHalfvecOutput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorInput;
 use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
 use crate::datatype::typmod::Typmod;
-use crate::vchordrq::types::VchordrqIndexingOptions;
-use crate::vchordrq::types::VectorOptions;
-use crate::vchordrq::types::{BorrowedVector, OwnedVector, VectorKind};
-use base::distance::*;
-use base::vector::VectorBorrowed;
+use crate::vchordrq::types::{BorrowedVector, OwnedVector};
+use crate::vchordrq::types::{DistanceKind, VectorKind};
+use crate::vchordrq::types::{VchordrqIndexingOptions, VectorOptions};
+use distance::Distance;
 use pgrx::datum::FromDatum;
 use pgrx::heap_tuple::PgHeapTuple;
 use serde::Deserialize;
 use std::ffi::CStr;
 use std::num::NonZero;
+use vector::VectorBorrowed;
 
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]

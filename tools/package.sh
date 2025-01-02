@@ -5,7 +5,6 @@ printf "SEMVER = ${SEMVER}\n"
 printf "VERSION = ${VERSION}\n"
 printf "ARCH = ${ARCH}\n"
 printf "PLATFORM = ${PLATFORM}\n"
-printf "PROFILE = ${PROFILE}\n"
 
 rm -rf ./build/dir_zip
 rm -rf ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
@@ -13,9 +12,9 @@ rm -rf ./build/dir_deb
 rm -rf ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
 
 mkdir -p ./build/dir_zip
-cp ./target/${PROFILE}/schema.sql ./build/dir_zip/vchord--$SEMVER.sql
+cp ./target/release/schema.sql ./build/dir_zip/vchord--$SEMVER.sql
 sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/dir_zip/vchord.control
-cp ./target/${PROFILE}/libvchord.so ./build/dir_zip/vchord.so
+cp ./target/release/libvchord.so ./build/dir_zip/vchord.so
 zip ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip -j ./build/dir_zip/*
 
 mkdir -p ./build/dir_deb

@@ -1,14 +1,14 @@
-use super::RelationRead;
-use crate::vchordrq::algorithm::rabitq::fscan_process_lowerbound;
+use crate::vchordrq::algorithm::rabitq;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
-use base::always_equal::AlwaysEqual;
-use base::distance::Distance;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::vector::VectorBorrowed;
+use crate::vchordrq::types::DistanceKind;
+use algorithm::{Page, RelationRead};
+use always_equal::AlwaysEqual;
+use distance::Distance;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::num::NonZeroU64;
+use vector::VectorBorrowed;
 
 pub fn scan<V: Vector>(
     relation: impl RelationRead + Clone,
@@ -16,7 +16,7 @@ pub fn scan<V: Vector>(
     distance_kind: DistanceKind,
     probes: Vec<u32>,
     epsilon: f32,
-) -> impl Iterator<Item = (Distance, Pointer)> {
+) -> impl Iterator<Item = (Distance, NonZeroU64)> {
     let vector = vector.as_borrowed();
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
@@ -71,7 +71,7 @@ pub fn scan<V: Vector>(
                         .map(rkyv::check_archived_root::<Height1Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = rabitq::process_lowerbound(
                         distance_kind,
                         dims,
                         lut,
@@ -143,7 +143,7 @@ pub fn scan<V: Vector>(
                         .map(rkyv::check_archived_root::<Height0Tuple>)
                         .expect("data corruption")
                         .expect("data corruption");
-                    let lowerbounds = fscan_process_lowerbound(
+                    let lowerbounds = rabitq::process_lowerbound(
                         distance_kind,
                         dims,
                         lut,
@@ -183,7 +183,7 @@ pub fn scan<V: Vector>(
                 cache.push((Reverse(dis_u), AlwaysEqual(pay_u)));
             }
             let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;
-            Some((dis_u, Pointer::new(pay_u)))
+            Some((dis_u, pay_u))
         })
     }
 }

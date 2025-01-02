@@ -1,8 +1,7 @@
-use base::distance::DistanceKind;
-use base::vector::{VectBorrowed, VectOwned};
 use half::f16;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError, ValidationErrors};
+use vector::vect::{VectBorrowed, VectOwned};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
@@ -109,6 +108,13 @@ pub enum OwnedVector {
 pub enum BorrowedVector<'a> {
     Vecf32(VectBorrowed<'a, f32>),
     Vecf16(VectBorrowed<'a, f16>),
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum DistanceKind {
+    L2,
+    Dot,
 }
 
 #[repr(u8)]

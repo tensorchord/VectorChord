@@ -7,8 +7,7 @@ pub use rayon::iter::ParallelIterator;
 pub trait Parallelism: Send + Sync {
     fn check(&self);
 
-    #[allow(clippy::wrong_self_convention)]
-    fn into_par_iter<I: rayon::iter::IntoParallelIterator>(&self, x: I) -> I::Iter;
+    fn rayon_into_par_iter<I: rayon::iter::IntoParallelIterator>(&self, x: I) -> I::Iter;
 }
 
 struct ParallelismCheckPanic(Box<dyn Any + Send>);
@@ -57,7 +56,7 @@ impl Parallelism for RayonParallelism {
         }
     }
 
-    fn into_par_iter<I: rayon::iter::IntoParallelIterator>(&self, x: I) -> I::Iter {
+    fn rayon_into_par_iter<I: rayon::iter::IntoParallelIterator>(&self, x: I) -> I::Iter {
         x.into_par_iter()
     }
 }

@@ -10,8 +10,8 @@ export PGRX_VERSION=$(awk -F'version = "=|"' '/^pgrx\s*=.*version/ {print $2}' C
 export RUST_TOOLCHAIN=$(awk -F'"' '/^\s*channel\s*=/ {print $2}' rust-toolchain.toml)
 export PGRX_IMAGE=ghcr.io/tensorchord/vectorchord-pgrx:$PGRX_VERSION-$RUST_TOOLCHAIN
 
-docker run --rm -v .:/workspace $PGRX_IMAGE cargo build --lib --features pg16 --profile opt
-docker run --rm -v .:/workspace $PGRX_IMAGE ./tools/schema.sh --features pg16 --profile opt
+docker run --rm -v .:/workspace $PGRX_IMAGE cargo build --lib --features pg16 --release
+docker run --rm -v .:/workspace $PGRX_IMAGE ./tools/schema.sh --features pg16 --release
 ```
 
 - (option 2) With Local Development Environment
@@ -20,8 +20,8 @@ docker run --rm -v .:/workspace $PGRX_IMAGE ./tools/schema.sh --features pg16 --
 sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
 cargo install --locked cargo-pgrx
 cargo pgrx init
-cargo build --package vchord --lib --features pg16 --profile opt
-./tools/schema.sh --features pg16 --profile opt
+cargo build --package vchord --lib --features pg16 --release
+./tools/schema.sh --features pg16 --release
 ```
 
 - build the debian package
@@ -31,7 +31,6 @@ export SEMVER="0.0.0"
 export VERSION="16"
 export ARCH="x86_64"
 export PLATFORM="amd64"
-export PROFILE="opt"
 ./tools/package.sh
 ```
 

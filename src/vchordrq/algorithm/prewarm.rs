@@ -1,6 +1,6 @@
-use super::RelationRead;
 use crate::vchordrq::algorithm::tuples::*;
 use crate::vchordrq::algorithm::vectors;
+use algorithm::{Page, RelationRead};
 use std::fmt::Write;
 
 pub fn prewarm<V: Vector>(relation: impl RelationRead + Clone, height: i32) -> String {

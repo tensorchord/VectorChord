@@ -1,23 +1,23 @@
-use crate::postgres::Relation;
 use crate::vchordrqfscan::algorithm::rabitq;
-use crate::vchordrqfscan::algorithm::rabitq::distance;
 use crate::vchordrqfscan::algorithm::rabitq::fscan_process_lowerbound;
 use crate::vchordrqfscan::algorithm::tuples::*;
-use base::always_equal::AlwaysEqual;
-use base::distance::Distance;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::simd::ScalarLike;
+use crate::vchordrqfscan::types::DistanceKind;
+use crate::vchordrqfscan::types::distance;
+use algorithm::{Page, RelationWrite};
+use always_equal::AlwaysEqual;
+use distance::Distance;
+use simd::Floating;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::num::NonZeroU64;
 
 pub fn scan(
-    relation: Relation,
+    relation: impl RelationWrite + Clone,
     vector: Vec<f32>,
     distance_kind: DistanceKind,
     probes: Vec<u32>,
     epsilon: f32,
-) -> impl Iterator<Item = (Distance, Pointer)> {
+) -> impl Iterator<Item = (Distance, NonZeroU64)> {
     let meta_guard = relation.read(0);
     let meta_tuple = meta_guard
         .get(1)
@@ -123,6 +123,7 @@ pub fn scan(
     for i in (1..meta_tuple.height_of_root).rev() {
         lists = make_lists(lists, probes[i as usize - 1]);
     }
+    drop(meta_guard);
     {
         let mut results = Vec::new();
         for list in lists {
@@ -186,7 +187,7 @@ pub fn scan(
                 cache.push((Reverse(dis_u), AlwaysEqual(pay_u)));
             }
             let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;
-            Some((dis_u, Pointer::new(pay_u)))
+            Some((dis_u, pay_u))
         })
     }
 }

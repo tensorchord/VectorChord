@@ -1,14 +1,15 @@
 use super::tuples::Vector;
-use super::RelationRead;
 use crate::vchordrq::algorithm::tuples::VectorTuple;
-use base::distance::Distance;
-use base::distance::DistanceKind;
+use crate::vchordrq::types::DistanceKind;
+use algorithm::{Page, RelationRead};
+use distance::Distance;
+use std::num::NonZeroU64;
 
 pub fn vector_dist<V: Vector>(
     relation: impl RelationRead,
     vector: V::Borrowed<'_>,
     mean: (u32, u16),
-    payload: Option<u64>,
+    payload: Option<NonZeroU64>,
     for_distance: Option<DistanceKind>,
     for_original: bool,
 ) -> Option<(Option<Distance>, Option<V>)> {

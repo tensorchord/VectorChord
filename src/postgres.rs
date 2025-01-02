@@ -1,4 +1,5 @@
-use std::mem::{offset_of, MaybeUninit};
+use algorithm::{Opaque, Page, PageGuard, RelationRead, RelationWrite};
+use std::mem::{MaybeUninit, offset_of};
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
@@ -7,7 +8,7 @@ const _: () = assert!(
 );
 
 const fn size_of_contents() -> usize {
-    use pgrx::pg_sys::{PageHeaderData, BLCKSZ};
+    use pgrx::pg_sys::{BLCKSZ, PageHeaderData};
     let size_of_page = BLCKSZ as usize;
     let size_of_header = offset_of!(PageHeaderData, pd_linp);
     let size_of_opaque = size_of::<Opaque>();
@@ -15,17 +16,17 @@ const fn size_of_contents() -> usize {
 }
 
 #[repr(C, align(8))]
-pub struct Page {
+pub struct PostgresPage {
     header: pgrx::pg_sys::PageHeaderData,
     content: [u8; size_of_contents()],
     opaque: Opaque,
 }
 
-const _: () = assert!(align_of::<Page>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
-const _: () = assert!(size_of::<Page>() == pgrx::pg_sys::BLCKSZ as usize);
+const _: () = assert!(align_of::<PostgresPage>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
+const _: () = assert!(size_of::<PostgresPage>() == pgrx::pg_sys::BLCKSZ as usize);
 
-impl Page {
-    pub fn init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
+impl PostgresPage {
+    fn init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
         unsafe {
             pgrx::pg_sys::PageInit(
                 this.as_mut_ptr() as pgrx::pg_sys::Page,
@@ -42,26 +43,29 @@ impl Page {
         this
     }
     #[allow(dead_code)]
-    pub unsafe fn assume_init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
+    unsafe fn assume_init_mut(this: &mut MaybeUninit<Self>) -> &mut Self {
         let this = unsafe { MaybeUninit::assume_init_mut(this) };
         assert_eq!(offset_of!(Self, opaque), this.header.pd_special as usize);
         this
     }
     #[allow(dead_code)]
-    pub fn clone_into_boxed(&self) -> Box<Self> {
+    fn clone_into_boxed(&self) -> Box<Self> {
         let mut result = Box::new_uninit();
         unsafe {
             std::ptr::copy(self as *const Self, result.as_mut_ptr(), 1);
             result.assume_init()
         }
     }
-    pub fn get_opaque(&self) -> &Opaque {
+}
+
+impl Page for PostgresPage {
+    fn get_opaque(&self) -> &Opaque {
         &self.opaque
     }
-    pub fn get_opaque_mut(&mut self) -> &mut Opaque {
+    fn get_opaque_mut(&mut self) -> &mut Opaque {
         &mut self.opaque
     }
-    pub fn len(&self) -> u16 {
+    fn len(&self) -> u16 {
         use pgrx::pg_sys::{ItemIdData, PageHeaderData};
         assert!(self.header.pd_lower as usize <= size_of::<Self>());
         assert!(self.header.pd_upper as usize <= size_of::<Self>());
@@ -70,7 +74,7 @@ impl Page {
         assert!(lower <= upper);
         ((lower - offset_of!(PageHeaderData, pd_linp)) / size_of::<ItemIdData>()) as u16
     }
-    pub fn get(&self, i: u16) -> Option<&[u8]> {
+    fn get(&self, i: u16) -> Option<&[u8]> {
         use pgrx::pg_sys::{ItemIdData, PageHeaderData};
         if i == 0 {
             return None;
@@ -99,8 +103,7 @@ impl Page {
             Some(std::slice::from_raw_parts(ptr, lp_len as _))
         }
     }
-    #[allow(unused)]
-    pub fn get_mut(&mut self, i: u16) -> Option<&mut [u8]> {
+    fn get_mut(&mut self, i: u16) -> Option<&mut [u8]> {
         use pgrx::pg_sys::{ItemIdData, PageHeaderData};
         if i == 0 {
             return None;
@@ -122,7 +125,7 @@ impl Page {
             Some(std::slice::from_raw_parts_mut(ptr, lp_len as _))
         }
     }
-    pub fn alloc(&mut self, data: &[u8]) -> Option<u16> {
+    fn alloc(&mut self, data: &[u8]) -> Option<u16> {
         unsafe {
             let i = pgrx::pg_sys::PageAddItemExtended(
                 (self as *const Self).cast_mut().cast(),
@@ -131,19 +134,15 @@ impl Page {
                 0,
                 0,
             );
-            if i == 0 {
-                None
-            } else {
-                Some(i)
-            }
+            if i == 0 { None } else { Some(i) }
         }
     }
-    pub fn free(&mut self, i: u16) {
+    fn free(&mut self, i: u16) {
         unsafe {
             pgrx::pg_sys::PageIndexTupleDeleteNoCompact((self as *mut Self).cast(), i);
         }
     }
-    pub fn reconstruct(&mut self, removes: &[u16]) {
+    fn reconstruct(&mut self, removes: &[u16]) {
         let mut removes = removes.to_vec();
         removes.sort();
         removes.dedup();
@@ -159,41 +158,34 @@ impl Page {
             }
         }
     }
-    pub fn freespace(&self) -> u16 {
+    fn freespace(&self) -> u16 {
         unsafe { pgrx::pg_sys::PageGetFreeSpace((self as *const Self).cast_mut().cast()) as u16 }
     }
 }
 
-#[repr(C, align(8))]
-pub struct Opaque {
-    pub next: u32,
-    pub skip: u32,
-}
-
 const _: () = assert!(align_of::<Opaque>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
 
-pub struct BufferReadGuard {
+pub struct PostgresBufferReadGuard {
     buf: i32,
-    page: NonNull<Page>,
+    page: NonNull<PostgresPage>,
     id: u32,
 }
 
-impl BufferReadGuard {
-    #[allow(dead_code)]
-    pub fn id(&self) -> u32 {
+impl PageGuard for PostgresBufferReadGuard {
+    fn id(&self) -> u32 {
         self.id
     }
 }
 
-impl Deref for BufferReadGuard {
-    type Target = Page;
+impl Deref for PostgresBufferReadGuard {
+    type Target = PostgresPage;
 
-    fn deref(&self) -> &Page {
+    fn deref(&self) -> &PostgresPage {
         unsafe { self.page.as_ref() }
     }
 }
 
-impl Drop for BufferReadGuard {
+impl Drop for PostgresBufferReadGuard {
     fn drop(&mut self) {
         unsafe {
             pgrx::pg_sys::UnlockReleaseBuffer(self.buf);
@@ -201,36 +193,36 @@ impl Drop for BufferReadGuard {
     }
 }
 
-pub struct BufferWriteGuard {
+pub struct PostgresBufferWriteGuard {
     raw: pgrx::pg_sys::Relation,
     buf: i32,
-    page: NonNull<Page>,
+    page: NonNull<PostgresPage>,
     state: *mut pgrx::pg_sys::GenericXLogState,
     id: u32,
     tracking_freespace: bool,
 }
 
-impl BufferWriteGuard {
-    pub fn id(&self) -> u32 {
+impl PageGuard for PostgresBufferWriteGuard {
+    fn id(&self) -> u32 {
         self.id
     }
 }
 
-impl Deref for BufferWriteGuard {
-    type Target = Page;
+impl Deref for PostgresBufferWriteGuard {
+    type Target = PostgresPage;
 
-    fn deref(&self) -> &Page {
+    fn deref(&self) -> &PostgresPage {
         unsafe { self.page.as_ref() }
     }
 }
 
-impl DerefMut for BufferWriteGuard {
-    fn deref_mut(&mut self) -> &mut Page {
+impl DerefMut for PostgresBufferWriteGuard {
+    fn deref_mut(&mut self) -> &mut PostgresPage {
         unsafe { self.page.as_mut() }
     }
 }
 
-impl Drop for BufferWriteGuard {
+impl Drop for PostgresBufferWriteGuard {
     fn drop(&mut self) {
         unsafe {
             if std::thread::panicking() {
@@ -248,19 +240,36 @@ impl Drop for BufferWriteGuard {
 }
 
 #[derive(Debug, Clone)]
-pub struct Relation {
+pub struct PostgresRelation {
     raw: pgrx::pg_sys::Relation,
 }
 
-impl Relation {
+impl PostgresRelation {
     pub unsafe fn new(raw: pgrx::pg_sys::Relation) -> Self {
         Self { raw }
     }
-    pub fn read(&self, id: u32) -> BufferReadGuard {
+
+    #[allow(dead_code)]
+    pub fn len(&self) -> u32 {
+        unsafe {
+            pgrx::pg_sys::RelationGetNumberOfBlocksInFork(
+                self.raw,
+                pgrx::pg_sys::ForkNumber::MAIN_FORKNUM,
+            )
+        }
+    }
+}
+
+impl RelationRead for PostgresRelation {
+    type Page = PostgresPage;
+
+    type ReadGuard<'a> = PostgresBufferReadGuard;
+
+    fn read(&self, id: u32) -> Self::ReadGuard<'_> {
         assert!(id != u32::MAX, "no such page");
         unsafe {
             use pgrx::pg_sys::{
-                BufferGetPage, LockBuffer, ReadBufferExtended, ReadBufferMode, BUFFER_LOCK_SHARE,
+                BUFFER_LOCK_SHARE, BufferGetPage, LockBuffer, ReadBufferExtended, ReadBufferMode,
             };
             let buf = ReadBufferExtended(
                 self.raw,
@@ -271,15 +280,21 @@ impl Relation {
             );
             LockBuffer(buf, BUFFER_LOCK_SHARE as _);
             let page = NonNull::new(BufferGetPage(buf).cast()).expect("failed to get page");
-            BufferReadGuard { buf, page, id }
+            PostgresBufferReadGuard { buf, page, id }
         }
     }
-    pub fn write(&self, id: u32, tracking_freespace: bool) -> BufferWriteGuard {
+}
+
+impl RelationWrite for PostgresRelation {
+    type WriteGuard<'a> = PostgresBufferWriteGuard;
+
+    fn write(&self, id: u32, tracking_freespace: bool) -> PostgresBufferWriteGuard {
         assert!(id != u32::MAX, "no such page");
         unsafe {
             use pgrx::pg_sys::{
-                ForkNumber, GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer,
-                ReadBufferExtended, ReadBufferMode, BUFFER_LOCK_EXCLUSIVE, GENERIC_XLOG_FULL_IMAGE,
+                BUFFER_LOCK_EXCLUSIVE, ForkNumber, GENERIC_XLOG_FULL_IMAGE,
+                GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer, ReadBufferExtended,
+                ReadBufferMode,
             };
             let buf = ReadBufferExtended(
                 self.raw,
@@ -292,10 +307,10 @@ impl Relation {
             let state = GenericXLogStart(self.raw);
             let page = NonNull::new(
                 GenericXLogRegisterBuffer(state, buf, GENERIC_XLOG_FULL_IMAGE as _)
-                    .cast::<MaybeUninit<Page>>(),
+                    .cast::<MaybeUninit<PostgresPage>>(),
             )
             .expect("failed to get page");
-            BufferWriteGuard {
+            PostgresBufferWriteGuard {
                 raw: self.raw,
                 buf,
                 page: page.cast(),
@@ -305,12 +320,12 @@ impl Relation {
             }
         }
     }
-    pub fn extend(&self, tracking_freespace: bool) -> BufferWriteGuard {
+    fn extend(&self, tracking_freespace: bool) -> PostgresBufferWriteGuard {
         unsafe {
             use pgrx::pg_sys::{
-                ExclusiveLock, ForkNumber, GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer,
-                LockRelationForExtension, ReadBufferExtended, ReadBufferMode,
-                UnlockRelationForExtension, BUFFER_LOCK_EXCLUSIVE, GENERIC_XLOG_FULL_IMAGE,
+                BUFFER_LOCK_EXCLUSIVE, ExclusiveLock, ForkNumber, GENERIC_XLOG_FULL_IMAGE,
+                GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer, LockRelationForExtension,
+                ReadBufferExtended, ReadBufferMode, UnlockRelationForExtension,
             };
             LockRelationForExtension(self.raw, ExclusiveLock as _);
             let buf = ReadBufferExtended(
@@ -325,11 +340,11 @@ impl Relation {
             let state = GenericXLogStart(self.raw);
             let mut page = NonNull::new(
                 GenericXLogRegisterBuffer(state, buf, GENERIC_XLOG_FULL_IMAGE as _)
-                    .cast::<MaybeUninit<Page>>(),
+                    .cast::<MaybeUninit<PostgresPage>>(),
             )
             .expect("failed to get page");
-            Page::init_mut(page.as_mut());
-            BufferWriteGuard {
+            PostgresPage::init_mut(page.as_mut());
+            PostgresBufferWriteGuard {
                 raw: self.raw,
                 buf,
                 page: page.cast(),
@@ -339,7 +354,7 @@ impl Relation {
             }
         }
     }
-    pub fn search(&self, freespace: usize) -> Option<BufferWriteGuard> {
+    fn search(&self, freespace: usize) -> Option<PostgresBufferWriteGuard> {
         unsafe {
             loop {
                 let id = pgrx::pg_sys::GetPageWithFreeSpace(self.raw, freespace);
@@ -355,15 +370,6 @@ impl Relation {
                 }
                 return Some(write);
             }
-        }
-    }
-    #[allow(dead_code)]
-    pub fn len(&self) -> u32 {
-        unsafe {
-            pgrx::pg_sys::RelationGetNumberOfBlocksInFork(
-                self.raw,
-                pgrx::pg_sys::ForkNumber::MAIN_FORKNUM,
-            )
         }
     }
 }

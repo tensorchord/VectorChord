@@ -1,0 +1,13 @@
+[package]
+name = "vector"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+distance = { path = "../distance" }
+half.workspace = true
+serde.workspace = true
+simd = { path = "../simd" }
+
+[lints]
+workspace = true

@@ -1,9 +1,13 @@
-use crate::postgres::Relation;
 use crate::vchordrqfscan::algorithm::tuples::VectorTuple;
 use crate::vchordrqfscan::algorithm::tuples::*;
-use base::search::Pointer;
+use algorithm::{Page, RelationWrite};
+use std::num::NonZeroU64;
 
-pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -> bool) {
+pub fn vacuum(
+    relation: impl RelationWrite,
+    delay: impl Fn(),
+    callback: impl Fn(NonZeroU64) -> bool,
+) {
     // step 1: vacuum height_0_tuple
     {
         let meta_guard = relation.read(0);
@@ -52,7 +56,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                         .expect("data corruption");
                     let flag = 'flag: {
                         for j in 0..32 {
-                            if h0_tuple.mask[j] && callback(Pointer::new(h0_tuple.payload[j])) {
+                            if h0_tuple.mask[j] && callback(h0_tuple.payload[j]) {
                                 break 'flag true;
                             }
                         }
@@ -66,7 +70,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                             .expect("data corruption")
                             .expect("data corruption");
                         for j in 0..32 {
-                            if temp.mask[j] && callback(Pointer::new(temp.payload[j])) {
+                            if temp.mask[j] && callback(temp.payload[j]) {
                                 temp.mask[j] = false;
                             }
                         }
@@ -104,7 +108,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                     let vector_tuple = rkyv::check_archived_root::<VectorTuple>(vector_tuple)
                         .expect("data corruption");
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
-                        if callback(Pointer::new(payload)) {
+                        if callback(payload) {
                             break 'flag true;
                         }
                     }
@@ -121,7 +125,7 @@ pub fn vacuum(relation: Relation, delay: impl Fn(), callback: impl Fn(Pointer) -
                     let vector_tuple = rkyv::check_archived_root::<VectorTuple>(vector_tuple)
                         .expect("data corruption");
                     if let Some(payload) = vector_tuple.payload.as_ref().copied() {
-                        if callback(Pointer::new(payload)) {
+                        if callback(payload) {
                             write.free(i);
                         }
                     }

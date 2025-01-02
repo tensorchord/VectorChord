@@ -1,6 +1,7 @@
-use crate::datatype::memory_pgvector_vector::*;
-use base::vector::{VectBorrowed, VectorBorrowed};
+use crate::datatype::memory_pgvector_vector::{PgvectorVectorInput, PgvectorVectorOutput};
 use std::num::NonZero;
+use vector::VectorBorrowed;
+use vector::vect::VectBorrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
 fn _vchord_vector_sphere_l2_in(

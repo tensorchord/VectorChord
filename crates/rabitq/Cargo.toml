@@ -1,0 +1,11 @@
+[package]
+name = "rabitq"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+distance = { path = "../distance" }
+simd = { path = "../simd" }
+
+[lints]
+workspace = true

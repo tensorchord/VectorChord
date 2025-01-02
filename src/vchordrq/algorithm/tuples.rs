@@ -1,10 +1,13 @@
+use std::num::NonZeroU64;
+
 use super::rabitq::{self, Code, Lut};
+use crate::vchordrq::types::DistanceKind;
 use crate::vchordrq::types::OwnedVector;
-use base::distance::DistanceKind;
-use base::simd::ScalarLike;
-use base::vector::{VectOwned, VectorOwned};
 use half::f16;
 use rkyv::{Archive, ArchiveUnsized, CheckBytes, Deserialize, Serialize};
+use simd::Floating;
+use vector::VectorOwned;
+use vector::vect::VectOwned;
 
 pub trait Vector: VectorOwned {
     type Metadata: Copy
@@ -70,20 +73,15 @@ impl Vector for VectOwned<f32> {
 
     type Element = f32;
 
-    fn metadata_from_archived(_: &<Self::Metadata as ArchiveUnsized>::Archived) -> Self::Metadata {
-        ()
-    }
+    fn metadata_from_archived(_: &<Self::Metadata as ArchiveUnsized>::Archived) -> Self::Metadata {}
 
     fn vector_split(vector: Self::Borrowed<'_>) -> ((), Vec<&[f32]>) {
         let vector = vector.slice();
-        (
-            (),
-            match vector.len() {
-                0..=960 => vec![vector],
-                961..=1280 => vec![&vector[..640], &vector[640..]],
-                1281.. => vector.chunks(1920).collect(),
-            },
-        )
+        ((), match vector.len() {
+            0..=960 => vec![vector],
+            961..=1280 => vec![&vector[..640], &vector[640..]],
+            1281.. => vector.chunks(1920).collect(),
+        })
     }
 
     fn vector_merge((): Self::Metadata, slice: &[Self::Element]) -> Self {
@@ -109,8 +107,6 @@ impl Vector for VectOwned<f32> {
         match accumulator.0 {
             DistanceKind::L2 => accumulator.1 += f32::reduce_sum_of_d2(left, right),
             DistanceKind::Dot => accumulator.1 += -f32::reduce_sum_of_xy(left, right),
-            DistanceKind::Hamming => unreachable!(),
-            DistanceKind::Jaccard => unreachable!(),
         }
     }
     fn distance_end(
@@ -126,11 +122,11 @@ impl Vector for VectOwned<f32> {
     }
 
     fn residual(vector: Self::Borrowed<'_>, center: Self::Borrowed<'_>) -> Self {
-        Self::new(ScalarLike::vector_sub(vector.slice(), center.slice()))
+        Self::new(Floating::vector_sub(vector.slice(), center.slice()))
     }
 
     fn rabitq_fscan_preprocess(vector: Self::Borrowed<'_>) -> Lut {
-        rabitq::fscan_preprocess(vector.slice())
+        rabitq::preprocess(vector.slice())
     }
 
     fn rabitq_code(dims: u32, vector: Self::Borrowed<'_>) -> Code {
@@ -151,20 +147,15 @@ impl Vector for VectOwned<f16> {
 
     type Element = f16;
 
-    fn metadata_from_archived(_: &<Self::Metadata as ArchiveUnsized>::Archived) -> Self::Metadata {
-        ()
-    }
+    fn metadata_from_archived(_: &<Self::Metadata as ArchiveUnsized>::Archived) -> Self::Metadata {}
 
     fn vector_split(vector: Self::Borrowed<'_>) -> ((), Vec<&[f16]>) {
         let vector = vector.slice();
-        (
-            (),
-            match vector.len() {
-                0..=1920 => vec![vector],
-                1921..=2560 => vec![&vector[..1280], &vector[1280..]],
-                2561.. => vector.chunks(3840).collect(),
-            },
-        )
+        ((), match vector.len() {
+            0..=1920 => vec![vector],
+            1921..=2560 => vec![&vector[..1280], &vector[1280..]],
+            2561.. => vector.chunks(3840).collect(),
+        })
     }
 
     fn vector_merge((): Self::Metadata, slice: &[Self::Element]) -> Self {
@@ -190,8 +181,6 @@ impl Vector for VectOwned<f16> {
         match accumulator.0 {
             DistanceKind::L2 => accumulator.1 += f16::reduce_sum_of_d2(left, right),
             DistanceKind::Dot => accumulator.1 += -f16::reduce_sum_of_xy(left, right),
-            DistanceKind::Hamming => unreachable!(),
-            DistanceKind::Jaccard => unreachable!(),
         }
     }
     fn distance_end(
@@ -209,11 +198,11 @@ impl Vector for VectOwned<f16> {
     }
 
     fn residual(vector: Self::Borrowed<'_>, center: Self::Borrowed<'_>) -> Self {
-        Self::new(ScalarLike::vector_sub(vector.slice(), center.slice()))
+        Self::new(Floating::vector_sub(vector.slice(), center.slice()))
     }
 
     fn rabitq_fscan_preprocess(vector: Self::Borrowed<'_>) -> Lut {
-        rabitq::fscan_preprocess(&f16::vector_to_f32(vector.slice()))
+        rabitq::preprocess(&f16::vector_to_f32(vector.slice()))
     }
 
     fn rabitq_code(dims: u32, vector: Self::Borrowed<'_>) -> Code {
@@ -246,7 +235,7 @@ pub struct MetaTuple {
 #[archive(check_bytes)]
 pub struct VectorTuple<V: Vector> {
     pub slice: Vec<V::Element>,
-    pub payload: Option<u64>,
+    pub payload: Option<NonZeroU64>,
     pub chain: Result<(u32, u16), V::Metadata>,
 }
 
@@ -271,7 +260,7 @@ pub struct Height0Tuple {
     // raw vector
     pub mean: (u32, u16),
     // for height 0 tuple, it's pointers to heap relation
-    pub payload: u64,
+    pub payload: NonZeroU64,
     // RaBitQ algorithm
     pub dis_u_2: f32,
     pub factor_ppc: f32,

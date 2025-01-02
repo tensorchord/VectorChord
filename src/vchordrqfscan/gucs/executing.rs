@@ -68,9 +68,5 @@ pub fn epsilon() -> f32 {
 
 pub fn max_scan_tuples() -> Option<u32> {
     let x = MAX_SCAN_TUPLES.get();
-    if x < 0 {
-        None
-    } else {
-        Some(x as u32)
-    }
+    if x < 0 { None } else { Some(x as u32) }
 }

@@ -1,13 +1,13 @@
-use crate::postgres::Relation;
+use crate::postgres::PostgresRelation;
 use crate::vchordrqfscan::algorithm;
 use crate::vchordrqfscan::algorithm::build::{HeapRelation, Reporter};
 use crate::vchordrqfscan::index::am_options::{Opfamily, Reloption};
 use crate::vchordrqfscan::index::am_scan::Scanner;
 use crate::vchordrqfscan::index::utils::{ctid_to_pointer, pointer_to_ctid};
 use crate::vchordrqfscan::index::{am_options, am_scan};
-use base::search::Pointer;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
+use std::num::NonZeroU64;
 
 static mut RELOPT_KIND_VCHORDRQFSCAN: pgrx::pg_sys::relopt_kind::Type = 0;
 
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn ambuild(
     impl HeapRelation for Heap {
         fn traverse<F>(&self, progress: bool, callback: F)
         where
-            F: FnMut((Pointer, Vec<f32>)),
+            F: FnMut((NonZeroU64, Vec<f32>)),
         {
             pub struct State<'a, F> {
                 pub this: &'a Heap,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn ambuild(
                 _tuple_is_alive: bool,
                 state: *mut core::ffi::c_void,
             ) where
-                F: FnMut((Pointer, Vec<f32>)),
+                F: FnMut((NonZeroU64, Vec<f32>)),
             {
                 use crate::vchordrqfscan::types::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn ambuild(
         opfamily,
     };
     let mut reporter = PgReporter {};
-    let index_relation = unsafe { Relation::new(index) };
+    let index_relation = unsafe { PostgresRelation::new(index) };
     algorithm::build::build(
         vector_options,
         vchordrqfscan_options,
@@ -552,7 +552,7 @@ unsafe fn parallel_build(
     impl HeapRelation for Heap {
         fn traverse<F>(&self, progress: bool, callback: F)
         where
-            F: FnMut((Pointer, Vec<f32>)),
+            F: FnMut((NonZeroU64, Vec<f32>)),
         {
             pub struct State<'a, F> {
                 pub this: &'a Heap,
@@ -567,7 +567,7 @@ unsafe fn parallel_build(
                 _tuple_is_alive: bool,
                 state: *mut core::ffi::c_void,
             ) where
-                F: FnMut((Pointer, Vec<f32>)),
+                F: FnMut((NonZeroU64, Vec<f32>)),
             {
                 use crate::vchordrqfscan::types::OwnedVector;
                 let state = unsafe { &mut *state.cast::<State<F>>() };
@@ -608,7 +608,7 @@ unsafe fn parallel_build(
         }
     }
 
-    let index_relation = unsafe { Relation::new(index) };
+    let index_relation = unsafe { PostgresRelation::new(index) };
     let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap, tablescandesc) };
     let opfamily = unsafe { am_options::opfamily(index) };
     let heap_relation = Heap {
@@ -672,7 +672,7 @@ pub unsafe extern "C" fn aminsert(
         };
         let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
         algorithm::insert::insert(
-            unsafe { Relation::new(index) },
+            unsafe { PostgresRelation::new(index) },
             pointer,
             vector.into_vec(),
             opfamily.distance_kind(),
@@ -702,7 +702,7 @@ pub unsafe extern "C" fn aminsert(
         };
         let pointer = ctid_to_pointer(unsafe { heap_tid.read() });
         algorithm::insert::insert(
-            unsafe { Relation::new(index) },
+            unsafe { PostgresRelation::new(index) },
             pointer,
             vector.into_vec(),
             opfamily.distance_kind(),
@@ -795,7 +795,7 @@ pub unsafe extern "C" fn amgettuple(
         pgrx::error!("scanning with a non-MVCC-compliant snapshot is not supported");
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
-    let relation = unsafe { Relation::new((*scan).indexRelation) };
+    let relation = unsafe { PostgresRelation::new((*scan).indexRelation) };
     if let Some((pointer, recheck)) = am_scan::scan_next(scanner, relation) {
         let ctid = pointer_to_ctid(pointer);
         unsafe {
@@ -832,9 +832,9 @@ pub unsafe extern "C" fn ambulkdelete(
         };
     }
     let callback = callback.unwrap();
-    let callback = |p: Pointer| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
+    let callback = |p: NonZeroU64| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
     algorithm::vacuum::vacuum(
-        unsafe { Relation::new((*info).index) },
+        unsafe { PostgresRelation::new((*info).index) },
         || unsafe {
             pgrx::pg_sys::vacuum_delay_point();
         },

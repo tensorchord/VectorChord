@@ -1,7 +1,7 @@
-use base::distance::DistanceKind;
-use base::vector::{VectBorrowed, VectOwned};
+use distance::Distance;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError, ValidationErrors};
+use vector::vect::{VectBorrowed, VectOwned};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
@@ -110,6 +110,13 @@ pub enum BorrowedVector<'a> {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum DistanceKind {
+    L2,
+    Dot,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum VectorKind {
     Vecf32,
 }
@@ -134,5 +141,13 @@ impl VectorOptions {
             (VectorKind::Vecf32, DistanceKind::Dot, 1..65536) => Ok(()),
             _ => Err(ValidationError::new("not valid vector options")),
         }
+    }
+}
+
+pub fn distance(d: DistanceKind, lhs: &[f32], rhs: &[f32]) -> Distance {
+    use simd::Floating;
+    match d {
+        DistanceKind::L2 => Distance::from_f32(f32::reduce_sum_of_d2(lhs, rhs)),
+        DistanceKind::Dot => Distance::from_f32(-f32::reduce_sum_of_xy(lhs, rhs)),
     }
 }

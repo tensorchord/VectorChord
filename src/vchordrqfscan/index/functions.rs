@@ -1,4 +1,4 @@
-use crate::postgres::Relation;
+use crate::postgres::PostgresRelation;
 use crate::vchordrqfscan::algorithm::prewarm::prewarm;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass};
@@ -17,7 +17,7 @@ fn _vchordrqfscan_prewarm(indexrelid: Oid, height: i32) -> String {
         pgrx::error!("{:?} is not a vchordrqfscan index", pg_class.relname());
     }
     let index = unsafe { pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::ShareLock as _) };
-    let relation = unsafe { Relation::new(index) };
+    let relation = unsafe { PostgresRelation::new(index) };
     let message = prewarm(relation, height);
     unsafe {
         pgrx::pg_sys::index_close(index, pgrx::pg_sys::ShareLock as _);

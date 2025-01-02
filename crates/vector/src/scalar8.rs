@@ -1,5 +1,5 @@
-use base::distance::Distance;
-use base::vector::{VectorBorrowed, VectorOwned};
+use crate::{VectorBorrowed, VectorOwned};
+use distance::Distance;
 use serde::{Deserialize, Serialize};
 use std::ops::RangeBounds;
 
@@ -13,7 +13,6 @@ pub struct Scalar8Owned {
 }
 
 impl Scalar8Owned {
-    #[allow(dead_code)]
     #[inline(always)]
     pub fn new(sum_of_x2: f32, k: f32, b: f32, sum_of_code: f32, code: Vec<u8>) -> Self {
         Self::new_checked(sum_of_x2, k, b, sum_of_code, code).expect("invalid data")
@@ -182,7 +181,7 @@ impl VectorBorrowed for Scalar8Borrowed<'_> {
     #[inline(always)]
     fn operator_dot(self, rhs: Self) -> Distance {
         assert_eq!(self.code.len(), rhs.code.len());
-        let xy = self.k * rhs.k * base::simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
+        let xy = self.k * rhs.k * simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
             + self.b * rhs.b * self.code.len() as f32
             + self.k * rhs.b * self.sum_of_code
             + self.b * rhs.k * rhs.sum_of_code;
@@ -192,7 +191,7 @@ impl VectorBorrowed for Scalar8Borrowed<'_> {
     #[inline(always)]
     fn operator_l2(self, rhs: Self) -> Distance {
         assert_eq!(self.code.len(), rhs.code.len());
-        let xy = self.k * rhs.k * base::simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
+        let xy = self.k * rhs.k * simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
             + self.b * rhs.b * self.code.len() as f32
             + self.k * rhs.b * self.sum_of_code
             + self.b * rhs.k * rhs.sum_of_code;
@@ -204,7 +203,7 @@ impl VectorBorrowed for Scalar8Borrowed<'_> {
     #[inline(always)]
     fn operator_cos(self, rhs: Self) -> Distance {
         assert_eq!(self.code.len(), rhs.code.len());
-        let xy = self.k * rhs.k * base::simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
+        let xy = self.k * rhs.k * simd::u8::reduce_sum_of_xy(self.code, rhs.code) as f32
             + self.b * rhs.b * self.code.len() as f32
             + self.k * rhs.b * self.sum_of_code
             + self.b * rhs.k * rhs.sum_of_code;
@@ -279,7 +278,7 @@ impl VectorBorrowed for Scalar8Borrowed<'_> {
             },
             self.k,
             self.b,
-            base::simd::u8::reduce_sum_of_x_as_u32(code) as f32,
+            simd::u8::reduce_sum_of_x(code) as f32,
             code.to_owned(),
         )
     }

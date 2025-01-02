@@ -1,8 +1,8 @@
 use super::memory_scalar8::{Scalar8Input, Scalar8Output};
-use crate::types::scalar8::Scalar8Borrowed;
-use base::vector::VectorBorrowed;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Oid;
+use vector::VectorBorrowed;
+use vector::scalar8::Scalar8Borrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
 fn _vchord_scalar8_send(vector: Scalar8Input<'_>) -> Vec<u8> {

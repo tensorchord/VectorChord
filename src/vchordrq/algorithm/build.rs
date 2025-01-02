@@ -1,26 +1,25 @@
-use super::RelationWrite;
 use crate::vchordrq::algorithm::rabitq;
 use crate::vchordrq::algorithm::tuples::*;
-use crate::vchordrq::algorithm::PageGuard;
 use crate::vchordrq::index::am_options::Opfamily;
+use crate::vchordrq::types::DistanceKind;
 use crate::vchordrq::types::VchordrqBuildOptions;
 use crate::vchordrq::types::VchordrqExternalBuildOptions;
 use crate::vchordrq::types::VchordrqIndexingOptions;
 use crate::vchordrq::types::VchordrqInternalBuildOptions;
 use crate::vchordrq::types::VectorOptions;
-use base::distance::DistanceKind;
-use base::search::Pointer;
-use base::simd::ScalarLike;
-use base::vector::VectorBorrowed;
+use algorithm::{Page, PageGuard, RelationWrite};
 use rand::Rng;
 use rkyv::ser::serializers::AllocSerializer;
+use simd::Floating;
 use std::marker::PhantomData;
+use std::num::NonZeroU64;
 use std::sync::Arc;
+use vector::VectorBorrowed;
 
 pub trait HeapRelation<V: Vector> {
     fn traverse<F>(&self, progress: bool, callback: F)
     where
-        F: FnMut((Pointer, V));
+        F: FnMut((NonZeroU64, V));
     fn opfamily(&self) -> Opfamily;
 }
 
@@ -207,8 +206,8 @@ impl Structure {
         let mut vectors = BTreeMap::new();
         pgrx::spi::Spi::connect(|client| {
             use crate::datatype::memory_pgvector_vector::PgvectorVectorOutput;
-            use base::vector::VectorBorrowed;
             use pgrx::pg_sys::panic::ErrorReportable;
+            use vector::VectorBorrowed;
             let schema_query = "SELECT n.nspname::TEXT 
                 FROM pg_catalog.pg_extension e
                 LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace

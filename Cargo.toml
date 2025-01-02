@@ -1,7 +1,7 @@
 [package]
 name = "vchord"
-version = "0.0.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [lib]
 name = "vchord"
@@ -20,24 +20,25 @@ pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
-base = { git = "https://github.com/tensorchord/pgvecto.rs.git", rev = "9d87afd75ca3dd6819da2a0a38d9fefdfb5b1c74" }
-
-# lock algebra version forever so that the QR decomposition never changes for same input
-nalgebra = "=0.33.0"
+algorithm = { path = "./crates/algorithm" }
+always_equal = { path = "./crates/always_equal" }
+distance = { path = "./crates/distance" }
+rabitq = { path = "./crates/rabitq" }
+random_orthogonal_matrix = { path = "./crates/random_orthogonal_matrix" }
+simd = { path = "./crates/simd" }
+vector = { path = "./crates/vector" }
 
 # lock rkyv version forever so that data is always compatible
 rkyv = { version = "=0.7.45", features = ["validation"] }
 
-half = { version = "2.4.1", features = ["rkyv"] }
+half.workspace = true
 log = "0.4.22"
 paste = "1"
 pgrx = { version = "=0.12.9", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.1.0"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-rand_distr = "0.4.3"
+rand.workspace = true
 rayon = "1.10.0"
-serde = "1"
+serde.workspace = true
 toml = "0.8.19"
 validator = { version = "0.19.0", features = ["derive"] }
 
@@ -45,20 +46,29 @@ validator = { version = "0.19.0", features = ["derive"] }
 half = { git = "https://github.com/tensorchord/half-rs.git" }
 
 [lints]
-rust.fuzzy_provenance_casts = "deny"
-rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("pg12"))',
-    'cfg(pgrx_embed)',
-] }
+workspace = true
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+
+[workspace.dependencies]
+half = { version = "2.4.1", features = ["rkyv", "serde"] }
+rand = "0.8.5"
+serde = "1"
+
+[workspace.lints]
+clippy.identity_op = "allow"
+clippy.int_plus_one = "allow"
+clippy.needless_range_loop = "allow"
+clippy.nonminimal_bool = "allow"
 rust.unsafe_op_in_unsafe_fn = "deny"
 rust.unused_lifetimes = "warn"
 rust.unused_qualifications = "warn"
-
-[profile.opt]
-debug-assertions = false
-inherits = "dev"
-opt-level = 3
-overflow-checks = false
 
 [profile.release]
 codegen-units = 1
