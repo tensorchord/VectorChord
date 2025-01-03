@@ -1,8 +1,8 @@
 use super::rabitq::{self, Code, Lut};
 use crate::vchordrq::types::OwnedVector;
-use base::distance::DistanceKind;
+use base::distance::{Distance, DistanceKind};
 use base::simd::ScalarLike;
-use base::vector::{VectOwned, VectorOwned};
+use base::vector::{VectOwned, VectorBorrowed, VectorOwned};
 use half::f16;
 use rkyv::{Archive, ArchiveUnsized, CheckBytes, Deserialize, Serialize};
 
@@ -51,6 +51,11 @@ pub trait Vector: VectorOwned {
         left: Self::Metadata,
         right: Self::Metadata,
     ) -> f32;
+    fn distance(
+        distance_kind: DistanceKind,
+        lhs: Self::Borrowed<'_>,
+        rhs: Self::Borrowed<'_>,
+    ) -> Distance;
 
     fn random_projection(vector: Self::Borrowed<'_>) -> Self;
 
@@ -119,6 +124,18 @@ impl Vector for VectOwned<f32> {
         (): Self::Metadata,
     ) -> f32 {
         accumulator.1
+    }
+    fn distance(
+        distance_kind: DistanceKind,
+        lhs: Self::Borrowed<'_>,
+        rhs: Self::Borrowed<'_>,
+    ) -> Distance {
+        match distance_kind {
+            DistanceKind::L2 => lhs.operator_l2(rhs),
+            DistanceKind::Dot => lhs.operator_dot(rhs),
+            DistanceKind::Hamming => unreachable!(),
+            DistanceKind::Jaccard => unreachable!(),
+        }
     }
 
     fn random_projection(vector: Self::Borrowed<'_>) -> Self {
@@ -201,6 +218,18 @@ impl Vector for VectOwned<f16> {
     ) -> f32 {
         accumulator.1
     }
+    fn distance(
+        distance_kind: DistanceKind,
+        lhs: Self::Borrowed<'_>,
+        rhs: Self::Borrowed<'_>,
+    ) -> Distance {
+        match distance_kind {
+            DistanceKind::L2 => lhs.operator_l2(rhs),
+            DistanceKind::Dot => lhs.operator_dot(rhs),
+            DistanceKind::Hamming => unreachable!(),
+            DistanceKind::Jaccard => unreachable!(),
+        }
+    }
 
     fn random_projection(vector: Self::Borrowed<'_>) -> Self {
         Self::new(f16::vector_from_f32(&crate::projection::project(
@@ -246,7 +275,6 @@ pub struct MetaTuple {
 #[archive(check_bytes)]
 pub struct VectorTuple<V: Vector> {
     pub slice: Vec<V::Element>,
-    pub payload: Option<u64>,
     pub chain: Result<(u32, u16), V::Metadata>,
 }
 
@@ -268,8 +296,6 @@ pub struct Height1Tuple {
 #[derive(Clone, PartialEq, Archive, Serialize, Deserialize)]
 #[archive(check_bytes)]
 pub struct Height0Tuple {
-    // raw vector
-    pub mean: (u32, u16),
     // for height 0 tuple, it's pointers to heap relation
     pub payload: u64,
     // RaBitQ algorithm
