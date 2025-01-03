@@ -47,7 +47,6 @@ impl Page {
         assert_eq!(offset_of!(Self, opaque), this.header.pd_special as usize);
         this
     }
-    #[allow(dead_code)]
     pub fn clone_into_boxed(&self) -> Box<Self> {
         let mut result = Box::new_uninit();
         unsafe {
@@ -357,7 +356,6 @@ impl Relation {
             }
         }
     }
-    #[allow(dead_code)]
     pub fn len(&self) -> u32 {
         unsafe {
             pgrx::pg_sys::RelationGetNumberOfBlocksInFork(
