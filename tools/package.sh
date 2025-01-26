@@ -12,6 +12,7 @@ rm -rf ./build/dir_deb
 rm -rf ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
 
 mkdir -p ./build/dir_zip
+cp -a ./sql/upgrade/. ./build/dir_zip/
 cp ./target/release/schema.sql ./build/dir_zip/vchord--$SEMVER.sql
 sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/dir_zip/vchord.control
 cp ./target/release/libvchord.so ./build/dir_zip/vchord.so
