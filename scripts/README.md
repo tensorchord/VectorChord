@@ -55,7 +55,7 @@ docker run --name vchord -e POSTGRES_PASSWORD=123 -p 5432:5432 -d vchord:pg16-la
 # When using CPU to train k-means clustering
 conda install conda-forge::pgvector-python numpy pytorch::faiss-cpu conda-forge::psycopg h5py tqdm
 # or
-pip install pgvector-python numpy faiss-cpu psycopg h5py tqdm
+pip install pgvector numpy faiss-cpu psycopg h5py tqdm
 
 # When using GPU to train k-means clustering
 conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge::psycopg h5py tqdm

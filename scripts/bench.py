@@ -9,8 +9,6 @@ import psycopg
 import h5py
 from pgvector.psycopg import register_vector
 
-TOP = [10]
-
 
 def build_arg_parse():
     parser = argparse.ArgumentParser()
@@ -25,6 +23,9 @@ def build_arg_parse():
     parser.add_argument("-i", "--input", help="input filepath", required=True)
     parser.add_argument(
         "-p", "--password", help="Database password", default="password"
+    )
+    parser.add_argument(
+        "-t", "--top", help="Dimension", type=int, choices=[10, 100], default=10
     )
     parser.add_argument(
         "--nprob", help="argument probes for query", default=100, type=int
@@ -116,90 +117,86 @@ def calculate_metrics(all_results, k, m):
 
 
 def parallel_bench(
-    name, test, answer, metric_ops, num_processes, password, nprob, epsilon
+    name, test, answer, metric_ops, num_processes, password, top, nprob, epsilon
 ):
     """Run benchmark in parallel using multiple processes"""
     m = test.shape[0]
 
-    for k in TOP:
-        # Split data into batches for each process
-        batch_size = m // num_processes
-        batches = []
+    # Split data into batches for each process
+    batch_size = m // num_processes
+    batches = []
 
-        for i in range(num_processes):
-            start_idx = i * batch_size
-            end_idx = start_idx + batch_size if i < num_processes - 1 else m
+    for i in range(num_processes):
+        start_idx = i * batch_size
+        end_idx = start_idx + batch_size if i < num_processes - 1 else m
 
-            batch = (
-                test[start_idx:end_idx],
-                answer[start_idx:end_idx],
-                k,
-                metric_ops,
-                password,
-                name,
-                nprob,
-                epsilon,
+        batch = (
+            test[start_idx:end_idx],
+            answer[start_idx:end_idx],
+            top,
+            metric_ops,
+            password,
+            name,
+            nprob,
+            epsilon,
+        )
+        batches.append(batch)
+
+    # Create process pool and execute batches
+    with mp.Pool(processes=num_processes) as pool:
+        batch_results = list(
+            tqdm(
+                pool.imap(process_batch, batches),
+                total=len(batches),
+                desc=f"Processing k={top}",
             )
-            batches.append(batch)
+        )
 
-        # Create process pool and execute batches
-        with mp.Pool(processes=num_processes) as pool:
-            batch_results = list(
-                tqdm(
-                    pool.imap(process_batch, batches),
-                    total=len(batches),
-                    desc=f"Processing k={k}",
-                )
-            )
+    # Flatten results from all batches
+    all_results = [result for batch in batch_results for result in batch]
 
-        # Flatten results from all batches
-        all_results = [result for batch in batch_results for result in batch]
+    # Calculate metrics
+    recall, qps, p50, p99 = calculate_metrics(all_results, top, m)
 
-        # Calculate metrics
-        recall, qps, p50, p99 = calculate_metrics(all_results, k, m)
-
-        print(f"Top: {k}")
-        print(f"  Recall: {recall:.4f}")
-        print(f"  QPS: {qps*num_processes:.2f}")
-        print(f"  P50 latency: {p50:.2f}ms")
-        print(f"  P99 latency: {p99:.2f}ms")
+    print(f"Top: {top}")
+    print(f"  Recall: {recall:.4f}")
+    print(f"  QPS: {qps*num_processes:.2f}")
+    print(f"  P50 latency: {p50:.2f}ms")
+    print(f"  P99 latency: {p99:.2f}ms")
 
 
-def sequential_bench(name, test, answer, metric_ops, conn):
+def sequential_bench(name, test, answer, metric_ops, conn, top):
     """Original sequential benchmark implementation with latency tracking"""
     m = test.shape[0]
-    for k in TOP:
-        results = []
-        pbar = tqdm(enumerate(test), total=m)
-        for i, query in pbar:
-            start = time.perf_counter()
-            result = conn.execute(
-                f"SELECT id FROM {name} ORDER BY embedding {metric_ops} %s LIMIT {k}",
-                (query,),
-            ).fetchall()
-            end = time.perf_counter()
+    results = []
+    pbar = tqdm(enumerate(test), total=m)
+    for i, query in pbar:
+        start = time.perf_counter()
+        result = conn.execute(
+            f"SELECT id FROM {name} ORDER BY embedding {metric_ops} %s LIMIT {top}",
+            (query,),
+        ).fetchall()
+        end = time.perf_counter()
 
-            query_time = end - start
-            hit = len(set([p[0] for p in result[:k]]) & set(answer[i][:k].tolist()))
-            results.append((hit, query_time))
+        query_time = end - start
+        hit = len(set([p[0] for p in result[:top]]) & set(answer[i][:top].tolist()))
+        results.append((hit, query_time))
 
-            # Update progress bar with running metrics
-            curr_results = results[: i + 1]
-            curr_recall, curr_qps, curr_p50, _ = calculate_metrics(
-                curr_results, k, i + 1
-            )
-            pbar.set_description(
-                f"recall: {curr_recall:.4f} QPS: {curr_qps:.2f} P50: {curr_p50:.2f}ms"
-            )
+        # Update progress bar with running metrics
+        curr_results = results[: i + 1]
+        curr_recall, curr_qps, curr_p50, _ = calculate_metrics(curr_results, top, i + 1)
+        pbar.set_description(
+            f"recall: {curr_recall:.4f} QPS: {curr_qps:.2f} P50: {curr_p50:.2f}ms"
+        )
 
-        # Calculate final metrics
-        recall, qps, p50, p99 = calculate_metrics(results, k, m)
+    # Calculate final metrics
+    recall, qps, p50, p99 = calculate_metrics(results, top, m)
 
-        print(f"Top: {k}")
-        print(f"  Recall: {recall:.4f}")
-        print(f"  QPS: {qps:.2f}")
-        print(f"  P50 latency: {p50:.2f}ms")
-        print(f"  P99 latency: {p99:.2f}ms")
+    print(f"Top: {top}")
+    print(f"  Recall: {recall:.4f}")
+    print(f"  QPS: {qps:.2f}")
+    print(f"  P50 latency: {p50:.2f}ms")
+    print(f"  P99 latency: {p99:.2f}ms")
 
 
 if __name__ == "__main__":
@@ -228,9 +225,10 @@ if __name__ == "__main__":
             metric_ops,
             args.processes,
             args.password,
+            args.top,
             args.nprob,
             args.epsilon,
         )
     else:
         conn = create_connection(args.password, args.nprob, args.epsilon)
-        sequential_bench(args.name, test, answer, metric_ops, conn)
+        sequential_bench(args.name, test, answer, metric_ops, conn, args.top)

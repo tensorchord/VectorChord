@@ -35,6 +35,7 @@ def build_arg_parse():
         "-p", "--password", help="Database password", default="password"
     )
     parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
+    # Remember to set `max_worker_processes` at server start
     parser.add_argument(
         "-w",
         "--workers",
@@ -132,9 +133,10 @@ async def add_centroids(conn, name, centroids):
             await asyncio.sleep(0)
 
 
-async def add_embeddings(conn, name, dim, train, chunks):
+async def add_embeddings(conn, name, dim, train, chunks, workers):
     await conn.execute(f"DROP TABLE IF EXISTS {name}")
     await conn.execute(f"CREATE TABLE {name} (id integer, embedding vector({dim}))")
+    await conn.execute(f"ALTER TABLE {name} SET (parallel_workers = {workers})")
 
     n, dim = train.shape
     chunk_size = math.ceil(n / chunks)
@@ -201,7 +203,7 @@ async def main(dataset):
     metric_ops, ivf_config = get_ivf_ops_config(
         args.metric, args.workers, args.lists, args.name if args.centroids else None
     )
-    await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks)
+    await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks, args.workers)
 
     index_finish = asyncio.Event()
     # Need a separate connection for monitor process
