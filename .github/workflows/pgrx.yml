@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubicloud-standard-8
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Set up QEMU

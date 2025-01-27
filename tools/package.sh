@@ -6,40 +6,40 @@ printf "VERSION = ${VERSION}\n"
 printf "ARCH = ${ARCH}\n"
 printf "PLATFORM = ${PLATFORM}\n"
 
-rm -rf ./build/dir_zip
-rm -rf ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip
-rm -rf ./build/dir_deb
-rm -rf ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
+cargo build --lib --features pg$VERSION --release
+cargo pgrx schema --features pg$VERSION --out ./target/schema.sql
 
-mkdir -p ./build/dir_zip
-cp -a ./sql/upgrade/. ./build/dir_zip/
-cp ./target/release/schema.sql ./build/dir_zip/vchord--$SEMVER.sql
-sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/dir_zip/vchord.control
-cp ./target/release/libvchord.so ./build/dir_zip/vchord.so
-zip ./build/vchord-pg${VERSION}_${ARCH}-unknown-linux-gnu_${SEMVER}.zip -j ./build/dir_zip/*
+rm -rf ./build
 
-mkdir -p ./build/dir_deb
-mkdir -p ./build/dir_deb/DEBIAN
-mkdir -p ./build/dir_deb/usr/share/postgresql/$VERSION/extension/
-mkdir -p ./build/dir_deb/usr/lib/postgresql/$VERSION/lib/
-for file in $(ls ./build/dir_zip/*.sql | xargs -n 1 basename); do
-    cp ./build/dir_zip/$file ./build/dir_deb/usr/share/postgresql/$VERSION/extension/$file
+mkdir -p ./build/zip
+cp -a ./sql/upgrade/. ./build/zip/
+cp ./target/schema.sql ./build/zip/vchord--$SEMVER.sql
+sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/zip/vchord.control
+cp ./target/release/libvchord.so ./build/zip/vchord.so
+zip ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip -j ./build/zip/*
+
+mkdir -p ./build/deb
+mkdir -p ./build/deb/DEBIAN
+mkdir -p ./build/deb/usr/share/postgresql/$VERSION/extension/
+mkdir -p ./build/deb/usr/lib/postgresql/$VERSION/lib/
+for file in $(ls ./build/zip/*.sql | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
 done
-for file in $(ls ./build/dir_zip/*.control | xargs -n 1 basename); do
-    cp ./build/dir_zip/$file ./build/dir_deb/usr/share/postgresql/$VERSION/extension/$file
+for file in $(ls ./build/zip/*.control | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
 done
-for file in $(ls ./build/dir_zip/*.so | xargs -n 1 basename); do
-    cp ./build/dir_zip/$file ./build/dir_deb/usr/lib/postgresql/$VERSION/lib/$file
+for file in $(ls ./build/zip/*.so | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/lib/postgresql/$VERSION/lib/$file
 done
-echo "Package: vchord-pg${VERSION}
-Version: ${SEMVER}
+echo "Package: postgresql-${VERSION}-vchord
+Version: ${SEMVER}-1
 Section: database
 Priority: optional
 Architecture: ${PLATFORM}
 Maintainer: Tensorchord <support@tensorchord.ai>
 Description: Vector database plugin for Postgres, written in Rust, specifically designed for LLM
-Homepage: https://pgvecto.rs/
-License: apache2" \
-> ./build/dir_deb/DEBIAN/control
-(cd ./build/dir_deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/dir_deb/DEBIAN/md5sums
-dpkg-deb -Zxz --build ./build/dir_deb/ ./build/vchord-pg${VERSION}_${SEMVER}_${PLATFORM}.deb
+Homepage: https://vectorchord.ai/
+License: AGPL-3 or Elastic-2" \
+> ./build/deb/DEBIAN/control
+(cd ./build/deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/deb/DEBIAN/md5sums
+dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
