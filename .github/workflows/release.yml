@@ -91,6 +91,7 @@ jobs:
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
+        platform: ["amd64", "arm64"]
     env:
       SEMVER: ${{ needs.semver.outputs.SEMVER }}
     steps:
@@ -101,9 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p build
-          for arch in amd64 arm64; do
-            gh release download $SEMVER --pattern "postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${arch}.deb" --output ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${arch}.deb
-          done
+          gh release download $SEMVER --pattern "postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${{ matrix.platform }}.deb" --output ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${{ matrix.platform }}.deb
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -118,7 +117,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: "linux/amd64,linux/arm64"
+          platforms: "linux/${{ matrix.platform }}"
           file: ./docker/binary.Dockerfile
           tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${{ env.SEMVER }}
           build-args: |
@@ -129,7 +128,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: "linux/amd64,linux/arm64"
+          platforms: "linux/${{ matrix.platform }}"
           file: ./docker/Dockerfile
           tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
           build-args: |
@@ -143,29 +142,27 @@ jobs:
           password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
       - name: Build and push Enterprise image to Docker Registry
         uses: docker/build-push-action@v6
-        if: ${{ matrix.version != '17' }}
         with:
           context: ./docker/pg-cnpg
           push: true
-          platforms: "linux/amd64"
+          platforms: "linux/${{ matrix.platform }}"
           file: ./docker/pg-cnpg/Dockerfile
           build-args: |
             PG_MAJOR=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
-            LIB_DIR=/usr/lib/x86_64-linux-gnu 
-            TARGETARCH=amd64
+            LIB_DIR=${{ matrix.platform == 'amd64' && '/usr/lib/x86_64-linux-gnu' || '/usr/lib/aarch64-linux-gnu' }}
+            TARGETARCH=${{ matrix.platform }}
             PGVECTOR=0.8.0
           tags: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ env.SEMVER }}
   
   test:
     name: Run tests
-    runs-on:
-      - ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: ["semver", "build", "docker"]
     strategy:
       matrix:
-        version: [14, 15, 16]
-        platform: ["amd64"]
+        version: [14, 15, 16, 17]
+        runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
     container:
       image: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ needs.semver.outputs.SEMVER }}
       options: --user root
