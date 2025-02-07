@@ -1,14 +1,15 @@
 ARG PG_MAJOR
 ARG SEMVER
+ARG TARGETARCH
 
-FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
+FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER}-${TARGETARCH} as binary
 
 FROM rust:1.82-bookworm as builder
 ARG TRUNK_VER=0.15.6
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 RUN cargo install --version $TRUNK_VER pg-trunk
 
-FROM modelzai/pg-slim:${PG_MAJOR}
+FROM modelzai/pg-slim:${PG_MAJOR}-${TARGETARCH}
 ARG PG_MAJOR
 ARG SEMVER
 ARG TARGETARCH
