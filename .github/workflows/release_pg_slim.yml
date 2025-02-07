@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  pg-slim-amd64:
+  pg-slim:
     strategy:
       matrix:
         version: [14, 15, 16, 17]
@@ -34,3 +34,27 @@ jobs:
           build-args: |
             PG_MAJOR=${{ matrix.version }}
           tags: modelzai/pg-slim:${{ matrix.version }}-${{ matrix.runner == 'ubuntu-22.04' && 'amd64' || 'arm64' }}
+  create-manifests:
+    needs: ["pg-slim"]
+    strategy:
+      matrix:
+        version: ["14", "15", "16", "17"]
+        runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Login to modelzai Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
+          password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
+      - name: Create manifest and push
+        run: |
+          docker manifest create \
+            modelzai/pg-slim:${{ matrix.version }} \
+            --amend modelzai/pg-slim:${{ matrix.version }}-amd64 \
+            --amend modelzai/pg-slim:${{ matrix.version }}-arm64
+          docker manifest push modelzai/pg-slim:${{ matrix.version }}
