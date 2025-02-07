@@ -8,8 +8,8 @@ jobs:
     strategy:
       matrix:
         version: [14, 15, 16, 17]
-        platform: ["amd64", "arm64"]
-    runs-on: ubuntu-latest
+        runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
+    runs-on: ${{ matrix.runner }}
     env:
       PG_MAJOR: ${{ matrix.version }}
     steps:
@@ -29,7 +29,7 @@ jobs:
         with:
           context: ./docker/pg-slim
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/pg-slim/Dockerfile
           build-args: |
             PG_MAJOR=${{ matrix.version }}
