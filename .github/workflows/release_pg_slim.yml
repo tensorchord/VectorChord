@@ -24,13 +24,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
           password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
-      - name: Push binary release to Docker Registry
+      - name: Push Postgres Slim to Docker Registry
         uses: docker/build-push-action@v4
         with:
           context: ./docker/pg-slim
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/pg-slim/Dockerfile
+          provenance: false
           build-args: |
             PG_MAJOR=${{ matrix.version }}
           tags: modelzai/pg-slim:${{ matrix.version }}-${{ matrix.runner == 'ubuntu-22.04' && 'amd64' || 'arm64' }}
