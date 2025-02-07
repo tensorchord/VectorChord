@@ -9,7 +9,7 @@ ARG TRUNK_VER=0.15.6
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 RUN cargo install --version $TRUNK_VER pg-trunk
 
-FROM modelzai/pg-slim:${PG_MAJOR}-${TARGETARCH}
+FROM modelzai/pg-slim:${PG_MAJOR}
 ARG PG_MAJOR
 ARG SEMVER
 ARG TARGETARCH

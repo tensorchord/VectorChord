@@ -120,6 +120,7 @@ jobs:
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/binary.Dockerfile
+          provenance: false
           tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ env.PLATFORM }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
@@ -131,6 +132,7 @@ jobs:
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/Dockerfile
+          provenance: false
           tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ env.PLATFORM }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
@@ -148,6 +150,7 @@ jobs:
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/pg-cnpg/Dockerfile
+          provenance: false
           build-args: |
             PG_MAJOR=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
