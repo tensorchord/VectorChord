@@ -86,14 +86,15 @@ jobs:
           gh release upload --clobber $SEMVER ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     needs: ["semver", "build"]
     strategy:
       matrix:
         version: ["14", "15", "16", "17"]
-        platform: ["amd64", "arm64"]
+        runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
     env:
       SEMVER: ${{ needs.semver.outputs.SEMVER }}
+      PLATFORM: ${{ matrix.runner == 'ubuntu-22.04' && 'amd64' || 'arm64' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,7 +103,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p build
-          gh release download $SEMVER --pattern "postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${{ matrix.platform }}.deb" --output ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${{ matrix.platform }}.deb
+          gh release download $SEMVER --pattern "postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${PLATFORM}.deb" --output ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${PLATFORM}.deb
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -117,7 +118,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: "linux/${PLATFORM}"
           file: ./docker/binary.Dockerfile
           tags: tensorchord/vchord-binary:pg${{ matrix.version }}-v${{ env.SEMVER }}
           build-args: |
@@ -128,7 +129,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: "linux/${PLATFORM}"
           file: ./docker/Dockerfile
           tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
           build-args: |
@@ -145,13 +146,13 @@ jobs:
         with:
           context: ./docker/pg-cnpg
           push: true
-          platforms: "linux/${{ matrix.platform }}"
+          platforms: "linux/${PLATFORM}"
           file: ./docker/pg-cnpg/Dockerfile
           build-args: |
             PG_MAJOR=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
-            LIB_DIR=${{ matrix.platform == 'amd64' && '/usr/lib/x86_64-linux-gnu' || '/usr/lib/aarch64-linux-gnu' }}
-            TARGETARCH=${{ matrix.platform }}
+            LIB_DIR=${{ matrix.runner == 'ubuntu-22.04' && '/usr/lib/x86_64-linux-gnu' || '/usr/lib/aarch64-linux-gnu' }}
+            TARGETARCH=${PLATFORM}
             PGVECTOR=0.8.0
           tags: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ env.SEMVER }}
   
