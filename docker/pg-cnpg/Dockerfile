@@ -49,44 +49,34 @@ RUN apt-get update && apt-get install -y \
 
 # Install pig
 RUN curl -fsSL https://repo.pigsty.io/pig | bash && \
-    pig repo add all --ru
+    pig repo add pigsty pgdg -u
 
 # Install pg_stat_statements
-RUN trunk install pg_stat_statements
+RUN pig ext install -y pg_stat_statements -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config 
 
 # Install auto_explain
-RUN trunk install auto_explain
+RUN pig ext install -y auto_explain -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config 
 
 # Install plpython3u
-RUN trunk install plpython3u
+RUN pig ext install -y plpython3u -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config
 
 # Install pgvector
-RUN trunk install pgvector --version ${PGVECTOR}
-
-# Install pgmq
-RUN trunk install pgmq --version 1.4.5
+RUN pig ext install -y pgvector=${PGVECTOR} -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config
 
 # Install pg_later
-RUN trunk install pg_later --version 0.3.0
+RUN pig ext install -y pg_later=0.3.0 -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config
 
-# Clone and build pgaudit
-RUN git clone https://github.com/pgaudit/pgaudit.git && \
-    cd pgaudit && \
-    git checkout REL_${PG_MAJOR}_STABLE && \
-    make install USE_PGXS=1 PG_CONFIG=/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config && \
-    cd ../ && rm -rf pgaudit
+# Install pgaduit
+RUN pig ext install -y pgaudit -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config
 
-# Clone and build pg_failover_slots
-RUN git clone https://github.com/EnterpriseDB/pg_failover_slots.git && \
-    cd pg_failover_slots && \
-    make install PG_CONFIG=/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config && \
-    cd ../ && rm -rf pg_failover_slots 
+# Install pg_failover_slots
+RUN pig ext install -y pg_failover_slots -p /usr/lib/postgresql/${PG_MAJOR}/bin/pg_config
 
 # cache all extensions
 ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Test trunk
-COPY trunk-install.sh /usr/local/bin/
+COPY extension-install.sh /usr/local/bin/
 
 # Change the uid of postgres to 26
 RUN usermod -u 26 postgres

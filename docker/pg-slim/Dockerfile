@@ -111,7 +111,7 @@ RUN set -eux; \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-RUN echo "${ALTDIR}/${PG_VERSION}/lib" > /etc/ld.so.conf.d/postgres.conf && \
+RUN echo "${ALTDIR}/${PG_MAJOR}/lib" > /etc/ld.so.conf.d/postgres.conf && \
     ldconfig
 
 WORKDIR /
