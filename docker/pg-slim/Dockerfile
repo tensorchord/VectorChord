@@ -40,7 +40,6 @@ RUN git clone https://github.com/postgres/postgres.git && \
 
 RUN set -eux; \
     apt-get update && apt-get install -y \
-    sudo \
     libreadline-dev \
     zlib1g-dev \
     libpq-dev \
@@ -125,7 +124,6 @@ COPY --from=tianon/gosu /gosu /usr/local/bin/
 
 # make the sample config easier to munge (and "correct by default")
 RUN set -eux; \
-    # echo "unix_socket_directories = '/var/run/postgresql'" >> ${ALTDIR}/postgresql.conf.sample; \
     sed -ri "s!^#?(listen_addresses)\s*=\s*\S+.*!\1 = '*'!" ${ALTDIR}/postgresql.conf.sample; \
     grep -F "listen_addresses = '*'" ${ALTDIR}/postgresql.conf.sample
 
@@ -138,9 +136,6 @@ ENV PATH $PATH:/usr/lib/postgresql/$PG_MAJOR/bin:/usr/local/bin
 COPY docker-entrypoint.sh docker-ensure-initdb.sh /usr/local/bin/
 RUN ln -sT docker-ensure-initdb.sh /usr/local/bin/docker-enforce-initdb.sh
 ENTRYPOINT ["docker-entrypoint.sh"]
-
-# Remove pre-installed pg_config
-RUN rm /usr/bin/pg_config
 
 STOPSIGNAL SIGINT
 EXPOSE 5432
