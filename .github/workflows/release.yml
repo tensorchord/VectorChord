@@ -149,7 +149,7 @@ jobs:
           context: ./docker/pg-cnpg
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
-          file: ./docker/pg-cnpg/Dockerfile
+          file: ${{ matrix.runner == 'ubuntu-22.04' && './docker/pg-cnpg/Dockerfile' || './docker/pg-cnpg/Dockerfile.arm64' }}
           provenance: false
           build-args: |
             PG_MAJOR=${{ matrix.version }}
