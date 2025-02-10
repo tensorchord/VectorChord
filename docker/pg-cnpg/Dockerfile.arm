@@ -18,7 +18,6 @@ RUN set -xe; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
     "postgresql-${PG_MAJOR}-pgaudit" \
-    "postgresql-${PG_MAJOR}-pgvector=${PGVECTOR}" \
     "postgresql-${PG_MAJOR}-pg-failover-slots" \
     ; \
     rm -fr /tmp/* ; \
@@ -50,6 +49,9 @@ RUN apt-get update && apt-get install -y \
 # Install pig
 RUN curl -fsSL https://repo.pigsty.io/pig | bash && \
     pig repo add pigsty pgdg -u
+
+# Install pgvector
+RUN pig ext install -y pgvector=${PGVECTOR}
 
 # Install pg_stat_statements
 RUN pig ext install -y pg_stat_statements
