@@ -1,0 +1,68 @@
+ARG PG_MAJOR
+ARG SEMVER
+ARG TARGETARCH
+
+FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER}-${TARGETARCH} as binary
+
+# From https://github.com/cloudnative-pg/postgres-containers/blob/main/Debian/17/bookworm/Dockerfile
+FROM postgres:${PG_MAJOR}-bookworm 
+ARG PG_MAJOR
+ARG SEMVER
+ARG TARGETARCH
+ARG PGVECTOR
+
+COPY requirements.txt /
+
+# Install additional extensions
+RUN set -xe; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+    "postgresql-${PG_MAJOR}-pgaudit" \
+    "postgresql-${PG_MAJOR}-pgvector=${PGVECTOR}" \
+    "postgresql-${PG_MAJOR}-pg-failover-slots" \
+    ; \
+    rm -fr /tmp/* ; \
+    rm -rf /var/lib/apt/lists/*;
+
+# Install barman-cloud
+RUN set -xe; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-psycopg2 \
+    python3-setuptools \
+    ; \
+    pip3 install --break-system-packages --upgrade pip; \
+    # TODO: Remove --no-deps once https://github.com/pypa/pip/issues/9644 is solved
+    pip3 install --break-system-packages --no-deps -r requirements.txt; \
+    rm -rf /var/lib/apt/lists/*;
+
+COPY --from=binary /workspace/postgresql-${PG_MAJOR}-vchord_${SEMVER}-1_${TARGETARCH}.deb /tmp/vchord.deb
+RUN apt-get install -y /tmp/vchord.deb && rm -f /tmp/vchord.deb
+
+RUN apt-get update && apt-get install -y \
+    jq \
+    curl \
+    wget \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pig
+RUN curl -fsSL https://repo.pigsty.io/pig | bash && \
+    pig repo add pigsty pgdg -u
+
+# Install pg_stat_statements
+RUN pig ext install -y pg_stat_statements
+
+# Install auto_explain
+RUN pig ext install -y auto_explain
+
+# Install plpython3u
+RUN pig ext install -y plpython3u
+
+# Install pg_later
+RUN pig ext install -y pg_later=0.3.0
+
+# Change the uid of postgres to 26
+RUN usermod -u 26 postgres
+USER 26

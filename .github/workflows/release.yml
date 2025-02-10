@@ -149,7 +149,7 @@ jobs:
           context: ./docker/pg-cnpg
           push: true
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
-          file: ./docker/pg-cnpg/Dockerfile
+          file: ${{ matrix.runner == 'ubuntu-22.04' && './docker/pg-cnpg/Dockerfile' || './docker/pg-cnpg/Dockerfile.arm' }}
           provenance: false
           build-args: |
             PG_MAJOR=${{ matrix.version }}
@@ -223,7 +223,7 @@ jobs:
     strategy:
       matrix:
         version: [14, 15, 16, 17]
-        runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
+        runner: ["ubuntu-22.04"]
     container:
       image: modelzai/vchord-cnpg:${{ matrix.version }}-v${{ needs.semver.outputs.SEMVER }}
       options: --user root
@@ -247,6 +247,6 @@ jobs:
           bash /usr/local/bin/docker-entrypoint.sh postgres &
           sleep 5
           curl https://registry.pgtrunk.io/extensions/all | jq -r ".[] | .name" > /tmp/extensions.txt
-          trunk-install.sh | tee /tmp/output.txt
+          extension-install.sh | tee /tmp/output.txt
           cat /tmp/output.txt 
 
