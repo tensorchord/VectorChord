@@ -38,7 +38,7 @@ RUN set -ex; \
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
 # install all the PostgresQL
 RUN set -ex; \
-    for v in $(seq 14 17); do \
+    for v in $(seq 13 17); do \
         apt install -y --no-install-recommends postgresql-$v postgresql-server-dev-$v postgresql-$v-pgvector; \
     done; \
     rm -rf /var/lib/apt/lists/*;
@@ -57,7 +57,7 @@ RUN rustup target add $(uname -m)-unknown-linux-gnu
 RUN cargo install cargo-pgrx --locked --version=${PGRX_VERSION}
 
 RUN set -ex; \
-    for v in $(seq 14 17); do \
+    for v in $(seq 13 17); do \
         cargo pgrx init --pg$v=/usr/lib/postgresql/$v/bin/pg_config; \
     done;
 
