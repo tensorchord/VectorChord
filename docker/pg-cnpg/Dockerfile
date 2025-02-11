@@ -4,8 +4,8 @@ ARG TARGETARCH
 
 FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
 
-FROM rust:1.82-bookworm as builder
-ARG TRUNK_VER=0.15.6
+FROM rust:1.83-bookworm as builder
+ARG TRUNK_VER=0.15.7
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 RUN cargo install --version $TRUNK_VER pg-trunk
 
@@ -31,15 +31,15 @@ COPY requirements.txt .
 
 # Install barman-cloud
 RUN set -xe; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		python3-pip \
-		python3-psycopg2 \
-		python3-setuptools \
-	; \
-	pip3 install --upgrade pip; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-psycopg2 \
+    python3-setuptools \
+    ; \
+    pip3 install --upgrade pip; \
     # TODO: Remove --no-deps once https://github.com/pypa/pip/issues/9644 is solved
-	pip3 install --no-deps -r requirements.txt; \
+    pip3 install --no-deps -r requirements.txt; \
     apt-get autoremove -y; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;
@@ -106,13 +106,13 @@ RUN wget https://download.oracle.com/otn_software/linux/instantclient/1920000/in
 
 # Install zhparser dependency
 RUN  wget http://www.xunsearch.com/scws/down/scws-1.2.3.tar.bz2 && \
-     tar xvf scws-1.2.3.tar.bz2 && \
-     cd scws-1.2.3 && \
-     ./configure && \
-     make install && \
-     cd .. && \
-     rm -rf scws-1.2.3.tar.bz2 scws-1.2.3 && \
-     ln -s /usr/local/lib/libscws.so ${LIB_DIR}/libscws.so
+    tar xvf scws-1.2.3.tar.bz2 && \
+    cd scws-1.2.3 && \
+    ./configure && \
+    make install && \
+    cd .. && \
+    rm -rf scws-1.2.3.tar.bz2 scws-1.2.3 && \
+    ln -s /usr/local/lib/libscws.so ${LIB_DIR}/libscws.so
 
 # Install duckdb libs
 RUN wget https://github.com/duckdb/duckdb/releases/download/v0.8.1/libduckdb-linux-amd64.zip && \
@@ -176,8 +176,8 @@ RUN git clone https://github.com/EnterpriseDB/pg_failover_slots.git && \
 # cache all extensions
 ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
-# Test trunk
-COPY trunk-install.sh /usr/local/bin/
+# Test trunk install extension
+COPY extension-install.sh /usr/local/bin/
 
 # Change the uid of postgres to 26
 RUN usermod -u 26 postgres
