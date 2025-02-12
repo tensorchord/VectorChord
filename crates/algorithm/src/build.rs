@@ -93,6 +93,7 @@ pub fn build<O: Operator>(
         dims,
         height_of_root: structures.len() as u32,
         is_residual,
+        rerank_in_heap: vchordrq_options.rerank_in_table,
         vectors_first: vectors.first(),
         root_mean: pointer_of_means.last().unwrap()[0],
         root_first: pointer_of_firsts.last().unwrap()[0],

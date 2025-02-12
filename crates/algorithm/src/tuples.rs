@@ -7,7 +7,7 @@ use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: u64 = u64::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 1;
+const VERSION: u64 = 2;
 
 pub trait Tuple: 'static {
     type Reader<'a>: TupleReader<'a, Tuple = Self>;
@@ -50,7 +50,8 @@ struct MetaTupleHeader {
     dims: u32,
     height_of_root: u32,
     is_residual: Bool,
-    _padding_0: [ZeroU8; 3],
+    rerank_in_heap: Bool,
+    _padding_0: [ZeroU8; 2],
     vectors_first: u32,
     // raw vector
     root_mean: IndexPointer,
@@ -63,6 +64,7 @@ pub struct MetaTuple {
     pub dims: u32,
     pub height_of_root: u32,
     pub is_residual: bool,
+    pub rerank_in_heap: bool,
     pub vectors_first: u32,
     pub root_mean: IndexPointer,
     pub root_first: u32,
@@ -79,6 +81,7 @@ impl Tuple for MetaTuple {
             dims: self.dims,
             height_of_root: self.height_of_root,
             is_residual: self.is_residual.into(),
+            rerank_in_heap: self.rerank_in_heap.into(),
             _padding_0: Default::default(),
             vectors_first: self.vectors_first,
             root_mean: self.root_mean,
@@ -124,6 +127,9 @@ impl MetaTupleReader<'_> {
     }
     pub fn is_residual(self) -> bool {
         self.header.is_residual.into()
+    }
+    pub fn rerank_in_heap(self) -> bool {
+        self.header.rerank_in_heap.into()
     }
     pub fn vectors_first(self) -> u32 {
         self.header.vectors_first

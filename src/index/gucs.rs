@@ -72,7 +72,9 @@ pub fn probes() -> Vec<u32> {
                     c => pgrx::error!("unknown character in probes: ASCII = {c}"),
                 }
             }
-            result.push(current.take().expect("empty probes"));
+            if let Some(current) = current {
+                result.push(current);
+            }
             result
         }
     }

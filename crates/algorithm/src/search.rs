@@ -3,7 +3,7 @@ use crate::operator::*;
 use crate::pipe::Pipe;
 use crate::tape::{access_0, access_1};
 use crate::tuples::*;
-use crate::{Page, RelationRead, vectors};
+use crate::{Page, RelationRead, RerankMethod, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
@@ -16,14 +16,28 @@ pub fn search<O: Operator>(
     vector: O::Vector,
     probes: Vec<u32>,
     epsilon: f32,
-) -> impl Iterator<Item = (Distance, NonZeroU64)> {
+) -> (
+    RerankMethod,
+    Vec<(
+        Reverse<Distance>,
+        AlwaysEqual<IndexPointer>,
+        AlwaysEqual<NonZeroU64>,
+    )>,
+) {
     let meta_guard = index.read(0);
     let meta_tuple = meta_guard.get(1).unwrap().pipe(read_tuple::<MetaTuple>);
     let dims = meta_tuple.dims();
     let is_residual = meta_tuple.is_residual();
+    let rerank_in_heap = meta_tuple.rerank_in_heap();
     let height_of_root = meta_tuple.height_of_root();
     assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
-    assert_eq!(height_of_root as usize, 1 + probes.len(), "invalid probes");
+    if height_of_root as usize != 1 + probes.len() {
+        panic!(
+            "need {} probes, but {} probes provided",
+            height_of_root - 1,
+            probes.len()
+        );
+    }
     let root_mean = meta_tuple.root_mean();
     let root_first = meta_tuple.root_first();
     drop(meta_guard);
@@ -145,24 +159,12 @@ pub fn search<O: Operator>(
             },
         );
     }
-    let mut heap = BinaryHeap::from(results.into_vec());
-    let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
-    std::iter::from_fn(move || {
-        while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-            let (_, AlwaysEqual(mean), AlwaysEqual(pay_u)) = heap.pop().unwrap();
-            if let Some(dis_u) = vectors::access_0::<O, _>(
-                index.clone(),
-                mean,
-                pay_u,
-                LAccess::new(
-                    O::Vector::elements_and_metadata(vector.as_borrowed()),
-                    O::DistanceAccessor::default(),
-                ),
-            ) {
-                cache.push((Reverse(dis_u), AlwaysEqual(pay_u)));
-            };
-        }
-        let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;
-        Some((dis_u, pay_u))
-    })
+    (
+        if rerank_in_heap {
+            RerankMethod::Heap
+        } else {
+            RerankMethod::Index
+        },
+        results.into_vec(),
+    )
 }

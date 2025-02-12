@@ -18,6 +18,7 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
     let meta_tuple = meta_guard.get(1).unwrap().pipe(read_tuple::<MetaTuple>);
     let dims = meta_tuple.dims();
     let is_residual = meta_tuple.is_residual();
+    let rerank_in_heap = meta_tuple.rerank_in_heap();
     let height_of_root = meta_tuple.height_of_root();
     assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
     let root_mean = meta_tuple.root_mean();
@@ -31,7 +32,11 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
         None
     };
 
-    let mean = vectors::append::<O>(index.clone(), vectors_first, vector.as_borrowed(), payload);
+    let mean = if !rerank_in_heap {
+        vectors::append::<O>(index.clone(), vectors_first, vector.as_borrowed(), payload)
+    } else {
+        IndexPointer::default()
+    };
 
     type State<O> = (u32, Option<<O as Operator>::Vector>);
     let mut state: State<O> = {
