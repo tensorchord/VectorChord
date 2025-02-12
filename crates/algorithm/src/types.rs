@@ -8,10 +8,15 @@ use vector::vect::{VectBorrowed, VectOwned};
 pub struct VchordrqIndexOptions {
     #[serde(default = "VchordrqIndexOptions::default_residual_quantization")]
     pub residual_quantization: bool,
+    #[serde(default = "VchordrqIndexOptions::default_rerank_in_table")]
+    pub rerank_in_table: bool,
 }
 
 impl VchordrqIndexOptions {
     fn default_residual_quantization() -> bool {
+        false
+    }
+    fn default_rerank_in_table() -> bool {
         false
     }
 }

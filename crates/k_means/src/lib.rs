@@ -121,6 +121,9 @@ fn quick_centers(
 ) -> Vec<Vec<f32>> {
     let n = samples.len();
     assert!(c >= n);
+    if c == 1 && n == 0 {
+        return vec![vec![0.0; dims]];
+    }
     let mut rng = rand::thread_rng();
     let mut centroids = samples;
     for _ in n..c {

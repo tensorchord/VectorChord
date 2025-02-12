@@ -132,13 +132,15 @@ pub unsafe extern "C" fn ambuild(
         }
         VchordrqBuildSourceOptions::Internal(internal_build) => {
             let mut tuples_total = 0_u64;
-            let samples = {
+            let samples = 'a: {
                 let mut rand = rand::thread_rng();
-                let max_number_of_samples = internal_build
+                let Some(max_number_of_samples) = internal_build
                     .lists
                     .last()
-                    .unwrap()
-                    .saturating_mul(internal_build.sampling_factor);
+                    .map(|x| x.saturating_mul(internal_build.sampling_factor))
+                else {
+                    break 'a Vec::new();
+                };
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
                 match opfamily.vector_kind() {

@@ -12,6 +12,7 @@ mod linked_vec;
 mod maintain;
 mod pipe;
 mod prewarm;
+mod rerank;
 mod search;
 mod select_heap;
 mod tape;
@@ -27,6 +28,7 @@ pub use cache::cache;
 pub use insert::insert;
 pub use maintain::maintain;
 pub use prewarm::prewarm;
+pub use rerank::{rerank_heap, rerank_index};
 pub use search::search;
 
 use std::ops::{Deref, DerefMut};
@@ -71,4 +73,10 @@ pub trait RelationWrite: RelationRead {
     fn write(&self, id: u32, tracking_freespace: bool) -> Self::WriteGuard<'_>;
     fn extend(&self, tracking_freespace: bool) -> Self::WriteGuard<'_>;
     fn search(&self, freespace: usize) -> Option<Self::WriteGuard<'_>>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RerankMethod {
+    Index,
+    Heap,
 }

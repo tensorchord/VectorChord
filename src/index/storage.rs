@@ -240,6 +240,9 @@ impl PostgresRelation {
     pub unsafe fn new(raw: pgrx::pg_sys::Relation) -> Self {
         Self { raw }
     }
+    pub fn raw(&self) -> pgrx::pg_sys::Relation {
+        self.raw
+    }
 }
 
 impl RelationRead for PostgresRelation {

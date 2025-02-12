@@ -6,7 +6,7 @@ use validator::{Validate, ValidationError, ValidationErrors};
 #[serde(deny_unknown_fields)]
 pub struct VchordrqInternalBuildOptions {
     #[serde(default = "VchordrqInternalBuildOptions::default_lists")]
-    #[validate(length(min = 1, max = 8), custom(function = VchordrqInternalBuildOptions::validate_lists))]
+    #[validate(length(min = 0, max = 8), custom(function = VchordrqInternalBuildOptions::validate_lists))]
     pub lists: Vec<u32>,
     #[serde(default = "VchordrqInternalBuildOptions::default_spherical_centroids")]
     pub spherical_centroids: bool,
