@@ -107,11 +107,11 @@ mod internal {
             let vl: u64;
             unsafe {
                 core::arch::asm!(
-                    "rdvl {0}, #2",
+                    "rdvl {0}, #8",
                     out(reg) vl
                 );
             }
-            vl >= 4
+            vl >= 512
         }
         std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_512_detected() }
     }
@@ -123,11 +123,11 @@ mod internal {
             let vl: u64;
             unsafe {
                 core::arch::asm!(
-                    "rdvl {0}, #2",
+                    "rdvl {0}, #8",
                     out(reg) vl
                 );
             }
-            vl >= 2
+            vl >= 256
         }
         std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_256_detected() }
     }
