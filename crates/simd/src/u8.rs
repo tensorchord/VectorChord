@@ -307,7 +307,7 @@ mod reduce_sum_of_x {
 
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
-    fn reduce_sum_of_x_as_u16_v3_test() {
+    fn reduce_sum_of_x_v3_test() {
         use rand::Rng;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -326,7 +326,107 @@ mod reduce_sum_of_x {
         }
     }
 
-    #[crate::multiversion(@"v4.512", @"v3", "v2", "a2")]
+    #[inline]
+    #[cfg(target_arch = "x86_64")]
+    #[crate::target_cpu(enable = "v2")]
+    fn reduce_sum_of_x_v2(this: &[u8]) -> u32 {
+        use crate::emulate::emulate_mm_reduce_add_epi32;
+        unsafe {
+            use std::arch::x86_64::*;
+            let us = _mm_set1_epi32(255);
+            let mut n = this.len();
+            let mut a = this.as_ptr();
+            let mut sum = _mm_setzero_si128();
+            while n >= 4 {
+                let x = _mm_cvtsi32_si128(a.cast::<i32>().read_unaligned());
+                a = a.add(4);
+                n -= 4;
+                sum = _mm_add_epi32(_mm_and_si128(us, _mm_cvtepi8_epi32(x)), sum);
+            }
+            let mut sum = emulate_mm_reduce_add_epi32(sum) as u32;
+            // this hint is used to disable loop unrolling
+            while std::hint::black_box(n) > 0 {
+                let x = a.read();
+                a = a.add(1);
+                n -= 1;
+                sum += x as u32;
+            }
+            sum
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", test))]
+    #[test]
+    fn reduce_sum_of_x_v2_test() {
+        use rand::Rng;
+        if !crate::is_cpu_detected!("v2") {
+            println!("test {} ... skipped (v2)", module_path!());
+            return;
+        }
+        let mut rng = rand::rng();
+        for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let n = 4016;
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
+            for z in 3984..4016 {
+                let this = &this[..z];
+                let specialized = unsafe { reduce_sum_of_x_v2(this) };
+                let fallback = fallback(this);
+                assert_eq!(specialized, fallback);
+            }
+        }
+    }
+
+    #[inline]
+    #[cfg(target_arch = "aarch64")]
+    #[crate::target_cpu(enable = "a2")]
+    fn reduce_sum_of_x_a2(this: &[u8]) -> u32 {
+        unsafe {
+            use std::arch::aarch64::*;
+            let mut n = this.len();
+            let mut a = this.as_ptr();
+            let mut sum_0 = vdupq_n_u32(0);
+            let mut sum_1 = vdupq_n_u32(0);
+            while n >= 8 {
+                let x = vmovl_u8(vld1_u8(a.cast()));
+                a = a.add(8);
+                n -= 8;
+                sum_0 = vaddq_u32(vmovl_u16(vget_low_u16(x)), sum_0);
+                sum_1 = vaddq_u32(vmovl_u16(vget_high_u16(x)), sum_1);
+            }
+            let mut sum = vaddvq_u32(vaddq_u32(sum_0, sum_1));
+            // this hint is used to disable loop unrolling
+            while std::hint::black_box(n) > 0 {
+                let x = a.read();
+                a = a.add(1);
+                n -= 1;
+                sum += x as u32;
+            }
+            sum
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", test))]
+    #[test]
+    fn reduce_sum_of_x_a2_test() {
+        use rand::Rng;
+        if !crate::is_cpu_detected!("a2") {
+            println!("test {} ... skipped (a2)", module_path!());
+            return;
+        }
+        let mut rng = rand::rng();
+        for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let n = 4016;
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
+            for z in 3984..4016 {
+                let this = &this[..z];
+                let specialized = unsafe { reduce_sum_of_x_a2(this) };
+                let fallback = fallback(this);
+                assert_eq!(specialized, fallback);
+            }
+        }
+    }
+
+    #[crate::multiversion(@"v4.512", @"v3", @"v2", @"a2")]
     pub fn reduce_sum_of_x(this: &[u8]) -> u32 {
         let n = this.len();
         let mut sum = 0;

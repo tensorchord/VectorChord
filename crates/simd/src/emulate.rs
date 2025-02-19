@@ -134,7 +134,6 @@ pub fn emulate_mm256_reduce_add_epi32(mut x: std::arch::x86_64::__m256i) -> i32 
     }
 }
 
-#[expect(dead_code)]
 #[inline]
 #[cfg(target_arch = "x86_64")]
 #[crate::target_cpu(enable = "v2")]
