@@ -1,10 +1,9 @@
 use crate::{VectorBorrowed, VectorOwned};
 use distance::Distance;
-use serde::{Deserialize, Serialize};
 use simd::Floating;
 use std::ops::{Bound, RangeBounds};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SVectOwned<S> {
     dims: u32,
     indexes: Vec<u32>,
@@ -37,7 +36,10 @@ impl<S: Floating> SVectOwned<S> {
         if S::reduce_or_of_is_zero_x(&values) {
             return None;
         }
-        unsafe { Some(Self::new_unchecked(dims, indexes, values)) }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dims, indexes, values))
+        }
     }
 
     /// # Safety
@@ -46,6 +48,7 @@ impl<S: Floating> SVectOwned<S> {
     /// * `indexes.len()` must be equal to `values.len()`.
     /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dims`.
     /// * A floating number in `values` must not be positive zero or negative zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(dims: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
         Self {
@@ -119,7 +122,10 @@ impl<'a, S: Floating> SVectBorrowed<'a, S> {
                 return None;
             }
         }
-        unsafe { Some(Self::new_unchecked(dims, indexes, values)) }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dims, indexes, values))
+        }
     }
 
     /// # Safety
@@ -129,6 +135,7 @@ impl<'a, S: Floating> SVectBorrowed<'a, S> {
     /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dims`.
     /// * A floating number in `values` must not be positive zero or negative zero.
     #[inline(always)]
+    #[allow(unsafe_code)]
     pub unsafe fn new_unchecked(dims: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
         Self {
             dims,

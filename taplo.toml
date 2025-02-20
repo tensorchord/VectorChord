@@ -1,0 +1,17 @@
+[formatting]
+indent_string = "    "
+
+[[rule]]
+include = ["**/Cargo.toml"]
+keys = [
+    "dependencies",
+    "dev-dependencies",
+    "build-dependencies",
+    "target.*.dependencies",
+    "lints",
+    "patch.*",
+    "profile.*",
+    "workspace.dependencies",
+    "lints.dependencies",
+]
+formatting = { reorder_keys = true, reorder_arrays = true, align_comments = true }

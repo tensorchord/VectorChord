@@ -30,15 +30,18 @@ fn random_full_rank_matrix(n: usize) -> DMatrix<f32> {
 
 #[test]
 fn check_random_orthogonal_matrix() {
-    assert_eq!(random_orthogonal_matrix(2), vec![
-        vec![-0.5424608, -0.8400813],
-        vec![0.8400813, -0.54246056]
-    ]);
-    assert_eq!(random_orthogonal_matrix(3), vec![
-        vec![-0.5309615, -0.69094884, -0.49058124],
-        vec![0.8222731, -0.56002235, -0.10120347],
-        vec![0.20481002, 0.45712686, -0.86549866]
-    ]);
+    assert_eq!(
+        random_orthogonal_matrix(2),
+        vec![vec![-0.5424608, -0.8400813], vec![0.8400813, -0.54246056]]
+    );
+    assert_eq!(
+        random_orthogonal_matrix(3),
+        vec![
+            vec![-0.5309615, -0.69094884, -0.49058124],
+            vec![0.8222731, -0.56002235, -0.10120347],
+            vec![0.20481002, 0.45712686, -0.86549866]
+        ]
+    );
 }
 
 pub fn random_orthogonal_matrix(n: usize) -> Vec<Vec<f32>> {

@@ -1,0 +1,18 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 1000);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_ip_ops)
+WITH (options = $$
+residual_quantization = false
+build.pin = true
+[build.internal]
+lists = [32]
+spherical_centroids = true
+$$);
+
+statement ok
+DROP TABLE t;

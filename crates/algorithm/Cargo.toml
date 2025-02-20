@@ -1,0 +1,26 @@
+[package]
+name = "algorithm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+k_means = { path = "../k_means" }
+rabitq = { path = "../rabitq" }
+random_orthogonal_matrix = { path = "../random_orthogonal_matrix" }
+simd = { path = "../simd" }
+vector = { path = "../vector" }
+
+half.workspace = true
+heapify = "0.2.0"
+paste.workspace = true
+rand.workspace = true
+serde.workspace = true
+turboselect = { git = "https://github.com/tensorchord/turboselect.git", rev = "d8753c4ffe5b47f28670fea21d56cf3658d51b9b" }
+validator.workspace = true
+zerocopy.workspace = true
+zerocopy-derive.workspace = true
+
+[lints]
+workspace = true

@@ -12,6 +12,9 @@ FROM generate_series(1, 10000);
 statement ok
 CREATE INDEX ind0 ON t USING vchordrq (val0 vector_l2_ops);
 
+statement ok
+SET enable_seqscan TO off;
+
 # statement ok
 # CREATE INDEX ind1 ON t USING vchordrq (val1 halfvec_dot_ops);
 

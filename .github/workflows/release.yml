@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'tag name (semver without v-prefix)'
+        description: "tag name (semver without v-prefix)"
         required: true
         type: string
 
@@ -16,12 +16,12 @@ concurrency:
 
 jobs:
   semver:
-    runs-on: ubuntu-latest
-    outputs:
-      SEMVER: ${{ steps.semver.outputs.SEMVER }}
+    runs-on: "ubuntu-latest"
+
     steps:
-      - uses: actions/github-script@v7
+      - name: Semver
         id: semver
+        uses: actions/github-script@v7
         with:
           script: |
             const tag = "${{ github.event.inputs.tag }}" || "${{ github.event.release.tag_name }}";
@@ -32,58 +32,92 @@ jobs:
             }
             core.setOutput('SEMVER', tag);
 
+    outputs:
+      SEMVER: ${{ steps.semver.outputs.SEMVER }}
+
   build:
-    runs-on: ${{ matrix.runner }}
     needs: ["semver"]
     strategy:
       matrix:
-        version: ["14", "15", "16", "17"]
+        version: ["13", "14", "15", "16", "17"]
         runner: ["ubuntu-22.04", "ubuntu-22.04-arm"]
+    runs-on: ${{ matrix.runner }}
+
     env:
-      PGRX_IMAGE: "ghcr.io/tensorchord/vectorchord-pgrx:0.12.9-nightly-2024-12-25"
-      SEMVER: ${{ needs.semver.outputs.SEMVER }}
-      ARCH: ${{ matrix.runner == 'ubuntu-22.04' && 'x86_64' || 'aarch64' }}
-      PLATFORM: ${{ matrix.runner == 'ubuntu-22.04' && 'amd64' || 'arm64' }}
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+      RUSTFLAGS: "-Dwarnings"
 
     steps:
       - name: Set up Environment
         run: |
-          sudo apt-get remove -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
-          sudo apt-get purge -y '^postgres.*' '^libpq.*' '^clang.*' '^llvm.*' '^libclang.*' '^libllvm.*' '^mono-llvm.*'
+          sudo apt-get update
+
+          sudo apt-get remove -y '^postgres.*' '^libpq.*'
+          sudo apt-get purge -y '^postgres.*' '^libpq.*'
+
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          sudo update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
 
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y postgresql-client-17
-      - uses: actions/checkout@v4
-      - name: Configure sccache
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const url = process.env.ACTIONS_CACHE_URL || '';
-            const token = process.env.ACTIONS_RUNTIME_TOKEN || '';
-            core.exportVariable(
-              'CACHE_ENVS',
-              `-e CARGO_INCREMENTAL=0 -e SCCACHE_GHA_ENABLED=true -e RUSTC_WRAPPER=sccache -e ACTIONS_CACHE_URL=${url} -e ACTIONS_RUNTIME_TOKEN=${token}`,
-            );
-      - name: Set up pgrx docker images and permissions
-        run: |
-          docker pull $PGRX_IMAGE
-          echo "Default user: $(id -u):$(id -g)"
-          sudo chmod -R 777 .
+          sudo apt-get install -y postgresql-server-dev-${{ matrix.version }}
+
+          sudo apt-get install -y postgresql-${{ matrix.version }} postgresql-${{ matrix.version }}-pgvector
+
+          curl -fsSL https://github.com/tensorchord/pgrx/releases/download/v0.12.9/cargo-pgrx-v0.12.9-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./cargo-pgrx | install -m 755 /dev/stdin /usr/local/bin/cargo-pgrx
+          cargo pgrx init --pg${{ matrix.version }}=$(which pg_config)
+
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Build
         env:
+          SEMVER: ${{ needs.semver.outputs.SEMVER }}
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.runner == 'ubuntu-22.04' && 'x86_64' || 'aarch64' }}
+          PLATFORM: ${{ matrix.runner == 'ubuntu-22.04' && 'amd64' || 'arm64' }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          docker run --rm -v .:/workspace $CACHE_ENVS \
-            -e SEMVER=$SEMVER \
-            -e VERSION=${{ matrix.version }} \
-            -e ARCH=$ARCH \
-            -e PLATFORM=$PLATFORM \
-            $PGRX_IMAGE ./tools/package.sh
+          cargo build --lib --features pg$VERSION --release
+
+          mkdir -p ./build/zip
+          cp -a ./sql/upgrade/. ./build/zip/
+          cp ./sql/install/vchord--$SEMVER.sql ./build/zip/vchord--$SEMVER.sql
+          sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/zip/vchord.control
+          cp ./target/release/libvchord.so ./build/zip/vchord.so
+          zip ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip -j ./build/zip/*
+
+          mkdir -p ./build/deb
+          mkdir -p ./build/deb/DEBIAN
+          mkdir -p ./build/deb/usr/share/postgresql/$VERSION/extension/
+          mkdir -p ./build/deb/usr/lib/postgresql/$VERSION/lib/
+          for file in $(ls ./build/zip/*.sql | xargs -n 1 basename); do
+              cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+          done
+          for file in $(ls ./build/zip/*.control | xargs -n 1 basename); do
+              cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+          done
+          for file in $(ls ./build/zip/*.so | xargs -n 1 basename); do
+              cp ./build/zip/$file ./build/deb/usr/lib/postgresql/$VERSION/lib/$file
+          done
+          echo "Package: postgresql-${VERSION}-vchord
+          Version: ${SEMVER}-1
+          Section: database
+          Priority: optional
+          Architecture: ${PLATFORM}
+          Maintainer: Tensorchord <support@tensorchord.ai>
+          Description: Vector database plugin for Postgres, written in Rust, specifically designed for LLM
+          Homepage: https://vectorchord.ai/
+          License: AGPL-3 or Elastic-2" \
+          > ./build/deb/DEBIAN/control
+          (cd ./build/deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/deb/DEBIAN/md5sums
+          dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+
           ls ./build
-          gh release upload --clobber $SEMVER ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}-1_${PLATFORM}.deb
-          gh release upload --clobber $SEMVER ./build/postgresql-${{ matrix.version }}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip
+
+          gh release upload --clobber $SEMVER ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+          gh release upload --clobber $SEMVER ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip
 
   docker:
     runs-on: ${{ matrix.runner }}

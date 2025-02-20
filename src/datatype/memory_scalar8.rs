@@ -1,19 +1,13 @@
-use pgrx::datum::FromDatum;
-use pgrx::datum::IntoDatum;
-use pgrx::pg_sys::Datum;
-use pgrx::pg_sys::Oid;
-use pgrx::pgrx_sql_entity_graph::metadata::ArgumentError;
-use pgrx::pgrx_sql_entity_graph::metadata::Returns;
-use pgrx::pgrx_sql_entity_graph::metadata::ReturnsError;
-use pgrx::pgrx_sql_entity_graph::metadata::SqlMapping;
-use pgrx::pgrx_sql_entity_graph::metadata::SqlTranslatable;
+use pgrx::datum::{FromDatum, IntoDatum};
+use pgrx::pg_sys::{Datum, Oid};
+use pgrx::pgrx_sql_entity_graph::metadata::*;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use vector::VectorBorrowed;
 use vector::scalar8::Scalar8Borrowed;
 
 #[repr(C, align(8))]
-pub struct Scalar8Header {
+struct Scalar8Header {
     varlena: u32,
     dims: u16,
     unused: u16,
@@ -31,10 +25,10 @@ impl Scalar8Header {
         }
         (size_of::<Self>() + size_of::<u8>() * len).next_multiple_of(8)
     }
-    pub unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> Scalar8Borrowed<'a> {
+    unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> Scalar8Borrowed<'a> {
         unsafe {
             let this = this.as_ptr();
-            Scalar8Borrowed::new_unchecked(
+            Scalar8Borrowed::new(
                 (&raw const (*this).sum_of_x2).read(),
                 (&raw const (*this).k).read(),
                 (&raw const (*this).b).read(),
@@ -105,7 +99,7 @@ impl Scalar8Output {
     pub fn as_borrowed(&self) -> Scalar8Borrowed<'_> {
         unsafe { Scalar8Header::as_borrowed(self.0) }
     }
-    pub fn into_raw(self) -> *mut Scalar8Header {
+    fn into_raw(self) -> *mut Scalar8Header {
         let result = self.0.as_ptr();
         std::mem::forget(self);
         result

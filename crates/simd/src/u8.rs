@@ -1,5 +1,5 @@
 mod reduce_sum_of_xy {
-    #[crate::multiversion("v4", "v3", "v2", "v8.3a:sve", "v8.3a")]
+    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
     pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {
         assert_eq!(s.len(), t.len());
         let n = s.len();
@@ -19,8 +19,8 @@ pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {
 mod reduce_sum_of_x_as_u16 {
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4")]
-    fn reduce_sum_of_x_as_u16_v4(this: &[u8]) -> u16 {
+    #[crate::target_cpu(enable = "v4.512")]
+    fn reduce_sum_of_x_as_u16_v4_512(this: &[u8]) -> u16 {
         use crate::emulate::emulate_mm512_reduce_add_epi16;
         unsafe {
             use std::arch::x86_64::*;
@@ -47,18 +47,18 @@ mod reduce_sum_of_x_as_u16 {
     #[test]
     fn reduce_sum_of_x_as_u16_v4_test() {
         use rand::Rng;
-        if !crate::is_cpu_detected!("v4") {
+        if !crate::is_cpu_detected!("v4.512") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
-                let specialized = unsafe { reduce_sum_of_x_as_u16_v4(this) };
-                let fallback = reduce_sum_of_x_as_u16_fallback(this);
+                let specialized = unsafe { reduce_sum_of_x_as_u16_v4_512(this) };
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -101,14 +101,14 @@ mod reduce_sum_of_x_as_u16 {
             println!("test {} ... skipped (v3)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
                 let specialized = unsafe { reduce_sum_of_x_as_u16_v3(this) };
-                let fallback = reduce_sum_of_x_as_u16_fallback(this);
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -151,14 +151,14 @@ mod reduce_sum_of_x_as_u16 {
             println!("test {} ... skipped (v2)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
                 let specialized = unsafe { reduce_sum_of_x_as_u16_v2(this) };
-                let fallback = reduce_sum_of_x_as_u16_fallback(this);
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -166,8 +166,8 @@ mod reduce_sum_of_x_as_u16 {
 
     #[inline]
     #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "v8.3a")]
-    fn reduce_sum_of_x_as_u16_v8_3a(this: &[u8]) -> u16 {
+    #[crate::target_cpu(enable = "a2")]
+    fn reduce_sum_of_x_as_u16_a2(this: &[u8]) -> u16 {
         unsafe {
             use std::arch::aarch64::*;
             let us = vdupq_n_u16(255);
@@ -194,26 +194,26 @@ mod reduce_sum_of_x_as_u16 {
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
     #[test]
-    fn reduce_sum_of_x_as_u16_v8_3a_test() {
+    fn reduce_sum_of_x_as_u16_a2_test() {
         use rand::Rng;
-        if !crate::is_cpu_detected!("v8.3a") {
-            println!("test {} ... skipped (v8.3a)", module_path!());
+        if !crate::is_cpu_detected!("a2") {
+            println!("test {} ... skipped (a2)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
-                let specialized = unsafe { reduce_sum_of_x_as_u16_v8_3a(this) };
-                let fallback = reduce_sum_of_x_as_u16_fallback(this);
+                let specialized = unsafe { reduce_sum_of_x_as_u16_a2(this) };
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"v8.3a")]
+    #[crate::multiversion(@"v4.512", @"v3", @"v2", @"a2")]
     pub fn reduce_sum_of_x_as_u16(this: &[u8]) -> u16 {
         let n = this.len();
         let mut sum = 0;
@@ -232,8 +232,8 @@ pub fn reduce_sum_of_x_as_u16(vector: &[u8]) -> u16 {
 mod reduce_sum_of_x {
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4")]
-    fn reduce_sum_of_x_v4(this: &[u8]) -> u32 {
+    #[crate::target_cpu(enable = "v4.512")]
+    fn reduce_sum_of_x_v4_512(this: &[u8]) -> u32 {
         unsafe {
             use std::arch::x86_64::*;
             let us = _mm512_set1_epi32(255);
@@ -259,18 +259,18 @@ mod reduce_sum_of_x {
     #[test]
     fn reduce_sum_of_x_v4_test() {
         use rand::Rng;
-        if !crate::is_cpu_detected!("v4") {
+        if !crate::is_cpu_detected!("v4.512") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
-                let specialized = unsafe { reduce_sum_of_x_v4(this) };
-                let fallback = reduce_sum_of_x_fallback(this);
+                let specialized = unsafe { reduce_sum_of_x_v4_512(this) };
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -307,26 +307,126 @@ mod reduce_sum_of_x {
 
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
-    fn reduce_sum_of_x_as_u16_v3_test() {
+    fn reduce_sum_of_x_v3_test() {
         use rand::Rng;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
             let n = 4016;
-            let this = (0..n).map(|_| rng.gen_range(0..16)).collect::<Vec<_>>();
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
             for z in 3984..4016 {
                 let this = &this[..z];
                 let specialized = unsafe { reduce_sum_of_x_v3(this) };
-                let fallback = reduce_sum_of_x_fallback(this);
+                let fallback = fallback(this);
                 assert_eq!(specialized, fallback);
             }
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", "v2", "v8.3a:sve", "v8.3a")]
+    #[inline]
+    #[cfg(target_arch = "x86_64")]
+    #[crate::target_cpu(enable = "v2")]
+    fn reduce_sum_of_x_v2(this: &[u8]) -> u32 {
+        use crate::emulate::emulate_mm_reduce_add_epi32;
+        unsafe {
+            use std::arch::x86_64::*;
+            let us = _mm_set1_epi32(255);
+            let mut n = this.len();
+            let mut a = this.as_ptr();
+            let mut sum = _mm_setzero_si128();
+            while n >= 4 {
+                let x = _mm_cvtsi32_si128(a.cast::<i32>().read_unaligned());
+                a = a.add(4);
+                n -= 4;
+                sum = _mm_add_epi32(_mm_and_si128(us, _mm_cvtepi8_epi32(x)), sum);
+            }
+            let mut sum = emulate_mm_reduce_add_epi32(sum) as u32;
+            // this hint is used to disable loop unrolling
+            while std::hint::black_box(n) > 0 {
+                let x = a.read();
+                a = a.add(1);
+                n -= 1;
+                sum += x as u32;
+            }
+            sum
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", test))]
+    #[test]
+    fn reduce_sum_of_x_v2_test() {
+        use rand::Rng;
+        if !crate::is_cpu_detected!("v2") {
+            println!("test {} ... skipped (v2)", module_path!());
+            return;
+        }
+        let mut rng = rand::rng();
+        for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let n = 4016;
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
+            for z in 3984..4016 {
+                let this = &this[..z];
+                let specialized = unsafe { reduce_sum_of_x_v2(this) };
+                let fallback = fallback(this);
+                assert_eq!(specialized, fallback);
+            }
+        }
+    }
+
+    #[inline]
+    #[cfg(target_arch = "aarch64")]
+    #[crate::target_cpu(enable = "a2")]
+    fn reduce_sum_of_x_a2(this: &[u8]) -> u32 {
+        unsafe {
+            use std::arch::aarch64::*;
+            let mut n = this.len();
+            let mut a = this.as_ptr();
+            let mut sum_0 = vdupq_n_u32(0);
+            let mut sum_1 = vdupq_n_u32(0);
+            while n >= 8 {
+                let x = vmovl_u8(vld1_u8(a.cast()));
+                a = a.add(8);
+                n -= 8;
+                sum_0 = vaddq_u32(vmovl_u16(vget_low_u16(x)), sum_0);
+                sum_1 = vaddq_u32(vmovl_u16(vget_high_u16(x)), sum_1);
+            }
+            let mut sum = vaddvq_u32(vaddq_u32(sum_0, sum_1));
+            // this hint is used to disable loop unrolling
+            while std::hint::black_box(n) > 0 {
+                let x = a.read();
+                a = a.add(1);
+                n -= 1;
+                sum += x as u32;
+            }
+            sum
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", test))]
+    #[test]
+    fn reduce_sum_of_x_a2_test() {
+        use rand::Rng;
+        if !crate::is_cpu_detected!("a2") {
+            println!("test {} ... skipped (a2)", module_path!());
+            return;
+        }
+        let mut rng = rand::rng();
+        for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let n = 4016;
+            let this = (0..n).map(|_| rng.random_range(0..16)).collect::<Vec<_>>();
+            for z in 3984..4016 {
+                let this = &this[..z];
+                let specialized = unsafe { reduce_sum_of_x_a2(this) };
+                let fallback = fallback(this);
+                assert_eq!(specialized, fallback);
+            }
+        }
+    }
+
+    #[crate::multiversion(@"v4.512", @"v3", @"v2", @"a2")]
     pub fn reduce_sum_of_x(this: &[u8]) -> u32 {
         let n = this.len();
         let mut sum = 0;

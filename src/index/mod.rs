@@ -1,12 +1,15 @@
 pub mod am;
-pub mod am_options;
-pub mod am_scan;
 pub mod functions;
+pub mod gucs;
 pub mod opclass;
-pub mod utils;
+pub mod projection;
+pub mod storage;
+pub mod types;
 
-pub unsafe fn init() {
-    unsafe {
-        am::init();
+pub fn init() {
+    am::init();
+    gucs::init();
+    for x in gucs::prewarm_dim() {
+        projection::prewarm(x as _);
     }
 }

@@ -1,8 +1,8 @@
 mod mul_add_round {
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4")]
-    fn mul_add_round_v4(this: &[f32], k: f32, b: f32) -> Vec<u8> {
+    #[crate::target_cpu(enable = "v4.512")]
+    fn mul_add_round_v4_512(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let n = this.len();
         let mut r = Vec::<u8>::with_capacity(n);
         unsafe {
@@ -42,7 +42,7 @@ mod mul_add_round {
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
     fn mul_add_round_v4_test() {
-        if !crate::is_cpu_detected!("v4") {
+        if !crate::is_cpu_detected!("v4.512") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
@@ -53,8 +53,8 @@ mod mul_add_round {
                 let x = &x[..z];
                 let k = 20.0;
                 let b = 20.0;
-                let specialized = unsafe { mul_add_round_v4(x, k, b) };
-                let fallback = mul_add_round_fallback(x, k, b);
+                let specialized = unsafe { mul_add_round_v4_512(x, k, b) };
+                let fallback = fallback(x, k, b);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -123,7 +123,7 @@ mod mul_add_round {
                 let k = 20.0;
                 let b = 20.0;
                 let specialized = unsafe { mul_add_round_v3(x, k, b) };
-                let fallback = mul_add_round_fallback(x, k, b);
+                let fallback = fallback(x, k, b);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -189,7 +189,7 @@ mod mul_add_round {
                 let k = 20.0;
                 let b = 20.0;
                 let specialized = unsafe { mul_add_round_v2_fma(x, k, b) };
-                let fallback = mul_add_round_fallback(x, k, b);
+                let fallback = fallback(x, k, b);
                 assert_eq!(specialized, fallback);
             }
         }
@@ -197,8 +197,8 @@ mod mul_add_round {
 
     #[inline]
     #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "v8.3a")]
-    fn mul_add_round_v8_3a(this: &[f32], k: f32, b: f32) -> Vec<u8> {
+    #[crate::target_cpu(enable = "a2")]
+    fn mul_add_round_a2(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let n = this.len();
         let mut r = Vec::<u8>::with_capacity(n);
         unsafe {
@@ -244,9 +244,9 @@ mod mul_add_round {
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
     #[test]
-    fn mul_add_round_v8_3a_test() {
-        if !crate::is_cpu_detected!("v8.3a") {
-            println!("test {} ... skipped (v8.3a)", module_path!());
+    fn mul_add_round_a2_test() {
+        if !crate::is_cpu_detected!("a2") {
+            println!("test {} ... skipped (a2)", module_path!());
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
@@ -256,14 +256,14 @@ mod mul_add_round {
                 let x = &x[..z];
                 let k = 20.0;
                 let b = 20.0;
-                let specialized = unsafe { mul_add_round_v8_3a(x, k, b) };
-                let fallback = mul_add_round_fallback(x, k, b);
+                let specialized = unsafe { mul_add_round_a2(x, k, b) };
+                let fallback = fallback(x, k, b);
                 assert_eq!(specialized, fallback);
             }
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"v8.3a")]
+    #[crate::multiversion(@"v4.512", @"v3", @"v2:fma", @"a2")]
     pub fn mul_add_round(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let n = this.len();
         let mut r = Vec::<u8>::with_capacity(n);

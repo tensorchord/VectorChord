@@ -8,5 +8,5 @@ fn main() {
         .flag("-ffp-contract=fast")
         .flag("-freciprocal-math")
         .flag("-fno-signed-zeros")
-        .compile("base_cshim");
+        .compile("simd_cshim");
 }

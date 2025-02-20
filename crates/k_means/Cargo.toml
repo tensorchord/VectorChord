@@ -1,0 +1,15 @@
+[package]
+name = "k_means"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+
+half.workspace = true
+rand.workspace = true
+rayon = "1.10.0"
+
+[lints]
+workspace = true

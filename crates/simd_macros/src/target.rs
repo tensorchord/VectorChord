@@ -6,78 +6,48 @@ pub struct TargetCpu {
 
 pub const TARGET_CPUS: &[TargetCpu] = &[
     TargetCpu {
-        target_cpu: "v4",
+        target_cpu: "v4.512",
         target_arch: "x86_64",
         target_features: &[
-            "avx",
-            "avx2",
-            "avx512bw",
-            "avx512cd",
-            "avx512dq",
-            "avx512f",
-            "avx512vl",
-            "bmi1",
-            "bmi2",
-            "cmpxchg16b",
-            "f16c",
-            "fma",
-            "fxsr",
-            "lzcnt",
-            "movbe",
-            "popcnt",
-            "sse",
-            "sse2",
-            "sse3",
-            "sse4.1",
-            "sse4.2",
-            "ssse3",
-            "xsave",
+            "avx512bw", "avx512cd", "avx512dq", "avx512vl", // simd
+            "bmi1", "bmi2", "lzcnt", "movbe", "popcnt", // bit-operations
         ],
     },
     TargetCpu {
         target_cpu: "v3",
         target_arch: "x86_64",
         target_features: &[
-            "avx",
-            "avx2",
-            "bmi1",
-            "bmi2",
-            "cmpxchg16b",
-            "f16c",
-            "fma",
-            "fxsr",
-            "lzcnt",
-            "movbe",
-            "popcnt",
-            "sse",
-            "sse2",
-            "sse3",
-            "sse4.1",
-            "sse4.2",
-            "ssse3",
-            "xsave",
+            "avx2", "f16c", "fma", // simd
+            "bmi1", "bmi2", "lzcnt", "movbe", "popcnt", // bit-operations
         ],
     },
     TargetCpu {
         target_cpu: "v2",
         target_arch: "x86_64",
         target_features: &[
-            "cmpxchg16b",
-            "fxsr",
-            "popcnt",
-            "sse",
-            "sse2",
-            "sse3",
-            "sse4.1",
-            "sse4.2",
-            "ssse3",
+            "sse4.2", // simd
+            "popcnt", // bit-operations
         ],
     },
     TargetCpu {
-        target_cpu: "v8.3a",
+        target_cpu: "a3.512",
         target_arch: "aarch64",
         target_features: &[
-            "crc", "dpb", "fcma", "jsconv", "lse", "neon", "paca", "pacg", "rcpc", "rdm",
+            "sve", // simd
+        ],
+    },
+    TargetCpu {
+        target_cpu: "a3.256",
+        target_arch: "aarch64",
+        target_features: &[
+            "sve", // simd
+        ],
+    },
+    TargetCpu {
+        target_cpu: "a2",
+        target_arch: "aarch64",
+        target_features: &[
+            "neon", // simd
         ],
     },
 ];

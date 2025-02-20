@@ -118,11 +118,9 @@ pub fn multiversion(
             }
         });
     }
-    let fallback_name =
-        syn::Ident::new(&format!("{name}_fallback"), proc_macro2::Span::mixed_site());
     quote::quote! {
         #versions
-        fn #fallback_name < #generics_params > (#inputs) #output #generics_where { #block }
+        fn fallback < #generics_params > (#inputs) #output #generics_where { #block }
         #[inline(always)]
         #(#attrs)* #vis #sig {
             static CACHE: core::sync::atomic::AtomicPtr<()> = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
@@ -132,7 +130,7 @@ pub fn multiversion(
                 return unsafe { f(#(#arguments,)*) };
             }
             #branches
-            let _multiversion_internal: unsafe fn(#inputs) #output = #fallback_name;
+            let _multiversion_internal: unsafe fn(#inputs) #output = fallback;
             CACHE.store(_multiversion_internal as *mut (), core::sync::atomic::Ordering::Relaxed);
             unsafe { _multiversion_internal(#(#arguments,)*) }
         }
@@ -184,21 +182,22 @@ pub fn define_is_cpu_detected(input: proc_macro::TokenStream) -> proc_macro::Tok
         if target_cpu.target_arch != target_arch {
             continue;
         }
-        let target_features = target_cpu.target_features;
         let target_cpu = target_cpu.target_cpu;
+        let ident = syn::Ident::new(
+            &format!("is_{}_detected", target_cpu.replace('.', "_")),
+            proc_macro2::Span::mixed_site(),
+        );
         arms.extend(quote::quote! {
-            (#target_cpu) => {
-                true #(&& $crate::is_feature_detected!(#target_features))*
-            };
+            (#target_cpu) => { $crate::internal::#ident() };
         });
     }
-    let name = syn::Ident::new(
+    let ident = syn::Ident::new(
         &format!("is_{target_arch}_cpu_detected"),
         proc_macro2::Span::mixed_site(),
     );
     quote::quote! {
         #[macro_export]
-        macro_rules! #name {
+        macro_rules! #ident {
             #arms
         }
     }

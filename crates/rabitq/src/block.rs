@@ -1,7 +1,7 @@
 use distance::Distance;
 use simd::Floating;
 
-pub fn preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<[u64; 2]>) {
+pub fn preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<[u8; 16]>) {
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
     let (k, b, qvector) = simd::quantize::quantize(vector, 15.0);
     let qvector_sum = if vector.len() <= 4369 {
@@ -13,13 +13,13 @@ pub fn preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<[u64; 2]>) {
 }
 
 pub fn process_lowerbound_l2(
-    lut: &(f32, f32, f32, f32, Vec<[u64; 2]>),
+    lut: &(f32, f32, f32, f32, Vec<[u8; 16]>),
     (dis_u_2, factor_ppc, factor_ip, factor_err, t): (
         &[f32; 32],
         &[f32; 32],
         &[f32; 32],
         &[f32; 32],
-        &[[u64; 2]],
+        &[[u8; 16]],
     ),
     epsilon: f32,
 ) -> [Distance; 32] {
@@ -36,13 +36,13 @@ pub fn process_lowerbound_l2(
 }
 
 pub fn process_lowerbound_dot(
-    lut: &(f32, f32, f32, f32, Vec<[u64; 2]>),
+    lut: &(f32, f32, f32, f32, Vec<[u8; 16]>),
     (_, factor_ppc, factor_ip, factor_err, t): (
         &[f32; 32],
         &[f32; 32],
         &[f32; 32],
         &[f32; 32],
-        &[[u64; 2]],
+        &[[u8; 16]],
     ),
     epsilon: f32,
 ) -> [Distance; 32] {
@@ -56,11 +56,12 @@ pub fn process_lowerbound_dot(
     })
 }
 
-pub fn compress(mut vector: Vec<u8>) -> Vec<[u64; 2]> {
-    let width = vector.len().div_ceil(4);
-    vector.resize(width * 4, 0);
-    let mut result = vec![[0u64, 0u64]; width];
-    for i in 0..width {
+pub fn compress(mut vector: Vec<u8>) -> Vec<[u8; 16]> {
+    let n = vector.len().div_ceil(4);
+    vector.resize(n * 4, 0);
+    let mut result = vec![[0u8; 16]; n];
+    for i in 0..n {
+        #[allow(unsafe_code)]
         unsafe {
             // this hint is used to skip bound checks
             std::hint::assert_unchecked(4 * i + 3 < vector.len());
@@ -70,26 +71,22 @@ pub fn compress(mut vector: Vec<u8>) -> Vec<[u64; 2]> {
         let t_2 = vector[4 * i + 2];
         let t_3 = vector[4 * i + 3];
         result[i] = [
-            u64::from_le_bytes([
-                0,
-                t_0,
-                t_1,
-                t_1 + t_0,
-                t_2,
-                t_2 + t_0,
-                t_2 + t_1,
-                t_2 + t_1 + t_0,
-            ]),
-            u64::from_le_bytes([
-                t_3,
-                t_3 + t_0,
-                t_3 + t_1,
-                t_3 + t_1 + t_0,
-                t_3 + t_2,
-                t_3 + t_2 + t_0,
-                t_3 + t_2 + t_1,
-                t_3 + t_2 + t_1 + t_0,
-            ]),
+            0,
+            t_0,
+            t_1,
+            t_1 + t_0,
+            t_2,
+            t_2 + t_0,
+            t_2 + t_1,
+            t_2 + t_1 + t_0,
+            t_3,
+            t_3 + t_0,
+            t_3 + t_1,
+            t_3 + t_1 + t_0,
+            t_3 + t_2,
+            t_3 + t_2 + t_0,
+            t_3 + t_2 + t_1,
+            t_3 + t_2 + t_1 + t_0,
         ];
     }
     result

@@ -1,12 +1,11 @@
 use crate::{VectorBorrowed, VectorOwned};
 use distance::Distance;
-use serde::{Deserialize, Serialize};
 use std::ops::{Bound, RangeBounds};
 
 pub const BVECTOR_WIDTH: u32 = u64::BITS;
 
 // When using binary vector, please ensure that the padding bits are always zero.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BVectOwned {
     dims: u32,
     data: Vec<u64>,
@@ -29,7 +28,10 @@ impl BVectOwned {
         if dims % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dims % BVECTOR_WIDTH) != 0 {
             return None;
         }
-        unsafe { Some(Self::new_unchecked(dims, data)) }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dims, data))
+        }
     }
 
     /// # Safety
@@ -37,6 +39,7 @@ impl BVectOwned {
     /// * `dims` must be in `1..=65535`.
     /// * `data` must be of the correct length.
     /// * The padding bits must be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(dims: u32, data: Vec<u64>) -> Self {
         Self { dims, data }
@@ -83,7 +86,10 @@ impl<'a> BVectBorrowed<'a> {
         if dims % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dims % BVECTOR_WIDTH) != 0 {
             return None;
         }
-        unsafe { Some(Self::new_unchecked(dims, data)) }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dims, data))
+        }
     }
 
     /// # Safety
@@ -91,6 +97,7 @@ impl<'a> BVectBorrowed<'a> {
     /// * `dims` must be in `1..=65535`.
     /// * `data` must be of the correct length.
     /// * The padding bits must be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(dims: u32, data: &'a [u64]) -> Self {
         Self { dims, data }

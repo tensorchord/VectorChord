@@ -2,17 +2,18 @@
 #error "clang version must be >= 16"
 #endif
 
-#include <stddef.h>
-#include <stdint.h>
-
 #ifdef __aarch64__
 
 #include <arm_neon.h>
 #include <arm_sve.h>
+#include <stddef.h>
+#include <stdint.h>
 
-__attribute__((target("v8.3a,fp16"))) float
-fp16_reduce_sum_of_xy_v8_3a_fp16_unroll(__fp16 *__restrict a,
-                                        __fp16 *__restrict b, size_t n) {
+typedef __fp16 f16;
+typedef float f32;
+
+__attribute__((target("fp16"))) float
+fp16_reduce_sum_of_xy_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   float16x8_t xy_0 = vdupq_n_f16(0.0);
   float16x8_t xy_1 = vdupq_n_f16(0.0);
   float16x8_t xy_2 = vdupq_n_f16(0.0);
@@ -35,8 +36,8 @@ fp16_reduce_sum_of_xy_v8_3a_fp16_unroll(__fp16 *__restrict a,
     xy_3 = vfmaq_f16(xy_3, x_3, y_3);
   }
   if (n > 0) {
-    __fp16 A[32] = {};
-    __fp16 B[32] = {};
+    f16 A[32] = {};
+    f16 B[32] = {};
     for (size_t i = 0; i < n; i += 1) {
       A[i] = a[i];
       B[i] = b[i];
@@ -55,14 +56,13 @@ fp16_reduce_sum_of_xy_v8_3a_fp16_unroll(__fp16 *__restrict a,
     xy_3 = vfmaq_f16(xy_3, x_3, y_3);
   }
   float16x8_t xy = vaddq_f16(vaddq_f16(xy_0, xy_1), vaddq_f16(xy_2, xy_3));
-  return vgetq_lane_f16(xy, 0) + vgetq_lane_f16(xy, 1) + vgetq_lane_f16(xy, 2) +
-         vgetq_lane_f16(xy, 3) + vgetq_lane_f16(xy, 4) + vgetq_lane_f16(xy, 5) +
-         vgetq_lane_f16(xy, 6) + vgetq_lane_f16(xy, 7);
+  float32x4_t lo = vcvt_f32_f16(vget_low_f16(xy));
+  float32x4_t hi = vcvt_f32_f16(vget_high_f16(xy));
+  return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp16_reduce_sum_of_xy_v8_3a_sve(__fp16 *__restrict a, __fp16 *__restrict b,
-                                size_t n) {
+__attribute__((target("sve"))) float
+fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t xy = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
     svbool_t mask = svwhilelt_b16(i, n);
@@ -73,9 +73,8 @@ fp16_reduce_sum_of_xy_v8_3a_sve(__fp16 *__restrict a, __fp16 *__restrict b,
   return svaddv_f16(svptrue_b16(), xy);
 }
 
-__attribute__((target("v8.3a,fp16"))) float
-fp16_reduce_sum_of_d2_v8_3a_fp16_unroll(__fp16 *__restrict a,
-                                        __fp16 *__restrict b, size_t n) {
+__attribute__((target("fp16"))) float
+fp16_reduce_sum_of_d2_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   float16x8_t d2_0 = vdupq_n_f16(0.0);
   float16x8_t d2_1 = vdupq_n_f16(0.0);
   float16x8_t d2_2 = vdupq_n_f16(0.0);
@@ -102,8 +101,8 @@ fp16_reduce_sum_of_d2_v8_3a_fp16_unroll(__fp16 *__restrict a,
     d2_3 = vfmaq_f16(d2_3, d_3, d_3);
   }
   if (n > 0) {
-    __fp16 A[32] = {};
-    __fp16 B[32] = {};
+    f16 A[32] = {};
+    f16 B[32] = {};
     for (size_t i = 0; i < n; i += 1) {
       A[i] = a[i];
       B[i] = b[i];
@@ -126,14 +125,13 @@ fp16_reduce_sum_of_d2_v8_3a_fp16_unroll(__fp16 *__restrict a,
     d2_3 = vfmaq_f16(d2_3, d_3, d_3);
   }
   float16x8_t d2 = vaddq_f16(vaddq_f16(d2_0, d2_1), vaddq_f16(d2_2, d2_3));
-  return vgetq_lane_f16(d2, 0) + vgetq_lane_f16(d2, 1) + vgetq_lane_f16(d2, 2) +
-         vgetq_lane_f16(d2, 3) + vgetq_lane_f16(d2, 4) + vgetq_lane_f16(d2, 5) +
-         vgetq_lane_f16(d2, 6) + vgetq_lane_f16(d2, 7);
+  float32x4_t lo = vcvt_f32_f16(vget_low_f16(d2));
+  float32x4_t hi = vcvt_f32_f16(vget_high_f16(d2));
+  return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp16_reduce_sum_of_d2_v8_3a_sve(__fp16 *__restrict a, __fp16 *__restrict b,
-                                size_t n) {
+__attribute__((target("sve"))) float
+fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t d2 = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
     svbool_t mask = svwhilelt_b16(i, n);
@@ -145,8 +143,8 @@ fp16_reduce_sum_of_d2_v8_3a_sve(__fp16 *__restrict a, __fp16 *__restrict b,
   return svaddv_f16(svptrue_b16(), d2);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp32_reduce_sum_of_x_v8_3a_sve(float *__restrict this, size_t n) {
+__attribute__((target("sve"))) float
+fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
     svbool_t mask = svwhilelt_b32(i, n);
@@ -156,8 +154,8 @@ fp32_reduce_sum_of_x_v8_3a_sve(float *__restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp32_reduce_sum_of_abs_x_v8_3a_sve(float *__restrict this, size_t n) {
+__attribute__((target("sve"))) float
+fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
     svbool_t mask = svwhilelt_b32(i, n);
@@ -167,8 +165,8 @@ fp32_reduce_sum_of_abs_x_v8_3a_sve(float *__restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp32_reduce_sum_of_x2_v8_3a_sve(float *__restrict this, size_t n) {
+__attribute__((target("sve"))) float
+fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
     svbool_t mask = svwhilelt_b32(i, n);
@@ -178,9 +176,9 @@ fp32_reduce_sum_of_x2_v8_3a_sve(float *__restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("v8.3a,sve"))) void
-fp32_reduce_min_max_of_x_v8_3a_sve(float *__restrict this, size_t n,
-                                   float *out_min, float *out_max) {
+__attribute__((target("sve"))) void
+fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
+                                float *out_max) {
   svfloat32_t min = svdup_f32(1.0 / 0.0);
   svfloat32_t max = svdup_f32(-1.0 / 0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
@@ -193,9 +191,9 @@ fp32_reduce_min_max_of_x_v8_3a_sve(float *__restrict this, size_t n,
   *out_max = svmaxv_f32(svptrue_b32(), max);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp32_reduce_sum_of_xy_v8_3a_sve(float *__restrict lhs, float *__restrict rhs,
-                                size_t n) {
+__attribute__((target("sve"))) float
+fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
+                             size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
     svbool_t mask = svwhilelt_b32(i, n);
@@ -206,9 +204,9 @@ fp32_reduce_sum_of_xy_v8_3a_sve(float *__restrict lhs, float *__restrict rhs,
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("v8.3a,sve"))) float
-fp32_reduce_sum_of_d2_v8_3a_sve(float *__restrict lhs, float *__restrict rhs,
-                                size_t n) {
+__attribute__((target("sve"))) float
+fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
+                             size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
     svbool_t mask = svwhilelt_b32(i, n);

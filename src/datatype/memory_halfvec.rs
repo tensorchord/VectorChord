@@ -1,20 +1,14 @@
 use half::f16;
-use pgrx::datum::FromDatum;
-use pgrx::datum::IntoDatum;
-use pgrx::pg_sys::Datum;
-use pgrx::pg_sys::Oid;
-use pgrx::pgrx_sql_entity_graph::metadata::ArgumentError;
-use pgrx::pgrx_sql_entity_graph::metadata::Returns;
-use pgrx::pgrx_sql_entity_graph::metadata::ReturnsError;
-use pgrx::pgrx_sql_entity_graph::metadata::SqlMapping;
-use pgrx::pgrx_sql_entity_graph::metadata::SqlTranslatable;
+use pgrx::datum::{FromDatum, IntoDatum};
+use pgrx::pg_sys::{Datum, Oid};
+use pgrx::pgrx_sql_entity_graph::metadata::*;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use vector::VectorBorrowed;
 use vector::vect::VectBorrowed;
 
 #[repr(C, align(8))]
-pub struct HalfvecHeader {
+struct HalfvecHeader {
     varlena: u32,
     dims: u16,
     unused: u16,
@@ -28,10 +22,10 @@ impl HalfvecHeader {
         }
         (size_of::<Self>() + size_of::<f16>() * len).next_multiple_of(8)
     }
-    pub unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> VectBorrowed<'a, f16> {
+    unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> VectBorrowed<'a, f16> {
         unsafe {
             let this = this.as_ptr();
-            VectBorrowed::new_unchecked(std::slice::from_raw_parts(
+            VectBorrowed::new(std::slice::from_raw_parts(
                 (&raw const (*this).elements).cast(),
                 (&raw const (*this).dims).read() as usize,
             ))
@@ -93,7 +87,7 @@ impl HalfvecOutput {
     pub fn as_borrowed(&self) -> VectBorrowed<'_, f16> {
         unsafe { HalfvecHeader::as_borrowed(self.0) }
     }
-    pub fn into_raw(self) -> *mut HalfvecHeader {
+    fn into_raw(self) -> *mut HalfvecHeader {
         let result = self.0.as_ptr();
         std::mem::forget(self);
         result

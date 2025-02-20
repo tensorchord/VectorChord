@@ -3,7 +3,7 @@ pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {
 }
 
 mod reduce_sum_of_xy {
-    #[crate::multiversion("v4", "v3", "v2", "v8.3a:sve", "v8.3a")]
+    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
     pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {
         assert_eq!(s.len(), t.len());
         let n = s.len();

@@ -77,7 +77,7 @@ pub fn code(dims: u32, vector: &[f32]) -> Code {
 pub fn compute_lut(
     vector: &[f32],
 ) -> (
-    (f32, f32, f32, f32, Vec<[u64; 2]>),
+    (f32, f32, f32, f32, Vec<[u8; 16]>),
     (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
 ) {
     use simd::Floating;

@@ -1,11 +1,10 @@
 use super::{VectorBorrowed, VectorOwned};
 use distance::Distance;
-use serde::{Deserialize, Serialize};
 use simd::Floating;
 use std::cmp::Ordering;
 use std::ops::RangeBounds;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[repr(transparent)]
 pub struct VectOwned<S>(Vec<S>);
 
@@ -20,12 +19,14 @@ impl<S: Floating> VectOwned<S> {
         if !(1..=65535).contains(&slice.len()) {
             return None;
         }
+        #[allow(unsafe_code)]
         Some(unsafe { Self::new_unchecked(slice) })
     }
 
     /// # Safety
     ///
     /// * `slice.len()` must not be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(slice: Vec<S>) -> Self {
         Self(slice)
@@ -76,12 +77,14 @@ impl<'a, S: Floating> VectBorrowed<'a, S> {
         if !(1..=65535).contains(&slice.len()) {
             return None;
         }
+        #[allow(unsafe_code)]
         Some(unsafe { Self::new_unchecked(slice) })
     }
 
     /// # Safety
     ///
     /// * `slice.len()` must not be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(slice: &'a [S]) -> Self {
         Self(slice)

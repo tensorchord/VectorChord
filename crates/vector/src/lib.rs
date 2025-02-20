@@ -3,7 +3,7 @@ pub mod scalar8;
 pub mod svect;
 pub mod vect;
 
-pub trait VectorOwned: Clone + serde::Serialize + for<'a> serde::Deserialize<'a> + 'static {
+pub trait VectorOwned: Clone + 'static {
     type Borrowed<'a>: VectorBorrowed<Owned = Self>;
 
     fn as_borrowed(&self) -> Self::Borrowed<'_>;

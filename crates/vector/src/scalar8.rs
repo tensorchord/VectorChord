@@ -1,9 +1,8 @@
 use crate::{VectorBorrowed, VectorOwned};
 use distance::Distance;
-use serde::{Deserialize, Serialize};
 use std::ops::RangeBounds;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Scalar8Owned {
     sum_of_x2: f32,
     k: f32,
@@ -29,12 +28,14 @@ impl Scalar8Owned {
         if !(1..=65535).contains(&code.len()) {
             return None;
         }
+        #[allow(unsafe_code)]
         Some(unsafe { Self::new_unchecked(sum_of_x2, k, b, sum_of_code, code) })
     }
 
     /// # Safety
     ///
     /// * `code.len()` must not be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(
         sum_of_x2: f32,
@@ -105,12 +106,14 @@ impl<'a> Scalar8Borrowed<'a> {
         if !(1..=65535).contains(&code.len()) {
             return None;
         }
+        #[allow(unsafe_code)]
         Some(unsafe { Self::new_unchecked(sum_of_x2, k, b, sum_of_code, code) })
     }
 
     /// # Safety
     ///
     /// * `code.len()` must not be zero.
+    #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(
         sum_of_x2: f32,

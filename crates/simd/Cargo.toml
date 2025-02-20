@@ -4,15 +4,16 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-half.workspace = true
-serde.workspace = true
 simd_macros = { path = "../simd_macros" }
+
+half.workspace = true
+zerocopy.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
 
 [build-dependencies]
-cc = "1.2.6"
+cc = "1.2.13"
 
 [lints]
 workspace = true

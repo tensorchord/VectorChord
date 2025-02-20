@@ -1,7 +1,7 @@
-#![feature(target_feature_11)]
 #![feature(avx512_target_feature)]
 #![cfg_attr(target_arch = "x86_64", feature(stdarch_x86_avx512))]
 #![cfg_attr(target_arch = "x86_64", feature(stdarch_x86_avx512_f16))]
+#![allow(unsafe_code)]
 
 mod aligned;
 mod emulate;
@@ -15,16 +15,7 @@ pub mod quantize;
 pub mod u8;
 
 pub trait Floating:
-    Copy
-    + Send
-    + Sync
-    + std::fmt::Debug
-    + serde::Serialize
-    + for<'a> serde::Deserialize<'a>
-    + Default
-    + 'static
-    + PartialEq
-    + PartialOrd
+    Copy + Send + Sync + std::fmt::Debug + Default + 'static + PartialEq + PartialOrd
 {
     fn zero() -> Self;
     fn infinity() -> Self;
@@ -77,10 +68,77 @@ mod internal {
     #[cfg(target_arch = "riscv64")]
     #[allow(unused_imports)]
     pub use is_riscv64_cpu_detected;
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn is_v4_512_detected() -> bool {
+        std::arch::is_x86_feature_detected!("avx512bw")
+            && std::arch::is_x86_feature_detected!("avx512cd")
+            && std::arch::is_x86_feature_detected!("avx512dq")
+            && std::arch::is_x86_feature_detected!("avx512vl")
+            && std::arch::is_x86_feature_detected!("bmi1")
+            && std::arch::is_x86_feature_detected!("bmi2")
+            && std::arch::is_x86_feature_detected!("lzcnt")
+            && std::arch::is_x86_feature_detected!("movbe")
+            && std::arch::is_x86_feature_detected!("popcnt")
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn is_v3_detected() -> bool {
+        std::arch::is_x86_feature_detected!("avx2")
+            && std::arch::is_x86_feature_detected!("f16c")
+            && std::arch::is_x86_feature_detected!("fma")
+            && std::arch::is_x86_feature_detected!("bmi1")
+            && std::arch::is_x86_feature_detected!("bmi2")
+            && std::arch::is_x86_feature_detected!("lzcnt")
+            && std::arch::is_x86_feature_detected!("movbe")
+            && std::arch::is_x86_feature_detected!("popcnt")
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn is_v2_detected() -> bool {
+        std::arch::is_x86_feature_detected!("sse4.2")
+            && std::arch::is_x86_feature_detected!("popcnt")
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn is_a3_512_detected() -> bool {
+        #[target_feature(enable = "sve")]
+        fn is_512_detected() -> bool {
+            let vl: u64;
+            unsafe {
+                core::arch::asm!(
+                    "rdvl {0}, #8",
+                    out(reg) vl
+                );
+            }
+            vl >= 512
+        }
+        std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_512_detected() }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn is_a3_256_detected() -> bool {
+        #[target_feature(enable = "sve")]
+        fn is_256_detected() -> bool {
+            let vl: u64;
+            unsafe {
+                core::arch::asm!(
+                    "rdvl {0}, #8",
+                    out(reg) vl
+                );
+            }
+            vl >= 256
+        }
+        std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_256_detected() }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn is_a2_detected() -> bool {
+        std::arch::is_aarch64_feature_detected!("neon")
+    }
 }
 
-pub use simd_macros::multiversion;
-pub use simd_macros::target_cpu;
+pub use simd_macros::{multiversion, target_cpu};
 
 #[cfg(target_arch = "x86_64")]
 #[allow(unused_imports)]
