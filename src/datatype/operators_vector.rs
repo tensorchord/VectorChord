@@ -1,4 +1,6 @@
 use crate::datatype::memory_vector::{VectorInput, VectorOutput};
+use distance::Distance;
+use pgrx::Array;
 use std::num::NonZero;
 use vector::VectorBorrowed;
 use vector::vect::VectBorrowed;
@@ -73,4 +75,43 @@ fn _vchord_vector_sphere_cosine_in(
     }
     let d = VectBorrowed::operator_cos(lhs, center).to_f32();
     d < radius
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_l2(lhs: Array<'_, VectorInput<'_>>, rhs: VectorInput<'_>) -> f32 {
+    let mut maxsim = Distance::INFINITY;
+    for lhs in lhs.iter().flatten() {
+        maxsim = maxsim.min(VectBorrowed::operator_l2(
+            lhs.as_borrowed(),
+            rhs.as_borrowed(),
+        ));
+    }
+    maxsim.to_f32().sqrt()
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_ip(lhs: Array<'_, VectorInput<'_>>, rhs: VectorInput<'_>) -> f32 {
+    let mut maxsim = Distance::INFINITY;
+    for lhs in lhs.iter().flatten() {
+        maxsim = maxsim.min(VectBorrowed::operator_dot(
+            lhs.as_borrowed(),
+            rhs.as_borrowed(),
+        ));
+    }
+    maxsim.to_f32()
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_cosine(
+    lhs: Array<'_, VectorInput<'_>>,
+    rhs: VectorInput<'_>,
+) -> f32 {
+    let mut maxsim = Distance::INFINITY;
+    for lhs in lhs.iter().flatten() {
+        maxsim = maxsim.min(VectBorrowed::operator_cos(
+            lhs.as_borrowed(),
+            rhs.as_borrowed(),
+        ));
+    }
+    maxsim.to_f32()
 }

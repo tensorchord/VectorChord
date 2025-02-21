@@ -1,6 +1,6 @@
 use crate::operator::Accessor1;
 use crate::tuples::*;
-use crate::{Page, PageGuard, RelationRead, RelationWrite};
+use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite};
 use std::marker::PhantomData;
 use std::num::NonZeroU64;
 use std::ops::DerefMut;
