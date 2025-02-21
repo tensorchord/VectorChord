@@ -2,7 +2,7 @@ use crate::operator::{Accessor2, Operator, Vector};
 use crate::tape::TapeWriter;
 use crate::tuples::*;
 use crate::types::*;
-use crate::{Branch, DerefMut, Page, PageGuard, RelationWrite};
+use crate::{Branch, DerefMut, IndexPointer, Page, PageGuard, RelationWrite};
 use simd::fast_scan::{any_pack, padding_pack};
 use vector::VectorOwned;
 
@@ -55,6 +55,7 @@ pub fn build<O: Operator>(
                 jump.push(JumpTuple {
                     frozen_first: frozen_tape.first(),
                     appendable_first: appendable_tape.first(),
+                    tuples: 0,
                 });
                 level.push(jump.first());
             } else {
