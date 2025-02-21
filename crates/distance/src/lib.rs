@@ -6,6 +6,7 @@ impl Distance {
     pub const ZERO: Self = Distance::from_f32(0.0f32);
     pub const INFINITY: Self = Distance::from_f32(f32::INFINITY);
     pub const NEG_INFINITY: Self = Distance::from_f32(f32::NEG_INFINITY);
+    pub const NAN: Self = Distance::from_f32(f32::NAN);
 
     #[inline(always)]
     pub const fn from_f32(value: f32) -> Self {

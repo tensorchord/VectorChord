@@ -1,4 +1,5 @@
 mod default;
+mod maxsim;
 
 use super::opclass::Opfamily;
 use algorithm::RelationRead;
@@ -6,12 +7,15 @@ use pgrx::pg_sys::{Datum, ItemPointerData};
 use std::cell::LazyCell;
 
 pub use default::DefaultBuilder;
+pub use maxsim::MaxsimBuilder;
 
 #[derive(Debug)]
 pub struct SearchOptions {
     pub epsilon: f32,
     pub probes: Vec<u32>,
     pub max_scan_tuples: Option<u32>,
+    pub max_maxsim_tuples: Option<u32>,
+    pub maxsim_threshold: u32,
 }
 
 pub trait SearchBuilder: 'static {

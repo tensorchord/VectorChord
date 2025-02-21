@@ -83,7 +83,7 @@ impl SearchBuilder for DefaultBuilder {
                     let vector = RandomProject::project(
                         VectOwned::<f32>::from_owned(vector.clone()).as_borrowed(),
                     );
-                    let (method, results) = algorithm::search::<Op<VectOwned<f32>, L2>>(
+                    let results = algorithm::search::<Op<VectOwned<f32>, L2>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
@@ -97,6 +97,7 @@ impl SearchBuilder for DefaultBuilder {
                         let raw = VectOwned::<f32>::from_owned(maybe_vector.unwrap());
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
+                    let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
                             algorithm::rerank_index::<Op<VectOwned<f32>, L2>>(
@@ -116,7 +117,7 @@ impl SearchBuilder for DefaultBuilder {
                     let vector = RandomProject::project(
                         VectOwned::<f32>::from_owned(vector.clone()).as_borrowed(),
                     );
-                    let (method, results) = algorithm::search::<Op<VectOwned<f32>, Dot>>(
+                    let results = algorithm::search::<Op<VectOwned<f32>, Dot>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
@@ -130,6 +131,7 @@ impl SearchBuilder for DefaultBuilder {
                         let raw = VectOwned::<f32>::from_owned(maybe_vector.unwrap());
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
+                    let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
                             algorithm::rerank_index::<Op<VectOwned<f32>, Dot>>(
@@ -149,7 +151,7 @@ impl SearchBuilder for DefaultBuilder {
                     let vector = RandomProject::project(
                         VectOwned::<f16>::from_owned(vector.clone()).as_borrowed(),
                     );
-                    let (method, results) = algorithm::search::<Op<VectOwned<f16>, L2>>(
+                    let results = algorithm::search::<Op<VectOwned<f16>, L2>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
@@ -163,6 +165,7 @@ impl SearchBuilder for DefaultBuilder {
                         let raw = VectOwned::<f16>::from_owned(maybe_vector.unwrap());
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
+                    let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
                             algorithm::rerank_index::<Op<VectOwned<f16>, L2>>(
@@ -182,7 +185,7 @@ impl SearchBuilder for DefaultBuilder {
                     let vector = RandomProject::project(
                         VectOwned::<f16>::from_owned(vector.clone()).as_borrowed(),
                     );
-                    let (method, results) = algorithm::search::<Op<VectOwned<f16>, Dot>>(
+                    let results = algorithm::search::<Op<VectOwned<f16>, Dot>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
@@ -196,6 +199,7 @@ impl SearchBuilder for DefaultBuilder {
                         let raw = VectOwned::<f16>::from_owned(maybe_vector.unwrap());
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
+                    let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
                             algorithm::rerank_index::<Op<VectOwned<f16>, Dot>>(

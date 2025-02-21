@@ -6,6 +6,8 @@ static EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 static MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 static PREWARM_DIM: GucSetting<Option<&CStr>> =
     GucSetting::<Option<&CStr>>::new(Some(c"64,128,256,384,512,768,1024,1536"));
+static MAX_MAXSIM_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
+static MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
 
 pub fn init() {
     GucRegistry::define_string_guc(
@@ -41,6 +43,26 @@ pub fn init() {
         "prewarm_dim when the extension is loading.",
         "prewarm_dim when the extension is loading.",
         &PREWARM_DIM,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        "vchordrq.max_maxsim_tuples",
+        "`max_maxsim_tuples` argument of vchordrq.",
+        "`max_maxsim_tuples` argument of vchordrq.",
+        &MAX_MAXSIM_TUPLES,
+        -1,
+        i32::MAX,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        "vchordrq.maxsim_threshold",
+        "`maxsim_threshold` argument of vchordrq.",
+        "`maxsim_threshold` argument of vchordrq.",
+        &MAXSIM_THRESHOLD,
+        0,
+        i32::MAX,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -87,6 +109,16 @@ pub fn epsilon() -> f32 {
 pub fn max_scan_tuples() -> Option<u32> {
     let x = MAX_SCAN_TUPLES.get();
     if x < 0 { None } else { Some(x as u32) }
+}
+
+pub fn max_maxsim_tuples() -> Option<u32> {
+    let x = MAX_MAXSIM_TUPLES.get();
+    if x < 0 { None } else { Some(x as u32) }
+}
+
+pub fn maxsim_threshold() -> u32 {
+    let x = MAXSIM_THRESHOLD.get();
+    x as u32
 }
 
 pub fn prewarm_dim() -> Vec<u32> {

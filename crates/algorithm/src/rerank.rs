@@ -1,12 +1,24 @@
 use crate::operator::*;
-use crate::tuples::*;
-use crate::{RelationRead, vectors};
+use crate::tuples::{MetaTuple, WithReader};
+use crate::{IndexPointer, Page, RelationRead, RerankMethod, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::num::NonZeroU64;
 use vector::VectorOwned;
+
+pub fn how(index: impl RelationRead) -> RerankMethod {
+    let meta_guard = index.read(0);
+    let meta_bytes = meta_guard.get(1).expect("data corruption");
+    let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
+    let rerank_in_heap = meta_tuple.rerank_in_heap();
+    if rerank_in_heap {
+        RerankMethod::Heap
+    } else {
+        RerankMethod::Index
+    }
+}
 
 pub fn rerank_index<O: Operator>(
     index: impl RelationRead,
@@ -54,9 +66,9 @@ where
     let mut heap = BinaryHeap::from(results);
     let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
     std::iter::from_fn(move || {
-        let vector = O::Vector::elements_and_metadata(vector.as_borrowed());
         while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
             let (_, AlwaysEqual(_), AlwaysEqual(pay_u)) = heap.pop().unwrap();
+            let vector = O::Vector::elements_and_metadata(vector.as_borrowed());
             if let Some(vec_u) = fetch(pay_u) {
                 let vec_u = O::Vector::elements_and_metadata(vec_u.as_borrowed());
                 let mut accessor = O::DistanceAccessor::default();

@@ -1,3 +1,4 @@
+use crate::IndexPointer;
 use crate::operator::Vector;
 use std::marker::PhantomData;
 use std::num::{NonZeroU8, NonZeroU64};
@@ -7,7 +8,7 @@ use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: u64 = u64::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 3;
+const VERSION: u64 = 4;
 
 pub trait Tuple: 'static {
     fn serialize(&self) -> Vec<u8>;
@@ -551,12 +552,14 @@ impl<'a> H1TupleReader1<'a> {
 struct JumpTupleHeader {
     frozen_first: u32,
     appendable_first: u32,
+    tuples: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct JumpTuple {
     pub frozen_first: u32,
     pub appendable_first: u32,
+    pub tuples: u64,
 }
 
 impl Tuple for JumpTuple {
@@ -564,6 +567,7 @@ impl Tuple for JumpTuple {
         JumpTupleHeader {
             frozen_first: self.frozen_first,
             appendable_first: self.appendable_first,
+            tuples: self.tuples,
         }
         .as_bytes()
         .to_vec()
@@ -600,6 +604,9 @@ impl JumpTupleReader<'_> {
     pub fn appendable_first(self) -> u32 {
         self.header.appendable_first
     }
+    pub fn tuples(self) -> u64 {
+        self.header.tuples
+    }
 }
 
 #[derive(Debug)]
@@ -613,6 +620,9 @@ impl JumpTupleWriter<'_> {
     }
     pub fn appendable_first(&mut self) -> &mut u32 {
         &mut self.header.appendable_first
+    }
+    pub fn tuples(&mut self) -> &mut u64 {
+        &mut self.header.tuples
     }
 }
 
@@ -988,12 +998,6 @@ const fn soundness_check() {
     KnownLayout,
 )]
 pub struct ZeroU8(Option<NonZeroU8>);
-
-#[repr(transparent)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, IntoBytes, FromBytes, Immutable, KnownLayout,
-)]
-pub struct IndexPointer(pub u64);
 
 #[repr(transparent)]
 #[derive(
