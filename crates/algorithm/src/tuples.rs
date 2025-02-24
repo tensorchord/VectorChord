@@ -1,3 +1,4 @@
+use crate::IndexPointer;
 use crate::operator::Vector;
 use std::marker::PhantomData;
 use std::num::{NonZeroU8, NonZeroU64};
@@ -988,12 +989,6 @@ const fn soundness_check() {
     KnownLayout,
 )]
 pub struct ZeroU8(Option<NonZeroU8>);
-
-#[repr(transparent)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, IntoBytes, FromBytes, Immutable, KnownLayout,
-)]
-pub struct IndexPointer(pub u64);
 
 #[repr(transparent)]
 #[derive(

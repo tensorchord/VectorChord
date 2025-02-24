@@ -29,7 +29,6 @@ pub use prewarm::prewarm;
 pub use rerank::{rerank_heap, rerank_index};
 pub use search::search;
 
-use crate::tuples::IndexPointer;
 use std::ops::{Deref, DerefMut};
 use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -89,3 +88,9 @@ pub(crate) struct Branch<T> {
     pub signs: Vec<bool>,
     pub extra: T,
 }
+
+#[repr(transparent)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, IntoBytes, FromBytes, Immutable, KnownLayout,
+)]
+pub struct IndexPointer(pub u64);

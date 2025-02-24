@@ -1,7 +1,7 @@
 use crate::linked_vec::LinkedVec;
 use crate::operator::*;
 use crate::tuples::*;
-use crate::{Page, RelationRead, RerankMethod, tape, vectors};
+use crate::{IndexPointer, Page, RelationRead, RerankMethod, tape, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;

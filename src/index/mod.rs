@@ -1,3 +1,4 @@
+pub mod algorithm;
 pub mod am;
 pub mod functions;
 pub mod gucs;

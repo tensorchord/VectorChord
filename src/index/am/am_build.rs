@@ -1,10 +1,8 @@
 use crate::datatype::typmod::Typmod;
 use crate::index::am::{Reloption, ctid_to_pointer};
 use crate::index::opclass::{Opfamily, opfamily};
-use crate::index::projection::RandomProject;
 use crate::index::storage::{PostgresPage, PostgresRelation};
 use crate::index::types::*;
-use algorithm::operator::{Dot, L2, Op, Vector};
 use algorithm::types::*;
 use algorithm::{PageGuard, RelationRead, RelationWrite};
 use half::f16;
@@ -13,8 +11,8 @@ use rand::Rng;
 use simd::Floating;
 use std::num::NonZeroU64;
 use std::ops::Deref;
+use vector::VectorOwned;
 use vector::vect::VectOwned;
-use vector::{VectorBorrowed, VectorOwned};
 
 #[derive(Debug, Clone)]
 struct Heap {
@@ -26,13 +24,13 @@ struct Heap {
 }
 
 impl Heap {
-    fn traverse<V: Vector, F: FnMut((NonZeroU64, V))>(&self, progress: bool, callback: F) {
+    fn traverse<F: FnMut((NonZeroU64, Vec<OwnedVector>))>(&self, progress: bool, callback: F) {
         pub struct State<'a, F> {
             pub this: &'a Heap,
             pub callback: F,
         }
         #[pgrx::pg_guard]
-        unsafe extern "C" fn call<F, V: Vector>(
+        unsafe extern "C" fn call<F>(
             _index_relation: pgrx::pg_sys::Relation,
             ctid: pgrx::pg_sys::ItemPointer,
             values: *mut Datum,
@@ -40,14 +38,14 @@ impl Heap {
             _tuple_is_alive: bool,
             state: *mut core::ffi::c_void,
         ) where
-            F: FnMut((NonZeroU64, V)),
+            F: FnMut((NonZeroU64, Vec<OwnedVector>)),
         {
             let state = unsafe { &mut *state.cast::<State<F>>() };
             let opfamily = state.this.opfamily;
-            let vector = unsafe { opfamily.input_vector(*values.add(0), *is_null.add(0)) };
+            let vectors = unsafe { opfamily.input_data(*values.add(0), *is_null.add(0)) };
             let pointer = unsafe { ctid_to_pointer(ctid.read()) };
-            if let Some(vector) = vector {
-                (state.callback)((pointer, V::from_owned(vector)));
+            if let Some(vectors) = vectors {
+                (state.callback)((pointer, vectors.into_iter().collect()));
             }
         }
         let table_am = unsafe { &*(*self.heap_relation).rd_tableam };
@@ -65,7 +63,7 @@ impl Heap {
                 progress,
                 0,
                 pgrx::pg_sys::InvalidBlockNumber,
-                Some(call::<F, V>),
+                Some(call::<F>),
                 (&mut state) as *mut State<F> as *mut _,
                 self.scan,
             );
@@ -142,76 +140,39 @@ pub unsafe extern "C" fn ambuild(
                 };
                 let mut samples = Vec::new();
                 let mut number_of_samples = 0_u32;
-                match opfamily.vector_kind() {
-                    VectorKind::Vecf32 => {
-                        heap.traverse(false, |(_, vector): (_, VectOwned<f32>)| {
-                            let vector = vector.as_borrowed();
-                            assert_eq!(
-                                vector_options.dims,
-                                vector.dims(),
-                                "invalid vector dimensions"
-                            );
-                            if number_of_samples < max_number_of_samples {
-                                samples.push(VectOwned::<f32>::build_to_vecf32(vector));
-                                number_of_samples += 1;
-                            } else {
-                                let index = rand.random_range(0..max_number_of_samples) as usize;
-                                samples[index] = VectOwned::<f32>::build_to_vecf32(vector);
-                            }
-                            tuples_total += 1;
-                        });
+                heap.traverse(false, |(_, vectors)| {
+                    for vector in vectors {
+                        let x = match vector {
+                            OwnedVector::Vecf32(x) => VectOwned::build_to_vecf32(x.as_borrowed()),
+                            OwnedVector::Vecf16(x) => VectOwned::build_to_vecf32(x.as_borrowed()),
+                        };
+                        assert_eq!(
+                            vector_options.dims,
+                            x.len() as u32,
+                            "invalid vector dimensions"
+                        );
+                        if number_of_samples < max_number_of_samples {
+                            samples.push(x);
+                            number_of_samples += 1;
+                        } else {
+                            let index = rand.random_range(0..max_number_of_samples) as usize;
+                            samples[index] = x;
+                        }
                     }
-                    VectorKind::Vecf16 => {
-                        heap.traverse(false, |(_, vector): (_, VectOwned<f16>)| {
-                            let vector = vector.as_borrowed();
-                            assert_eq!(
-                                vector_options.dims,
-                                vector.dims(),
-                                "invalid vector dimensions"
-                            );
-                            if number_of_samples < max_number_of_samples {
-                                samples.push(VectOwned::<f16>::build_to_vecf32(vector));
-                                number_of_samples += 1;
-                            } else {
-                                let index = rand.random_range(0..max_number_of_samples) as usize;
-                                samples[index] = VectOwned::<f16>::build_to_vecf32(vector);
-                            }
-                            tuples_total += 1;
-                        });
-                    }
-                }
+                    tuples_total += 1;
+                });
                 samples
             };
             reporter.tuples_total(tuples_total);
             make_internal_build(vector_options.clone(), internal_build.clone(), samples)
         }
     };
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => algorithm::build::<Op<VectOwned<f32>, L2>>(
-            vector_options,
-            vchordrq_options.index,
-            index.clone(),
-            map_structures(structures, |x| InternalBuild::build_from_vecf32(&x)),
-        ),
-        (VectorKind::Vecf32, DistanceKind::Dot) => algorithm::build::<Op<VectOwned<f32>, Dot>>(
-            vector_options,
-            vchordrq_options.index,
-            index.clone(),
-            map_structures(structures, |x| InternalBuild::build_from_vecf32(&x)),
-        ),
-        (VectorKind::Vecf16, DistanceKind::L2) => algorithm::build::<Op<VectOwned<f16>, L2>>(
-            vector_options,
-            vchordrq_options.index,
-            index.clone(),
-            map_structures(structures, |x| InternalBuild::build_from_vecf32(&x)),
-        ),
-        (VectorKind::Vecf16, DistanceKind::Dot) => algorithm::build::<Op<VectOwned<f16>, Dot>>(
-            vector_options,
-            vchordrq_options.index,
-            index.clone(),
-            map_structures(structures, |x| InternalBuild::build_from_vecf32(&x)),
-        ),
-    }
+    crate::index::algorithm::build(
+        vector_options,
+        vchordrq_options.index,
+        index.clone(),
+        structures,
+    );
     let cache = if vchordrq_options.build.pin {
         let mut trace = algorithm::cache(index.clone());
         trace.sort();
@@ -268,70 +229,18 @@ pub unsafe extern "C" fn ambuild(
         let mut indtuples = 0;
         reporter.tuples_done(indtuples);
         let relation = unsafe { PostgresRelation::new(index_relation) };
-        match (opfamily.vector_kind(), opfamily.distance_kind()) {
-            (VectorKind::Vecf32, DistanceKind::L2) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                    algorithm::insert::<Op<VectOwned<f32>, L2>>(
-                        relation.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    indtuples += 1;
-                    reporter.tuples_done(indtuples);
-                });
+        heap.traverse(true, |(pointer, vectors)| {
+            for vector in vectors {
+                crate::index::algorithm::insert(opfamily, relation.clone(), pointer, vector);
             }
-            (VectorKind::Vecf32, DistanceKind::Dot) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                    algorithm::insert::<Op<VectOwned<f32>, Dot>>(
-                        relation.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    indtuples += 1;
-                    reporter.tuples_done(indtuples);
-                });
-            }
-            (VectorKind::Vecf16, DistanceKind::L2) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                    algorithm::insert::<Op<VectOwned<f16>, L2>>(
-                        relation.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    indtuples += 1;
-                    reporter.tuples_done(indtuples);
-                });
-            }
-            (VectorKind::Vecf16, DistanceKind::Dot) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                    algorithm::insert::<Op<VectOwned<f16>, Dot>>(
-                        relation.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    indtuples += 1;
-                    reporter.tuples_done(indtuples);
-                });
-            }
-        }
+            indtuples += 1;
+            reporter.tuples_done(indtuples);
+        });
     }
     let check = || {
         pgrx::check_for_interrupts!();
     };
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => {
-            algorithm::maintain::<Op<VectOwned<f32>, L2>>(index, check);
-        }
-        (VectorKind::Vecf32, DistanceKind::Dot) => {
-            algorithm::maintain::<Op<VectOwned<f32>, Dot>>(index, check);
-        }
-        (VectorKind::Vecf16, DistanceKind::L2) => {
-            algorithm::maintain::<Op<VectOwned<f16>, L2>>(index, check);
-        }
-        (VectorKind::Vecf16, DistanceKind::Dot) => {
-            algorithm::maintain::<Op<VectOwned<f16>, Dot>>(index, check);
-        }
-    }
+    crate::index::algorithm::maintain(opfamily, index, check);
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
 }
 
@@ -797,183 +706,47 @@ unsafe fn parallel_build(
         scan,
     };
     match cached {
-        VchordrqCachedReader::_0(_) => match (opfamily.vector_kind(), opfamily.distance_kind()) {
-            (VectorKind::Vecf32, DistanceKind::L2) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                    algorithm::insert::<Op<VectOwned<f32>, L2>>(
-                        index.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    unsafe {
-                        let indtuples;
-                        {
-                            pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                            (*vchordrqshared).indtuples += 1;
-                            indtuples = (*vchordrqshared).indtuples;
-                            pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                        }
-                        if let Some(reporter) = reporter.as_mut() {
-                            reporter.tuples_done(indtuples);
-                        }
+        VchordrqCachedReader::_0(_) => {
+            heap.traverse(true, |(pointer, vectors)| {
+                for vector in vectors {
+                    crate::index::algorithm::insert(opfamily, index.clone(), pointer, vector);
+                }
+                unsafe {
+                    let indtuples;
+                    {
+                        pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+                        (*vchordrqshared).indtuples += 1;
+                        indtuples = (*vchordrqshared).indtuples;
+                        pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
                     }
-                });
-            }
-            (VectorKind::Vecf32, DistanceKind::Dot) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                    algorithm::insert::<Op<VectOwned<f32>, Dot>>(
-                        index.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    unsafe {
-                        let indtuples;
-                        {
-                            pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                            (*vchordrqshared).indtuples += 1;
-                            indtuples = (*vchordrqshared).indtuples;
-                            pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                        }
-                        if let Some(reporter) = reporter.as_mut() {
-                            reporter.tuples_done(indtuples);
-                        }
+                    if let Some(reporter) = reporter.as_mut() {
+                        reporter.tuples_done(indtuples);
                     }
-                });
-            }
-            (VectorKind::Vecf16, DistanceKind::L2) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                    algorithm::insert::<Op<VectOwned<f16>, L2>>(
-                        index.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    unsafe {
-                        let indtuples;
-                        {
-                            pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                            (*vchordrqshared).indtuples += 1;
-                            indtuples = (*vchordrqshared).indtuples;
-                            pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                        }
-                        if let Some(reporter) = reporter.as_mut() {
-                            reporter.tuples_done(indtuples);
-                        }
-                    }
-                });
-            }
-            (VectorKind::Vecf16, DistanceKind::Dot) => {
-                heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                    algorithm::insert::<Op<VectOwned<f16>, Dot>>(
-                        index.clone(),
-                        pointer,
-                        RandomProject::project(vector.as_borrowed()),
-                    );
-                    unsafe {
-                        let indtuples;
-                        {
-                            pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                            (*vchordrqshared).indtuples += 1;
-                            indtuples = (*vchordrqshared).indtuples;
-                            pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                        }
-                        if let Some(reporter) = reporter.as_mut() {
-                            reporter.tuples_done(indtuples);
-                        }
-                    }
-                });
-            }
-        },
+                }
+            });
+        }
         VchordrqCachedReader::_1(cached) => {
             let index = CachingRelation {
                 cache: cached,
                 relation: index,
             };
-            match (opfamily.vector_kind(), opfamily.distance_kind()) {
-                (VectorKind::Vecf32, DistanceKind::L2) => {
-                    heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                        algorithm::insert::<Op<VectOwned<f32>, L2>>(
-                            index.clone(),
-                            pointer,
-                            RandomProject::project(vector.as_borrowed()),
-                        );
-                        unsafe {
-                            let indtuples;
-                            {
-                                pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                                (*vchordrqshared).indtuples += 1;
-                                indtuples = (*vchordrqshared).indtuples;
-                                pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                            }
-                            if let Some(reporter) = reporter.as_mut() {
-                                reporter.tuples_done(indtuples);
-                            }
-                        }
-                    });
+            heap.traverse(true, |(pointer, vectors)| {
+                for vector in vectors {
+                    crate::index::algorithm::insert(opfamily, index.clone(), pointer, vector);
                 }
-                (VectorKind::Vecf32, DistanceKind::Dot) => {
-                    heap.traverse(true, |(pointer, vector): (_, VectOwned<f32>)| {
-                        algorithm::insert::<Op<VectOwned<f32>, Dot>>(
-                            index.clone(),
-                            pointer,
-                            RandomProject::project(vector.as_borrowed()),
-                        );
-                        unsafe {
-                            let indtuples;
-                            {
-                                pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                                (*vchordrqshared).indtuples += 1;
-                                indtuples = (*vchordrqshared).indtuples;
-                                pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                            }
-                            if let Some(reporter) = reporter.as_mut() {
-                                reporter.tuples_done(indtuples);
-                            }
-                        }
-                    });
+                unsafe {
+                    let indtuples;
+                    {
+                        pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+                        (*vchordrqshared).indtuples += 1;
+                        indtuples = (*vchordrqshared).indtuples;
+                        pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
+                    }
+                    if let Some(reporter) = reporter.as_mut() {
+                        reporter.tuples_done(indtuples);
+                    }
                 }
-                (VectorKind::Vecf16, DistanceKind::L2) => {
-                    heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                        algorithm::insert::<Op<VectOwned<f16>, L2>>(
-                            index.clone(),
-                            pointer,
-                            RandomProject::project(vector.as_borrowed()),
-                        );
-                        unsafe {
-                            let indtuples;
-                            {
-                                pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                                (*vchordrqshared).indtuples += 1;
-                                indtuples = (*vchordrqshared).indtuples;
-                                pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                            }
-                            if let Some(reporter) = reporter.as_mut() {
-                                reporter.tuples_done(indtuples);
-                            }
-                        }
-                    });
-                }
-                (VectorKind::Vecf16, DistanceKind::Dot) => {
-                    heap.traverse(true, |(pointer, vector): (_, VectOwned<f16>)| {
-                        algorithm::insert::<Op<VectOwned<f16>, Dot>>(
-                            index.clone(),
-                            pointer,
-                            RandomProject::project(vector.as_borrowed()),
-                        );
-                        unsafe {
-                            let indtuples;
-                            {
-                                pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-                                (*vchordrqshared).indtuples += 1;
-                                indtuples = (*vchordrqshared).indtuples;
-                                pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-                            }
-                            if let Some(reporter) = reporter.as_mut() {
-                                reporter.tuples_done(indtuples);
-                            }
-                        }
-                    });
-                }
-            }
+            });
         }
     }
     unsafe {
@@ -1238,15 +1011,6 @@ pub fn make_external_build(
         result.push(Structure { means, children });
     }
     result
-}
-
-pub fn map_structures<T, U>(x: Vec<Structure<T>>, f: impl Fn(T) -> U + Copy) -> Vec<Structure<U>> {
-    x.into_iter()
-        .map(|Structure { means, children }| Structure {
-            means: means.into_iter().map(f).collect(),
-            children,
-        })
-        .collect()
 }
 
 pub trait InternalBuild: VectorOwned {

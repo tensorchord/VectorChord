@@ -21,6 +21,7 @@ pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
 
 [dependencies]
 algorithm = { path = "./crates/algorithm" }
+always_equal = { path = "./crates/always_equal" }
 distance = { path = "./crates/distance" }
 k_means = { path = "./crates/k_means" }
 random_orthogonal_matrix = { path = "./crates/random_orthogonal_matrix" }

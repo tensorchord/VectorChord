@@ -1,6 +1,5 @@
 use crate::operator::*;
-use crate::tuples::*;
-use crate::{RelationRead, vectors};
+use crate::{IndexPointer, RelationRead, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;

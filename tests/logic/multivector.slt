@@ -1,0 +1,42 @@
+statement ok
+CREATE TABLE t (id integer, val vector(2)[]);
+
+statement ok
+INSERT INTO t (id, val) SELECT id, ARRAY[ARRAY[id::real, id]::vector, ARRAY[(10001 - id)::real, (10001 - id)::real]::vector] FROM generate_series(1, 10000) s(id);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_maxsim_l2_ops)
+WITH (options = $$
+build.internal.lists = []
+$$);
+
+statement ok
+SET vchordrq.probes = '';
+
+statement ok
+SET enable_seqscan TO off;
+
+query I
+SELECT id FROM t ORDER BY val |<->| '[1.9, 1.9]' limit 18;
+----
+2
+9999
+1
+10000
+9998
+3
+9997
+4
+5
+9996
+6
+9995
+9994
+7
+8
+9993
+9
+9992
+
+statement ok
+DROP TABLE t;

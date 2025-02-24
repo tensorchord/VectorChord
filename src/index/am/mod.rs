@@ -1,18 +1,12 @@
 pub mod am_build;
 pub mod am_scan;
 
-use crate::index::projection::RandomProject;
 use crate::index::storage::PostgresRelation;
-use algorithm::operator::{Dot, L2, Op, Vector};
-use algorithm::types::*;
-use half::f16;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
 use std::ffi::CStr;
 use std::num::NonZeroU64;
 use std::sync::OnceLock;
-use vector::VectorOwned;
-use vector::vect::VectOwned;
 
 #[repr(C)]
 struct Reloption {
@@ -194,29 +188,10 @@ unsafe fn aminsertinner(
     let opfamily = unsafe { crate::index::opclass::opfamily(index_relation) };
     let index = unsafe { PostgresRelation::new(index_relation) };
     let payload = ctid_to_pointer(unsafe { heap_tid.read() });
-    let vector = unsafe { opfamily.input_vector(*values.add(0), *is_null.add(0)) };
-    let Some(vector) = vector else { return false };
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => algorithm::insert::<Op<VectOwned<f32>, L2>>(
-            index,
-            payload,
-            RandomProject::project(VectOwned::<f32>::from_owned(vector).as_borrowed()),
-        ),
-        (VectorKind::Vecf32, DistanceKind::Dot) => algorithm::insert::<Op<VectOwned<f32>, Dot>>(
-            index,
-            payload,
-            RandomProject::project(VectOwned::<f32>::from_owned(vector).as_borrowed()),
-        ),
-        (VectorKind::Vecf16, DistanceKind::L2) => algorithm::insert::<Op<VectOwned<f16>, L2>>(
-            index,
-            payload,
-            RandomProject::project(VectOwned::<f16>::from_owned(vector).as_borrowed()),
-        ),
-        (VectorKind::Vecf16, DistanceKind::Dot) => algorithm::insert::<Op<VectOwned<f16>, Dot>>(
-            index,
-            payload,
-            RandomProject::project(VectOwned::<f16>::from_owned(vector).as_borrowed()),
-        ),
+    let vectors = unsafe { opfamily.input_data(*values.add(0), *is_null.add(0)) };
+    let Some(vectors) = vectors else { return false };
+    for vector in vectors {
+        crate::index::algorithm::insert(opfamily, index.clone(), payload, vector);
     }
     false
 }
@@ -241,20 +216,7 @@ pub unsafe extern "C" fn ambulkdelete(
     };
     let callback = callback.expect("null function pointer");
     let callback = |p: NonZeroU64| unsafe { callback(&mut pointer_to_ctid(p), callback_state) };
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => {
-            algorithm::bulkdelete::<Op<VectOwned<f32>, L2>>(index, check, callback);
-        }
-        (VectorKind::Vecf32, DistanceKind::Dot) => {
-            algorithm::bulkdelete::<Op<VectOwned<f32>, Dot>>(index, check, callback);
-        }
-        (VectorKind::Vecf16, DistanceKind::L2) => {
-            algorithm::bulkdelete::<Op<VectOwned<f16>, L2>>(index, check, callback);
-        }
-        (VectorKind::Vecf16, DistanceKind::Dot) => {
-            algorithm::bulkdelete::<Op<VectOwned<f16>, Dot>>(index, check, callback);
-        }
-    }
+    crate::index::algorithm::bulkdelete(opfamily, index, check, callback);
     stats
 }
 
@@ -274,20 +236,7 @@ pub unsafe extern "C" fn amvacuumcleanup(
     let check = || unsafe {
         pgrx::pg_sys::vacuum_delay_point();
     };
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => {
-            algorithm::maintain::<Op<VectOwned<f32>, L2>>(index, check);
-        }
-        (VectorKind::Vecf32, DistanceKind::Dot) => {
-            algorithm::maintain::<Op<VectOwned<f32>, Dot>>(index, check);
-        }
-        (VectorKind::Vecf16, DistanceKind::L2) => {
-            algorithm::maintain::<Op<VectOwned<f16>, L2>>(index, check);
-        }
-        (VectorKind::Vecf16, DistanceKind::Dot) => {
-            algorithm::maintain::<Op<VectOwned<f16>, Dot>>(index, check);
-        }
-    }
+    crate::index::algorithm::maintain(opfamily, index, check);
     stats
 }
 
