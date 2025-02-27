@@ -96,13 +96,13 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 3. To insert vectors and centroids into the database, and then create an index 
 
    ```shell
-   python script/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim]
+   python script/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim] --url postgresql://postgres:123@localhost:5432/postgres
    ```
 
 4. Let's start our tour to check the benchmark result of VectorChord
 
    ```shell
-   python script/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] -p [database password] --nprob 100 --epsilon 1.0
+   python script/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] --nprob 100 --epsilon 1.0  --url postgresql://postgres:123@localhost:5432/postgres
    ```
 
     Larger `nprobe` and `epsilon` will have a more precise query but at a slower speed.

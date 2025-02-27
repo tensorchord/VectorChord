@@ -7,10 +7,12 @@
 <a href="https://discord.gg/KqswhpVgdU"><img alt="discord invitation link" src="https://img.shields.io/discord/974584200327991326?style=flat&logo=discord&cacheSeconds=60"></a>
 <a href="https://twitter.com/TensorChord"><img src="https://img.shields.io/twitter/follow/tensorchord?style=flat&logo=X&cacheSeconds=60" alt="Twitter" /></a>
 <a href="https://hub.docker.com/r/tensorchord/vchord-postgres"><img src="https://img.shields.io/docker/pulls/tensorchord/vchord-postgres" alt="Docker pulls" /></a>
-<p>Docker pull for pgvecto.rs: <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a></p>
 </p>
 
-VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, and serves as the successor to [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs).
+> [!NOTE]
+> VectorChord serves as the successor to [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) <a href="https://hub.docker.com/r/tensorchord/pgvecto-rs"><img src="https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs" alt="Previous Docker pulls" /></a> with better stability and performance. If you are interested in this new solution, the [migration guide](https://docs.vectorchord.ai/vectorchord/admin/migration.html) might be helpful.
+
+VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search.
 
 With VectorChord, you can store 400,000 vectors for just $1, enabling significant savings: 6x more vectors compared to Pinecone's optimized storage and 26x more than pgvector/pgvecto.rs for the same price[^1]. For further insights, check out our [launch blog post](https://blog.vectorchord.ai/vectorchord-store-400k-vectors-for-1-in-postgresql).
 
@@ -34,6 +36,25 @@ VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 
 [^2]: Gao, Jianyang, and Cheng Long. "RaBitQ: Quantizing High-Dimensional Vectors with a Theoretical Error Bound for Approximate Nearest Neighbor Search." Proceedings of the ACM on Management of Data 2.3 (2024): 1-27.
 
+## Requirements
+
+> [!TIP]
+> If you are using the official [Docker image](https://hub.docker.com/r/tensorchord/vchord-postgres), you can skip this step.
+
+VectorChord depends on [pgvector](https://github.com/pgvector/pgvector), ensure the pgvector extension is available:
+
+```SQL
+SELECT * FROM pg_available_extensions WHERE name = 'vector';
+```
+If pgvector is not available, install it using the [pgvector installation instructions](https://github.com/pgvector/pgvector#installation).
+
+And make sure to add `vchord.so` to the `shared_preload_libraries` in `postgresql.conf`.
+
+```SQL
+-- Add vchord and pgvector to shared_preload_libraries --
+ALTER SYSTEM SET shared_preload_libraries = 'vchord.so';
+```
+
 ## Quick Start
 For new users, we recommend using the Docker image to get started quickly.
 ```bash
@@ -41,7 +62,7 @@ docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d tensorchord/vchord-postgres:pg17-v0.1.0
+  -d tensorchord/vchord-postgres:pg17-v0.2.1
 ```
 
 Then you can connect to the database using the `psql` command line tool. The default username is `postgres`, and the default password is `mysecretpassword`.
@@ -53,13 +74,6 @@ Run the following SQL to ensure the extension is enabled.
 
 ```SQL
 CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
-```
-
-And make sure to add `vchord.so` to the `shared_preload_libraries` in `postgresql.conf`.
-
-```SQL
--- Add vchord and pgvector to shared_preload_libraries --
-ALTER SYSTEM SET shared_preload_libraries = 'vchord.so';
 ```
 
 To create the VectorChord RaBitQ(vchordrq) index, you can use the following SQL.
@@ -75,7 +89,7 @@ $$);
 
 
 -- Set residual_quantization to false and spherical_centroids to true for cos/dot distance --
-CREATE INDEX ON laion USING vchordrq (embedding vector_cos_ops) WITH (options = $$
+CREATE INDEX ON laion USING vchordrq (embedding vector_cosine_ops) WITH (options = $$
 residual_quantization = false
 [build.internal]
 lists = [4096]
