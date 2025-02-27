@@ -87,7 +87,7 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
    python script/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] --lists [lists] -m [metric(l2/cos/dot)] -g --mmap
    ```
 
-   `lists` is the number of centroids for clustering, and a typical value could range from:
+   `lists` is the number of centroids for clustering, and a typical value for large datasets(>5M) could range from:
    
    $$
    4*\sqrt{len(vectors)} \le lists \le 16*\sqrt{len(vectors)}
@@ -96,13 +96,11 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 3. To insert vectors and centroids into the database, and then create an index 
 
    ```shell
-   python script/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim]
+   python script/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim] --url postgresql://postgres:123@localhost:5432/postgres
    ```
 
 4. Let's start our tour to check the benchmark result of VectorChord
 
    ```shell
-   python script/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] -p [database password] --nprob 100 --epsilon 1.0
+   python script/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] --nprob 100 --epsilon 1.0  --url postgresql://postgres:123@localhost:5432/postgres
    ```
-
-    Larger `nprobe` and `epsilon` will have a more precise query but at a slower speed.

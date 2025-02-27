@@ -22,7 +22,9 @@ def build_arg_parse():
     parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
     parser.add_argument("-i", "--input", help="input filepath", required=True)
     parser.add_argument(
-        "-p", "--password", help="Database password", default="password"
+        "--url",
+        help="url, like `postgresql://postgres:123@localhost:5432/postgres`",
+        required=True,
     )
     parser.add_argument(
         "-t", "--top", help="Dimension", type=int, choices=[10, 100], default=10
@@ -39,7 +41,7 @@ def build_arg_parse():
     return parser
 
 
-def create_connection(password, nprob, epsilon):
+def create_connection(url, nprob, epsilon):
     keepalive_kwargs = {
         "keepalives": 1,
         "keepalives_idle": 30,
@@ -47,33 +49,58 @@ def create_connection(password, nprob, epsilon):
         "keepalives_count": 5,
     }
     conn = psycopg.connect(
-        conninfo=f"postgresql://postgres:{password}@localhost:5432/postgres",
+        conninfo=url,
         dbname="postgres",
         autocommit=True,
         **keepalive_kwargs,
     )
-    conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
+    try:
+        conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
+    except Exception as e:
+        pass
     # Tuning
     conn.execute("SET jit=false")
     conn.execute("SET effective_io_concurrency=200")
 
     conn.execute(f"SET vchordrq.probes={nprob}")
     conn.execute(f"SET vchordrq.epsilon={epsilon}")
-    conn.execute(f"SELECT vchordrq_prewarm('{args.name}_embedding_idx'::regclass)")
+    try:
+        conn.execute(f"SELECT vchordrq_prewarm('{args.name}_embedding_idx'::regclass)")
+    except Exception as e:
+        pass
     register_vector(conn)
     return conn
 
 
+def calculate_coverage(time_intervals):
+    if not time_intervals:
+        return 0
+    sorted_intervals = sorted(time_intervals, key=lambda x: x[0])
+    merged = []
+    current_start, current_end = sorted_intervals[0]
+    for interval in sorted_intervals[1:]:
+        next_start, next_end = interval
+        if next_start <= current_end:
+            current_end = max(current_end, next_end)
+        else:
+            merged.append((current_start, current_end))
+            current_start, current_end = next_start, next_end
+    merged.append((current_start, current_end))
+    total_length = 0
+    for start, end in merged:
+        total_length += end - start
+    return total_length
+
+
 def process_batch(args):
     """Process a batch of queries in a single process"""
-    batch_queries, batch_answers, k, metric_ops, password, name, nprob, epsilon = args
+    batch_queries, batch_answers, k, metric_ops, url, name, nprob, epsilon = args
 
     # Create a new connection for this process
-    conn = create_connection(password, nprob, epsilon)
+    conn = create_connection(url, nprob, epsilon)
 
     hits = 0
-    latencies = []
     results = []
 
     for query, ground_truth in zip(batch_queries, batch_answers):
@@ -84,29 +111,33 @@ def process_batch(args):
         ).fetchall()
         end = time.perf_counter()
 
-        query_time = end - start
-        latencies.append(query_time)
-
         result_ids = set([p[0] for p in result[:k]])
         ground_truth_ids = set(ground_truth[:k].tolist())
         hit = len(result_ids & ground_truth_ids)
         hits += hit
 
-        results.append((hit, query_time))
+        results.append((hit, (start, end)))
 
     conn.close()
     return results
 
 
-def calculate_metrics(all_results, k, m):
+def calculate_metrics(all_results, k, m, num_processes=1):
     """Calculate recall, QPS, and latency percentiles from results"""
     hits, latencies = zip(*all_results)
 
-    total_hits = sum(hits)
-    total_time = sum(latencies)
+    if isinstance(latencies[0], list | tuple):
+        # parallel_bench
+        total_time = calculate_coverage(latencies)
+        latencies = [(end - start) for start, end in latencies]
+    else:
+        # sequential_bench
+        total_time = sum(latencies)
 
-    recall = total_hits / (k * m)
-    qps = m / total_time
+    total_hits = sum(hits)
+
+    recall = total_hits / (k * m * num_processes)
+    qps = (m * num_processes) / total_time
 
     # Calculate latency percentiles (in milliseconds)
     latencies_ms = np.array(latencies) * 1000
@@ -117,25 +148,19 @@ def calculate_metrics(all_results, k, m):
 
 
 def parallel_bench(
-    name, test, answer, metric_ops, num_processes, password, top, nprob, epsilon
+    name, test, answer, metric_ops, num_processes, url, top, nprob, epsilon
 ):
     """Run benchmark in parallel using multiple processes"""
     m = test.shape[0]
-
-    # Split data into batches for each process
-    batch_size = m // num_processes
     batches = []
 
-    for i in range(num_processes):
-        start_idx = i * batch_size
-        end_idx = start_idx + batch_size if i < num_processes - 1 else m
-
+    for _ in range(num_processes):
         batch = (
-            test[start_idx:end_idx],
-            answer[start_idx:end_idx],
+            test,
+            answer,
             top,
             metric_ops,
-            password,
+            url,
             name,
             nprob,
             epsilon,
@@ -144,23 +169,17 @@ def parallel_bench(
 
     # Create process pool and execute batches
     with mp.Pool(processes=num_processes) as pool:
-        batch_results = list(
-            tqdm(
-                pool.imap(process_batch, batches),
-                total=len(batches),
-                desc=f"Processing k={top}",
-            )
-        )
+        batch_results = list(pool.map(process_batch, batches))
 
     # Flatten results from all batches
     all_results = [result for batch in batch_results for result in batch]
 
     # Calculate metrics
-    recall, qps, p50, p99 = calculate_metrics(all_results, top, m)
+    recall, qps, p50, p99 = calculate_metrics(all_results, top, m, num_processes)
 
     print(f"Top: {top}")
     print(f"  Recall: {recall:.4f}")
-    print(f"  QPS: {qps*num_processes:.2f}")
+    print(f"  QPS: {qps:.2f}")
     print(f"  P50 latency: {p50:.2f}ms")
     print(f"  P99 latency: {p99:.2f}ms")
 
@@ -224,11 +243,11 @@ if __name__ == "__main__":
             answer,
             metric_ops,
             args.processes,
-            args.password,
+            args.url,
             args.top,
             args.nprob,
             args.epsilon,
         )
     else:
-        conn = create_connection(args.password, args.nprob, args.epsilon)
+        conn = create_connection(args.url, args.nprob, args.epsilon)
         sequential_bench(args.name, test, answer, metric_ops, conn, args.top)
