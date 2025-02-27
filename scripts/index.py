@@ -32,7 +32,7 @@ def build_arg_parse():
     parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
     parser.add_argument("-i", "--input", help="Input filepath", required=True)
     parser.add_argument(
-        "-p", "--password", help="Database password", default="password"
+        "--url", help="url, like `postgresql://postgres:123@localhost:5432/postgres`", required=True
     )
     parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
     # Remember to set `max_worker_processes` at server start
@@ -195,8 +195,7 @@ async def monitor_index_build(conn, finish: asyncio.Event):
 
 async def main(dataset):
     dataset = h5py.File(Path(args.input), "r")
-    url = f"postgresql://postgres:{args.password}@localhost:5432/postgres"
-    conn = await create_connection(url)
+    conn = await create_connection(args.url)
     if args.centroids:
         centroids = np.load(args.centroids, allow_pickle=False)
         await add_centroids(conn, args.name, centroids)
@@ -207,7 +206,7 @@ async def main(dataset):
 
     index_finish = asyncio.Event()
     # Need a separate connection for monitor process
-    monitor_conn = await create_connection(url)
+    monitor_conn = await create_connection(args.url)
     monitor_task = monitor_index_build(
         monitor_conn,
         index_finish,
