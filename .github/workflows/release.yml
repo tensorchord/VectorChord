@@ -159,6 +159,12 @@ jobs:
           build-args: |
             PG_VERSION=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push PostgreSQL release to Docker Registry
         uses: docker/build-push-action@v6
         with:
@@ -167,13 +173,15 @@ jobs:
           platforms: ${{ matrix.runner == 'ubuntu-22.04' && 'linux/amd64' || 'linux/arm64' }}
           file: ./docker/Dockerfile
           provenance: false
-          tags: tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ env.PLATFORM }}
+          tags: |
+            tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ env.PLATFORM }}
+            ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-${{ env.PLATFORM }}
           build-args: |
             PG_VERSION=${{ matrix.version }}
             SEMVER=${{ env.SEMVER }}
             PGVECTOR=0.8.0
       - name: Login to modelzai Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERIO_MODELZ_USERNAME }}
           password: ${{ secrets.DOCKERIO_MODELZ_TOKEN }}
@@ -211,6 +219,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKERIO_USERNAME }}
           password: ${{ secrets.DOCKERIO_TOKEN }}
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create manifest and push
         run: |
           docker manifest create \
@@ -223,6 +237,12 @@ jobs:
             --amend tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-amd64 \
             --amend tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-arm64
           docker manifest push tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
+          docker manifest create \
+            ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }} \
+            --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-amd64 \
+            --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-arm64
+          docker manifest push ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
+
 
   create-manifests-modelzai:
     runs-on: ubuntu-latest
