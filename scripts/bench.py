@@ -57,7 +57,7 @@ def create_connection(url, nprob, epsilon):
     try:
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
-    except Exception as e:
+    except Exception:
         pass
     # Tuning
     conn.execute("SET jit=false")
@@ -67,7 +67,7 @@ def create_connection(url, nprob, epsilon):
     conn.execute(f"SET vchordrq.epsilon={epsilon}")
     try:
         conn.execute(f"SELECT vchordrq_prewarm('{args.name}_embedding_idx'::regclass)")
-    except Exception as e:
+    except Exception:
         pass
     register_vector(conn)
     return conn
