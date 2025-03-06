@@ -1520,6 +1520,7 @@ name = "vchord"
 version = "0.0.0"
 dependencies = [
  "algorithm",
+ "always_equal",
  "distance",
  "half 2.4.1",
  "k_means",

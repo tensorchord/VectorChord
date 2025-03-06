@@ -144,6 +144,22 @@ impl IntoDatum for HalfvecOutput {
 
 // UnboxDatum
 
+unsafe impl<'a> pgrx::datum::UnboxDatum for HalfvecInput<'a> {
+    type As<'src>
+        = HalfvecInput<'src>
+    where
+        'a: 'src;
+    #[inline]
+    unsafe fn unbox<'src>(datum: pgrx::datum::Datum<'src>) -> Self::As<'src>
+    where
+        Self: 'src,
+    {
+        let datum = datum.sans_lifetime();
+        let ptr = NonNull::new(datum.cast_mut_ptr()).unwrap();
+        unsafe { Self::from_ptr(ptr) }
+    }
+}
+
 unsafe impl pgrx::datum::UnboxDatum for HalfvecOutput {
     type As<'src> = HalfvecOutput;
     #[inline]

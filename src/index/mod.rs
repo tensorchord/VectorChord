@@ -1,8 +1,10 @@
+pub mod algorithm;
 pub mod am;
 pub mod functions;
 pub mod gucs;
 pub mod opclass;
 pub mod projection;
+pub mod scanners;
 pub mod storage;
 pub mod types;
 
