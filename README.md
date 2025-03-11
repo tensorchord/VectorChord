@@ -223,7 +223,7 @@ $$);
 
 > [!NOTE]
 > - Set `residual_quantization` to false and `spherical_centroids` to true for inner product/cosine distance
-> - Use `vector_cosine_ops`/`vector_ip_ops` for `halfvec`
+> - Use `halfvec_cosine_ops`/`halfvec_ip_ops` for `halfvec`
 
 ### Query
 
