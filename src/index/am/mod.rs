@@ -9,6 +9,7 @@ use pgrx::pg_sys::{Datum, ItemPointerData};
 use std::cell::LazyCell;
 use std::ffi::CStr;
 use std::num::NonZeroU64;
+use std::ptr::NonNull;
 use std::sync::OnceLock;
 
 #[repr(C)]
@@ -254,7 +255,10 @@ pub unsafe extern "C" fn ambeginscan(
     use pgrx::memcxt::PgMemoryContexts::CurrentMemoryContext;
 
     let scan = unsafe { pgrx::pg_sys::RelationGetIndexScan(index_relation, n_keys, n_orderbys) };
-    let scanner: Scanner = LazyCell::new(Box::new(|| Box::new(std::iter::empty())));
+    let scanner: Scanner = Scanner {
+        hack: None,
+        scanning: LazyCell::new(Box::new(|| Box::new(std::iter::empty()))),
+    };
     unsafe {
         (*scan).opaque = CurrentMemoryContext.leak_and_drop_on_delete(scanner).cast();
     }
@@ -289,15 +293,19 @@ pub unsafe extern "C" fn amrescan(
             probes: probes(),
             max_scan_tuples: max_scan_tuples(),
         };
-        let fetcher = LazyCell::new(move || {
-            HeapFetcher::new(
-                (*scan).indexRelation,
-                (*scan).heapRelation,
-                (*scan).xs_snapshot,
-            )
-        });
         let scanner = &mut *(*scan).opaque.cast::<Scanner>();
-        *scanner = match opfamily {
+        let fetcher = {
+            let hack = scanner.hack;
+            LazyCell::new(move || {
+                HeapFetcher::new(
+                    (*scan).indexRelation,
+                    (*scan).heapRelation,
+                    (*scan).xs_snapshot,
+                    hack,
+                )
+            })
+        };
+        scanner.scanning = match opfamily {
             Opfamily::VectorL2
             | Opfamily::VectorIp
             | Opfamily::VectorCosine
@@ -340,7 +348,7 @@ pub unsafe extern "C" fn amgettuple(
         pgrx::error!("scanning with a non-MVCC-compliant snapshot is not supported");
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
-    if let Some((_, ctid, recheck)) = LazyCell::force_mut(scanner).next() {
+    if let Some((_, ctid, recheck)) = LazyCell::force_mut(&mut scanner.scanning).next() {
         unsafe {
             (*scan).xs_heaptid = ctid;
             (*scan).xs_recheck = recheck;
@@ -355,12 +363,15 @@ pub unsafe extern "C" fn amgettuple(
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn amendscan(scan: pgrx::pg_sys::IndexScanDesc) {
     let scanner = unsafe { &mut *(*scan).opaque.cast::<Scanner>() };
-    *scanner = LazyCell::new(Box::new(|| Box::new(std::iter::empty())));
+    scanner.scanning = LazyCell::new(Box::new(|| Box::new(std::iter::empty())));
 }
 
 type Iter = Box<dyn Iterator<Item = (f32, ItemPointerData, bool)>>;
 
-type Scanner = LazyCell<Iter, Box<dyn FnOnce() -> Iter>>;
+pub struct Scanner {
+    pub hack: Option<NonNull<pgrx::pg_sys::IndexScanState>>,
+    scanning: LazyCell<Iter, Box<dyn FnOnce() -> Iter>>,
+}
 
 struct HeapFetcher {
     index_info: *mut pgrx::pg_sys::IndexInfo,
@@ -371,6 +382,7 @@ struct HeapFetcher {
     slot: *mut pgrx::pg_sys::TupleTableSlot,
     values: [Datum; 32],
     is_nulls: [bool; 32],
+    hack: Option<NonNull<pgrx::pg_sys::IndexScanState>>,
 }
 
 impl HeapFetcher {
@@ -378,6 +390,7 @@ impl HeapFetcher {
         index_relation: pgrx::pg_sys::Relation,
         heap_relation: pgrx::pg_sys::Relation,
         snapshot: pgrx::pg_sys::Snapshot,
+        hack: Option<NonNull<pgrx::pg_sys::IndexScanState>>,
     ) -> Self {
         unsafe {
             let index_info = pgrx::pg_sys::BuildIndexInfo(index_relation);
@@ -392,6 +405,7 @@ impl HeapFetcher {
                 slot: pgrx::pg_sys::table_slot_create(heap_relation, std::ptr::null_mut()),
                 values: [Datum::null(); 32],
                 is_nulls: [true; 32],
+                hack,
             }
         }
     }
@@ -400,7 +414,6 @@ impl HeapFetcher {
 impl Drop for HeapFetcher {
     fn drop(&mut self) {
         unsafe {
-            // free resources for last `fetch` call
             pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
             // free common resources
             pgrx::pg_sys::ExecDropSingleTupleTableSlot(self.slot);
@@ -412,8 +425,6 @@ impl Drop for HeapFetcher {
 impl SearchFetcher for HeapFetcher {
     fn fetch(&mut self, mut ctid: ItemPointerData) -> Option<(&[Datum; 32], &[bool; 32])> {
         unsafe {
-            // free resources for last `fetch` call
-            pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
             // perform operation
             (*self.econtext).ecxt_scantuple = self.slot;
             let table_am = (*self.heap_relation).rd_tableam;
@@ -423,6 +434,25 @@ impl SearchFetcher for HeapFetcher {
             if !fetch_row_version(self.heap_relation, &mut ctid, self.snapshot, self.slot) {
                 return None;
             }
+            if let Some(hack) = self.hack {
+                if let Some(qual) = NonNull::new(hack.as_ref().ss.ps.qual) {
+                    use pgrx::datum::FromDatum;
+                    use pgrx::memcxt::PgMemoryContexts;
+                    assert!(qual.as_ref().flags & pgrx::pg_sys::EEO_FLAG_IS_QUAL as u8 != 0);
+                    let evalfunc = qual.as_ref().evalfunc.expect("no evalfunc for qual");
+                    pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
+                    let result = PgMemoryContexts::For((*self.econtext).ecxt_per_tuple_memory)
+                        .switch_to(|_| {
+                            let mut is_null = true;
+                            let datum = evalfunc(qual.as_ptr(), self.econtext, &mut is_null);
+                            bool::from_datum(datum, is_null)
+                        });
+                    if result != Some(true) {
+                        return None;
+                    }
+                }
+            }
+            pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
             pgrx::pg_sys::FormIndexDatum(
                 self.index_info,
                 self.slot,
