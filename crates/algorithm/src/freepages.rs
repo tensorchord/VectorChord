@@ -7,7 +7,7 @@ pub fn mark(index: impl RelationWrite, freepage_first: u32, pages: &[u32]) {
     pages.sort_by_key(|x| Reverse(*x));
     pages.dedup();
     let (mut current, mut offset) = (freepage_first, 0_u32);
-    while pages.is_empty() {
+    while !pages.is_empty() {
         let locals = {
             let mut local = Vec::new();
             while let Some(target) = pages.pop_if(|x| (offset..offset + 32768).contains(x)) {
