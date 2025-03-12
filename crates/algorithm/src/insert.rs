@@ -3,7 +3,7 @@ use crate::operator::*;
 use crate::select_heap::SelectHeap;
 use crate::tuples::*;
 use crate::vectors::{self};
-use crate::{Page, RelationWrite, tape};
+use crate::{IndexPointer, Page, RelationWrite, tape};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;

@@ -1,4 +1,5 @@
 use crate::datatype::memory_vector::{VectorInput, VectorOutput};
+use pgrx::Array;
 use std::num::NonZero;
 use vector::VectorBorrowed;
 use vector::vect::VectBorrowed;
@@ -73,4 +74,58 @@ fn _vchord_vector_sphere_cosine_in(
     }
     let d = VectBorrowed::operator_cos(lhs, center).to_f32();
     d < radius
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_l2(
+    lhs: Array<'_, VectorInput<'_>>,
+    rhs: Array<'_, VectorInput<'_>>,
+) -> f32 {
+    let mut maxsim = 0.0f32;
+    for rhs in rhs.iter().flatten() {
+        let mut d = f32::INFINITY;
+        for lhs in lhs.iter().flatten() {
+            let lhs = lhs.as_borrowed();
+            let rhs = rhs.as_borrowed();
+            d = d.min(VectBorrowed::operator_l2(lhs, rhs).to_f32().sqrt());
+        }
+        maxsim += d;
+    }
+    maxsim
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_ip(
+    lhs: Array<'_, VectorInput<'_>>,
+    rhs: Array<'_, VectorInput<'_>>,
+) -> f32 {
+    let mut maxsim = 0.0f32;
+    for rhs in rhs.iter().flatten() {
+        let mut d = f32::INFINITY;
+        for lhs in lhs.iter().flatten() {
+            let lhs = lhs.as_borrowed();
+            let rhs = rhs.as_borrowed();
+            d = d.min(VectBorrowed::operator_dot(lhs, rhs).to_f32());
+        }
+        maxsim += d;
+    }
+    maxsim
+}
+
+#[pgrx::pg_extern(immutable, strict, parallel_safe)]
+fn _vchord_vector_operator_maxsim_cosine(
+    lhs: Array<'_, VectorInput<'_>>,
+    rhs: Array<'_, VectorInput<'_>>,
+) -> f32 {
+    let mut maxsim = 0.0f32;
+    for rhs in rhs.iter().flatten() {
+        let mut d = f32::INFINITY;
+        for lhs in lhs.iter().flatten() {
+            let lhs = lhs.as_borrowed();
+            let rhs = rhs.as_borrowed();
+            d = d.min(VectBorrowed::operator_cos(lhs, rhs).to_f32());
+        }
+        maxsim += d;
+    }
+    maxsim
 }

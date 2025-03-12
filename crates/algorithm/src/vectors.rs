@@ -1,6 +1,6 @@
 use crate::operator::*;
 use crate::tuples::*;
-use crate::{Page, PageGuard, RelationRead, RelationWrite, tape};
+use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite, tape};
 use std::num::NonZeroU64;
 use vector::VectorOwned;
 
