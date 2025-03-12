@@ -1,6 +1,7 @@
 #![allow(clippy::collapsible_else_if)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unsafe_code)]
+#![feature(lazy_get)]
 
 mod datatype;
 mod index;

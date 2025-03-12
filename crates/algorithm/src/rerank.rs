@@ -46,10 +46,10 @@ pub fn rerank_heap<O: Operator, F>(
         AlwaysEqual<IndexPointer>,
         AlwaysEqual<NonZeroU64>,
     )>,
-    fetch: F,
+    mut fetch: F,
 ) -> impl Iterator<Item = (Distance, NonZeroU64)>
 where
-    F: Fn(NonZeroU64) -> Option<O::Vector>,
+    F: FnMut(NonZeroU64) -> Option<O::Vector>,
 {
     let mut heap = BinaryHeap::from(results);
     let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
