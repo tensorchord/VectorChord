@@ -89,7 +89,7 @@ pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl F
             );
             tape::read_appendable_tape(
                 index.clone(),
-                jump_tuple.frozen_first(),
+                jump_tuple.appendable_first(),
                 |_| (),
                 |(), _, _| {
                     results.push(());
