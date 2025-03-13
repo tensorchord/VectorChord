@@ -426,7 +426,6 @@ impl SearchFetcher for HeapFetcher {
     fn fetch(&mut self, mut ctid: ItemPointerData) -> Option<(&[Datum; 32], &[bool; 32])> {
         unsafe {
             // perform operation
-            (*self.econtext).ecxt_scantuple = self.slot;
             let table_am = (*self.heap_relation).rd_tableam;
             let fetch_row_version = (*table_am)
                 .tuple_fetch_row_version
@@ -440,18 +439,23 @@ impl SearchFetcher for HeapFetcher {
                     use pgrx::memcxt::PgMemoryContexts;
                     assert!(qual.as_ref().flags & pgrx::pg_sys::EEO_FLAG_IS_QUAL as u8 != 0);
                     let evalfunc = qual.as_ref().evalfunc.expect("no evalfunc for qual");
-                    pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
-                    let result = PgMemoryContexts::For((*self.econtext).ecxt_per_tuple_memory)
-                        .switch_to(|_| {
-                            let mut is_null = true;
-                            let datum = evalfunc(qual.as_ptr(), self.econtext, &mut is_null);
-                            bool::from_datum(datum, is_null)
-                        });
-                    if result != Some(true) {
-                        return None;
+                    if let Some(mut econtext) = NonNull::new(hack.as_ref().ss.ps.ps_ExprContext) {
+                        econtext.as_mut().ecxt_scantuple = self.slot;
+                        pgrx::pg_sys::MemoryContextReset(econtext.as_ref().ecxt_per_tuple_memory);
+                        let result = PgMemoryContexts::For(econtext.as_ref().ecxt_per_tuple_memory)
+                            .switch_to(|_| {
+                                let mut is_null = true;
+                                let datum =
+                                    evalfunc(qual.as_ptr(), econtext.as_mut(), &mut is_null);
+                                bool::from_datum(datum, is_null)
+                            });
+                        if result != Some(true) {
+                            return None;
+                        }
                     }
                 }
             }
+            (*self.econtext).ecxt_scantuple = self.slot;
             pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
             pgrx::pg_sys::FormIndexDatum(
                 self.index_info,
