@@ -95,7 +95,7 @@ Now you can play with VectorChord!
 ## Documentation
 
 - [Installation](#installation)
-  - [Docker](#installation)
+  - [Docker](#docker)
   - [APT](#apt)
   - [More Methods](#more-methods)
 - [Usage](#usage)
@@ -105,6 +105,7 @@ Now you can play with VectorChord!
 - [Performance Tuning](#performance-tuning)
   - [Index Build Time](#index-build-time)
   - [Query Performance](#query-performance)
+  - [Index Internal Build](#index-internal-build)
 - [Advanced Features](#advanced-features)
   - [Indexing Prewarm](#indexing-prewarm)
   - [Indexing Progress](#indexing-progress)
@@ -197,7 +198,8 @@ $$);
 ```
 
 > [!NOTE]
-> - Set `residual_quantization` to true and `spherical_centroids` to false for L2 distance
+> - `options` are specified using a [TOML: Tom's Obvious Minimal Language](https://toml.io/) string.
+> - Set `residual_quantization` to `true` and `spherical_centroids` to `false` for L2 distance embeddings
 > - Use `halfvec_l2_ops` for `halfvec`
 > - The recommend `lists` could be rows / 1000 for up to 1M rows and 4 * sqrt(rows) for over 1M rows
 
@@ -222,7 +224,7 @@ $$);
 ```
 
 > [!NOTE]
-> - Set `residual_quantization` to false and `spherical_centroids` to true for inner product/cosine distance
+> - Set `residual_quantization` to `false` and `spherical_centroids` to `true` for cosine similarity embeddings
 > - Use `halfvec_cosine_ops`/`halfvec_ip_ops` for `halfvec`
 
 ### Query
@@ -252,7 +254,16 @@ SET max_parallel_workers = 8;
 ALTER SYSTEM SET max_worker_processes = 8;
 ```
 
-## Query Performance
+When building an index on a table with more than 10 million vectors, you can choose to consume more memory to accelerate the process by setting `build.pin` to `true`:
+
+```sql
+CREATE INDEX ON items USING vchordrq (embedding vector_cosine_ops) WITH (options = $$
+residual_quantization = false
+build.pin = true
+$$);
+```
+
+### Query Performance
 You can fine-tune the search performance by adjusting the `probes` and `epsilon` parameters:
 
 ```sql
@@ -289,9 +300,35 @@ SET jit = off;
 ALTER SYSTEM SET shared_buffers = '8GB';
 ```
 
+### Index Internal Build
+
+There are 4 options for index internal build, except `lists`.
+
+* `spherical_centroids`: Specifies whether to use spherical K-means algorithm. If the model generates cosine similarity embeddings, set this to `true`; otherwise, set to `false`. Possible values: `true`, `false`. Default: `false`.
+
+* `sampling_factor`: Specifies the number of vectors sampled by K-means algorithm. The higher this value, the slower the build, the greater the memory consumption, and the better search performance. Possible values: any integer between `1` and `1024`. Default: `256`.
+
+* `kmeans_iterations`: Specifies the number of iterations for K-means algorithm. The higher this value, the slower the build. Possible values: any integer between `0` and `1024`. Default: `10`.
+
+* `build_threads`: Specifies the number of threads used by K-means algorithm. The higher this value, the faster the build. Possible values: any integer between `1` and `255`. Default: `1`.
+
+An example of these options:
+
+```sql
+CREATE INDEX ON t USING vchordrq (embedding vector_cosine_ops) WITH (options = $$
+residual_quantization = false
+[build.internal]
+lists = [1000]
+spherical_centroids = true
+sampling_factor = 512
+kmeans_iterations = 25
+build_threads = 16
+$$);
+```
+
 ## Advanced Features
 
-### Indexing prewarm
+### Indexing Prewarm
 
 For disk-first indexing, RaBitQ(vchordrq) is loaded from disk for the first query, 
 and then cached in memory if `shared_buffer` is sufficient, resulting in a significant cold-start slowdown.
@@ -393,11 +430,12 @@ Follow the steps in [Dev Guidance](./scripts/README.md#build-docker).
 Install pgrx according to [pgrx's instruction](https://github.com/pgcentralfoundation/pgrx?tab=readme-ov-file#getting-started).
 ```bash
 cargo install --locked cargo-pgrx
-cargo pgrx init --pg17 $(which pg_config) # To init with system postgres, with pg_config in PATH
+cargo pgrx init --pg$(pg_config --version | awk '{print $2}' | cut -d. -f1) $(which pg_config) # To init with system postgres, with pg_config in PATH
 cargo pgrx install --release --sudo # To install the extension into the system postgres with sudo
 ```
 
 ## Limitations
+
 - KMeans Clustering: The built-in KMeans clustering depends on multi-thread in-memory build and may require substantial memory. We strongly recommend using external centroid precomputation for efficient index construction.
 
 

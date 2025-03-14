@@ -3,85 +3,156 @@
 ### Pre-requisite
 
 ```shell
-sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang postgresql-server-dev-16
-cargo install --locked cargo-pgrx
-cargo pgrx init
+SEMVER='0.2.1'
+VERSION='17'
+
+git clone https://github.com/tensorchord/VectorChord.git
+cd VectorChord
+git checkout $SEMVER
+
+sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
+
+sudo apt-get install -y postgresql-common
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+sudo apt-get install -y postgresql-server-dev-$VERSION
+sudo apt-get install -y postgresql-$VERSION
+sudo apt-get install -y postgresql-$VERSION-pgvector
+
+curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+sudo update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+cargo install cargo-pgrx@$(sed -n 's/.*pgrx = { version = "\(=.*\)",.*/\1/p' Cargo.toml) --locked
+cargo pgrx init --pg$VERSION=$(which pg_config)
 ```
 
 ### Step 1 - generate install schema
+
 ```shell
-# Change to version to release
-SEMVER=0.2.0
-PREV_VERSION=0.1.0
+SEMVER='0.2.1'
+VERSION='17'
 
-mkdir temp
-
-cargo build --package vchord --lib --features pg16 --release
-./tools/schema.sh --features pg16 --release
-
-cp ./target/release/schema.sql ./sql/install/vchord--$SEMVER.sql
+cargo build --lib --features pg$VERSION --release
+cargo pgrx schema --features pg$VERSION | expand -t 4 > ./sql/install/vchord--$SEMVER.sql
 ```
 
 ### Step 2 - generate upgrade schema
-```shell
-PREV_VERSION_FILE=sql/install/vchord--$PREV_VERSION.sql
 
-# New lines redirect to install.sql, revised lines & deleted lines redirect to terminal
-diff -u $PREV_VERSION_FILE install.sql | awk '
+```shell
+PREV='0.2.0'
+SEMVER='0.2.1'
+
+diff -u ./sql/install/vchord--$PREV.sql ./sql/install/vchord--$SEMVER.sql | awk '
   /^\+/ && !/^+++/ { 
-    print substr($0, 2) > "temp/upgrade.sql"
+    print substr($0, 2) > "target/upgrade.sql"
     next
   }
   /^-/ && !/^---/ || /^@/ { print }
   { next }
 '
-cp temp/upgrade.sql ./sql/upgrade/vchord--$PREV_VERSION--$SEMVER.sql
+cp target/upgrade.sql ./sql/upgrade/vchord--$PREV--$SEMVER.sql
 ```
 
 ### Step 3 - validate
+
 ```shell
+PREV='0.2.0'
+SEMVER='0.2.1'
 
-# sudo pg_dropcluster --stop 16 main 
-sudo pg_createcluster 16 main --start
 sudo -u postgres createdb vchord
-sudo -u postgres psql -d vchord -c "ALTER USER postgres WITH PASSWORD '123';"
 
-# Dump upgraded schema and compare it
-export PGHOST=localhost
-export PGPASSWORD=123
-export PGUSER=postgres
-./tools/dump.sh $PREV_VERSION $SEMVER > temp/dump1.sql
-./tools/dump.sh $SEMVER > temp/dump2.sql
-code --diff temp/dump1.sql temp/dump2.sql
+sudo -u postgres ./tools/dump.sh $PREV $SEMVER > target/upgrade.sql
+sudo -u postgres ./tools/dump.sh $SEMVER > target/install.sql
+code --diff target/upgrade.sql target/install.sql
+
+sudo -u postgres dropdb vchord
 ```
 
-### Step 4 - further test
+### Step 4 - package and download
 
 ```shell
-sudo apt remove -y vchord-pg16
-SEMVER=$SEMVER VERSION="16" ARCH="x86_64" PLATFORM="amd64" ./tools/package.sh
-cd temp
-wget https://github.com/tensorchord/VectorChord/releases/download/"$PREV_VERSION"/vchord-pg16_"$PREV_VERSION"_amd64.deb
-sudo apt install -y ./vchord-pg16_"$PREV_VERSION"_amd64.deb
-sudo -u postgres psql -d vchord -c "ALTER SYSTEM SET SHARED_PRELOAD_LIBRARIES='vchord.so';"
-sudo systemctl restart postgresql@16-main.service
-sudo -u postgres psql -d vchord -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS vchord;'
-sudo -u postgres psql -d vchord -c "SELECT extversion FROM pg_extension WHERE extname = 'vchord';"
+SEMVER='0.2.1'
+VERSION='17'
+ARCH='x86_64'
+PLATFORM='amd64'
 
-# Run Test -- Upgrade
-sudo apt install -f ../build/vchord-pg16_"$SEMVER"_amd64.deb
-sudo systemctl restart postgresql@16-main.service
+cargo build --lib --features pg$VERSION --release
+
+mkdir -p ./build/zip
+cp -a ./sql/upgrade/. ./build/zip/
+cp ./sql/install/vchord--$SEMVER.sql ./build/zip/vchord--$SEMVER.sql
+sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/zip/vchord.control
+cp ./target/release/libvchord.so ./build/zip/vchord.so
+zip ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip -j ./build/zip/*
+
+mkdir -p ./build/deb
+mkdir -p ./build/deb/DEBIAN
+mkdir -p ./build/deb/usr/share/postgresql/$VERSION/extension/
+mkdir -p ./build/deb/usr/lib/postgresql/$VERSION/lib/
+for file in $(ls ./build/zip/*.sql | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+done
+for file in $(ls ./build/zip/*.control | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+done
+for file in $(ls ./build/zip/*.so | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/lib/postgresql/$VERSION/lib/$file
+done
+echo "Package: postgresql-${VERSION}-vchord
+Version: ${SEMVER}-1
+Section: database
+Priority: optional
+Architecture: ${PLATFORM}
+Maintainer: Tensorchord <support@tensorchord.ai>
+Description: Vector database plugin for Postgres, written in Rust, specifically designed for LLM
+Homepage: https://vectorchord.ai/
+License: AGPL-3 or Elastic-2" \
+> ./build/deb/DEBIAN/control
+(cd ./build/deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/deb/DEBIAN/md5sums
+dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+
+ls ./build
+
+wget https://github.com/tensorchord/VectorChord/releases/download/${PREV}/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb -o ./build/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb
+```
+
+### Step 5 - further test
+
+```shell
+PREV='0.2.0'
+SEMVER='0.2.1'
+VERSION='17'
+ARCH='x86_64'
+PLATFORM='amd64'
+
+cargo install sqllogictest-bin
+
+# upgrade test
+
+sudo apt install -y ./build/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb
+sudo -u postgres psql -d vchord -c "ALTER SYSTEM SET SHARED_PRELOAD_LIBRARIES='vchord.so';"
+sudo systemctl restart postgresql@$VERSION-main.service
+sudo -u postgres psql -d vchord -c 'CREATE EXTENSION vchord CASCADE;'
+sudo -u postgres psql -d vchord -c "SELECT extversion FROM pg_extension WHERE extname = 'vchord';"
+sudo -u postgres sqllogictest -d vchord '../tests/**/*.slt'
+
+sudo apt install -y ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+sudo systemctl restart postgresql@$VERSION-main.service
 sudo -u postgres psql -d vchord -c 'ALTER EXTENSION vchord UPDATE;'
 sudo -u postgres psql -d vchord -c "SELECT extversion FROM pg_extension WHERE extname = 'vchord';"
-sqllogictest -h localhost -u postgres -d vchord -w 123 '../tests/**/*.slt'
+sudo -u postgres sqllogictest -d vchord '../tests/**/*.slt'
 
-# Run Test -- Install
-sudo -u postgres psql -d vchord -c 'DROP EXTENSION vchord CASCADE;'
-sudo -u postgres psql -d vchord -c 'CREATE EXTENSION vchord;'
+sudo apt remove -y postgresql-${VERSION}-vchord
+
+# install test
+
+sudo apt install -y ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+sudo -u postgres psql -d vchord -c "ALTER SYSTEM SET SHARED_PRELOAD_LIBRARIES='vchord.so';"
+sudo systemctl restart postgresql@$VERSION-main.service
+sudo -u postgres psql -d vchord -c 'CREATE EXTENSION vchord CASCADE;'
 sudo -u postgres psql -d vchord -c "SELECT extversion FROM pg_extension WHERE extname = 'vchord';"
-sqllogictest -h localhost -u postgres -d vchord -w 123 '../tests/**/*.slt'
+sudo -u postgres sqllogictest -d vchord '../tests/**/*.slt'
 
-sudo -u postgres psql -d vchord -c "DROP SCHEMA IF EXISTS public CASCADE;"
-sudo apt remove -y vchord-pg16
-cd .. && rm -rf temp
+sudo apt remove -y postgresql-${VERSION}-vchord
 ```
