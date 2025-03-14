@@ -1,49 +1,77 @@
 ## Build Docker
 
-Users can choose to build the package with the provided docker image or create the development environment by themselves.
-
-- (option 1) With `vectorchord-pgrx` Image
-
 ```shell
-# use the required version of `pgrx` and `rust`
-export PGRX_VERSION=$(awk -F'version = "=|"' '/^pgrx\s*=.*version/ {print $2}' Cargo.toml)
-export RUST_TOOLCHAIN=$(awk -F'"' '/^\s*channel\s*=/ {print $2}' rust-toolchain.toml)
-export PGRX_IMAGE=ghcr.io/tensorchord/vectorchord-pgrx:$PGRX_VERSION-$RUST_TOOLCHAIN
+SEMVER='0.2.1'
+VERSION='17'
+ARCH='x86_64'
+PLATFORM='amd64'
 
-docker run --rm -v .:/workspace $PGRX_IMAGE cargo build --lib --features pg16 --release
-docker run --rm -v .:/workspace $PGRX_IMAGE ./tools/schema.sh --features pg16 --release
-```
+git clone https://github.com/tensorchord/VectorChord.git
+cd VectorChord
+git checkout $SEMVER
 
-- (option 2) With Local Development Environment
+sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config
 
-```shell
-sudo apt install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev libxml2-utils xsltproc ccache pkg-config clang
-cargo install --locked cargo-pgrx
-cargo pgrx init
-cargo build --package vchord --lib --features pg16 --release
-./tools/schema.sh --features pg16 --release
-```
+sudo apt-get install -y postgresql-common
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+sudo apt-get install -y postgresql-server-dev-$VERSION
+sudo apt-get install -y postgresql-$VERSION
+sudo apt-get install -y postgresql-$VERSION-pgvector
 
-- build the debian package
+curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+sudo update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
 
-```shell
-export SEMVER="0.0.0"
-export VERSION="16"
-export ARCH="x86_64"
-export PLATFORM="amd64"
-./tools/package.sh
-```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
-- build the docker image
+cargo install cargo-pgrx@$(sed -n 's/.*pgrx = { version = "\(=.*\)",.*/\1/p' Cargo.toml) --locked
+cargo pgrx init --pg$VERSION=$(which pg_config)
 
-```shell
-docker build -t vchord:pg16-latest --build-arg PG_VERSION=16 -f ./docker/Dockerfile .
+cargo build --lib --features pg$VERSION --release
+
+mkdir -p ./build/zip
+cp -a ./sql/upgrade/. ./build/zip/
+cp ./sql/install/vchord--$SEMVER.sql ./build/zip/vchord--$SEMVER.sql
+sed -e "s/@CARGO_VERSION@/$SEMVER/g" < ./vchord.control > ./build/zip/vchord.control
+cp ./target/release/libvchord.so ./build/zip/vchord.so
+zip ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip -j ./build/zip/*
+
+mkdir -p ./build/deb
+mkdir -p ./build/deb/DEBIAN
+mkdir -p ./build/deb/usr/share/postgresql/$VERSION/extension/
+mkdir -p ./build/deb/usr/lib/postgresql/$VERSION/lib/
+for file in $(ls ./build/zip/*.sql | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+done
+for file in $(ls ./build/zip/*.control | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
+done
+for file in $(ls ./build/zip/*.so | xargs -n 1 basename); do
+    cp ./build/zip/$file ./build/deb/usr/lib/postgresql/$VERSION/lib/$file
+done
+echo "Package: postgresql-${VERSION}-vchord
+Version: ${SEMVER}-1
+Section: database
+Priority: optional
+Architecture: ${PLATFORM}
+Maintainer: Tensorchord <support@tensorchord.ai>
+Description: Vector database plugin for Postgres, written in Rust, specifically designed for LLM
+Homepage: https://vectorchord.ai/
+License: AGPL-3 or Elastic-2" \
+> ./build/deb/DEBIAN/control
+(cd ./build/deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/deb/DEBIAN/md5sums
+dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
+
+ls ./build
+
+docker build -t vchord:pg$VERSION-latest --build-arg PG_VERSION=$VERSION -f ./docker/Dockerfile .
 ```
 
 ## Run Instance
 
 ```shell
-docker run --name vchord -e POSTGRES_PASSWORD=123 -p 5432:5432 -d vchord:pg16-latest
+VERSION='17'
+
+docker run --name vchord -e POSTGRES_PASSWORD=123 -p 5432:5432 -d vchord:pg$VERSION-latest
 ```
 
 ## Run External Index Precomputation Toolkit

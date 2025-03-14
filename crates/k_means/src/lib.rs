@@ -26,7 +26,7 @@ pub fn k_means(
             .num_threads(num_threads)
             .build_scoped(
                 |thread| thread.run(),
-                move |_| {
+                move |pool| {
                     let compute = |centroids: &[Vec<f32>]| {
                         if n >= 1000 && c >= 1000 {
                             rabitq_index(dims, n, c, samples, centroids)
@@ -35,14 +35,14 @@ pub fn k_means(
                         }
                     };
                     let mut lloyd_k_means =
-                        LloydKMeans::new(c, dims, samples, is_spherical, compute);
+                        pool.install(|| LloydKMeans::new(c, dims, samples, is_spherical, compute));
                     for _ in 0..iterations {
                         check();
-                        if lloyd_k_means.iterate() {
+                        if pool.install(|| lloyd_k_means.iterate()) {
                             break;
                         }
                     }
-                    lloyd_k_means.finish()
+                    pool.install(|| lloyd_k_means.finish())
                 },
             )
             .expect("failed to build thread pool")
