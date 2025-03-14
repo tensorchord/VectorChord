@@ -114,7 +114,7 @@ dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSI
 
 ls ./build
 
-wget https://github.com/tensorchord/VectorChord/releases/download/${PREV}/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb -o ./build/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb
+wget https://github.com/tensorchord/VectorChord/releases/download/${PREV}/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb -O ./build/postgresql-${VERSION}-vchord_${PREV}-1_${PLATFORM}.deb
 ```
 
 ### Step 5 - further test
