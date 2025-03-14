@@ -1055,7 +1055,7 @@ pub fn make_internal_build(
                 &samples
             },
             internal_build.spherical_centroids,
-            10,
+            internal_build.kmeans_iterations as _,
         );
         if let Some(structure) = result.last() {
             let mut children = vec![Vec::new(); means.len()];

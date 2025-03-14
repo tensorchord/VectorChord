@@ -13,6 +13,9 @@ pub struct VchordrqInternalBuildOptions {
     #[serde(default = "VchordrqInternalBuildOptions::default_sampling_factor")]
     #[validate(range(min = 1, max = 1024))]
     pub sampling_factor: u32,
+    #[serde(default = "VchordrqInternalBuildOptions::default_kmeans_iterations")]
+    #[validate(range(min = 0, max = 1024))]
+    pub kmeans_iterations: u32,
     #[serde(default = "VchordrqInternalBuildOptions::default_build_threads")]
     #[validate(range(min = 1, max = 255))]
     pub build_threads: u16,
@@ -37,6 +40,9 @@ impl VchordrqInternalBuildOptions {
     fn default_sampling_factor() -> u32 {
         256
     }
+    fn default_kmeans_iterations() -> u32 {
+        10
+    }
     fn default_build_threads() -> u16 {
         1
     }
@@ -48,6 +54,7 @@ impl Default for VchordrqInternalBuildOptions {
             lists: Self::default_lists(),
             spherical_centroids: Self::default_spherical_centroids(),
             sampling_factor: Self::default_sampling_factor(),
+            kmeans_iterations: Self::default_kmeans_iterations(),
             build_threads: Self::default_build_threads(),
         }
     }
