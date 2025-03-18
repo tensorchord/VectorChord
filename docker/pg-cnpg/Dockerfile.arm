@@ -30,6 +30,7 @@ RUN set -xe; \
     python3-pip \
     python3-psycopg2 \
     python3-setuptools \
+    build-essential \
     ; \
     pip3 install --break-system-packages --upgrade pip; \
     # TODO: Remove --no-deps once https://github.com/pypa/pip/issues/9644 is solved
