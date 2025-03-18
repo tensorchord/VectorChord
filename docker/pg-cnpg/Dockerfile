@@ -1,12 +1,12 @@
-ARG PG_MAJOR
+ARG PG_MAJOR=16
 ARG SEMVER
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 
-FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER}-${TARGETARCH} as binary
+FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER}-${TARGETARCH} AS binary
 
-FROM rust:1.83-bookworm as builder
+FROM rust:1.83-bookworm AS builder
 ARG TRUNK_VER=0.15.7
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 RUN cargo install --version $TRUNK_VER pg-trunk
 
 FROM modelzai/pg-slim:${PG_MAJOR}-${TARGETARCH}
@@ -172,9 +172,6 @@ RUN git clone https://github.com/EnterpriseDB/pg_failover_slots.git && \
     cd pg_failover_slots && \
     make install PG_CONFIG=/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config && \
     cd ../ && rm -rf pg_failover_slots 
-
-# cache all extensions
-ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # Test trunk install extension
 COPY extension-install.sh /usr/local/bin/
