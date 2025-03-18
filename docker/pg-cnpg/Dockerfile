@@ -2,7 +2,7 @@ ARG PG_MAJOR
 ARG SEMVER
 ARG TARGETARCH
 
-FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER} as binary
+FROM tensorchord/vchord-binary:pg${PG_MAJOR}-v${SEMVER}-${TARGETARCH} as binary
 
 FROM rust:1.83-bookworm as builder
 ARG TRUNK_VER=0.15.7
