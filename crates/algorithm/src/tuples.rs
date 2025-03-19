@@ -3,7 +3,6 @@ use crate::operator::Vector;
 use std::marker::PhantomData;
 use std::num::{NonZeroU8, NonZeroU64};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 pub const ALIGN: usize = 8;
 pub type Tag = u64;

@@ -135,24 +135,22 @@ mod reduce_sum_of_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_sum_of_x_v4_512(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                a = a.add(16);
-                n -= 16;
-                sum = _mm512_add_ps(x, sum);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                sum = _mm512_add_ps(x, sum);
-            }
-            _mm512_reduce_add_ps(sum)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            a = unsafe { a.add(16) };
+            n -= 16;
+            sum = _mm512_add_ps(x, sum);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            sum = _mm512_add_ps(x, sum);
+        }
+        _mm512_reduce_add_ps(sum)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -187,33 +185,31 @@ mod reduce_sum_of_x {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x_v3(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                a = a.add(8);
-                n -= 8;
-                sum = _mm256_add_ps(x, sum);
-            }
-            if n >= 4 {
-                let x = _mm256_zextps128_ps256(_mm_loadu_ps(a));
-                a = a.add(4);
-                n -= 4;
-                sum = _mm256_add_ps(x, sum);
-            }
-            let mut sum = emulate_mm256_reduce_add_ps(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                sum += x;
-            }
-            sum
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            a = unsafe { a.add(8) };
+            n -= 8;
+            sum = _mm256_add_ps(x, sum);
         }
+        if n >= 4 {
+            let x = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(a)) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = _mm256_add_ps(x, sum);
+        }
+        let mut sum = emulate_mm256_reduce_add_ps(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -248,27 +244,25 @@ mod reduce_sum_of_x {
     #[crate::target_cpu(enable = "v2")]
     fn reduce_sum_of_x_v2(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm_setzero_ps();
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                a = a.add(4);
-                n -= 4;
-                sum = _mm_add_ps(x, sum);
-            }
-            let mut sum = emulate_mm_reduce_add_ps(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                sum += x;
-            }
-            sum
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm_setzero_ps();
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = _mm_add_ps(x, sum);
         }
+        let mut sum = emulate_mm_reduce_add_ps(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -302,27 +296,25 @@ mod reduce_sum_of_x {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_x_a2(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = vdupq_n_f32(0.0);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                a = a.add(4);
-                n -= 4;
-                sum = vaddq_f32(x, sum);
-            }
-            let mut sum = vaddvq_f32(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                sum += x;
-            }
-            sum
+        use std::arch::aarch64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = vdupq_n_f32(0.0);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = vaddq_f32(x, sum);
         }
+        let mut sum = vaddvq_f32(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -358,8 +350,8 @@ mod reduce_sum_of_x {
     #[target_feature(enable = "sve")]
     fn reduce_sum_of_x_a3_256(this: &[f32]) -> f32 {
         unsafe {
-            extern "C" {
-                fn fp32_reduce_sum_of_x_a3_256(this: *const f32, n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_sum_of_x_a3_256(this: *const f32, n: usize) -> f32;
             }
             fp32_reduce_sum_of_x_a3_256(this.as_ptr(), this.len())
         }
@@ -408,26 +400,24 @@ mod reduce_sum_of_abs_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_sum_of_abs_x_v4_512(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                let abs_x = _mm512_abs_ps(x);
-                a = a.add(16);
-                n -= 16;
-                sum = _mm512_add_ps(abs_x, sum);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                let abs_x = _mm512_abs_ps(x);
-                sum = _mm512_add_ps(abs_x, sum);
-            }
-            _mm512_reduce_add_ps(sum)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            let abs_x = _mm512_abs_ps(x);
+            a = unsafe { a.add(16) };
+            n -= 16;
+            sum = _mm512_add_ps(abs_x, sum);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            let abs_x = _mm512_abs_ps(x);
+            sum = _mm512_add_ps(abs_x, sum);
+        }
+        _mm512_reduce_add_ps(sum)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -462,37 +452,35 @@ mod reduce_sum_of_abs_x {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_abs_x_v3(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let abs = _mm256_castsi256_ps(_mm256_srli_epi32(_mm256_set1_epi32(-1), 1));
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                let abs_x = _mm256_and_ps(abs, x);
-                a = a.add(8);
-                n -= 8;
-                sum = _mm256_add_ps(abs_x, sum);
-            }
-            if n >= 4 {
-                let x = _mm256_zextps128_ps256(_mm_loadu_ps(a));
-                let abs_x = _mm256_and_ps(abs, x);
-                a = a.add(4);
-                n -= 4;
-                sum = _mm256_add_ps(abs_x, sum);
-            }
-            let mut sum = emulate_mm256_reduce_add_ps(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let abs_x = x.abs();
-                a = a.add(1);
-                n -= 1;
-                sum += abs_x;
-            }
-            sum
+        use std::arch::x86_64::*;
+        let abs = _mm256_castsi256_ps(_mm256_srli_epi32(_mm256_set1_epi32(-1), 1));
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            let abs_x = _mm256_and_ps(abs, x);
+            a = unsafe { a.add(8) };
+            n -= 8;
+            sum = _mm256_add_ps(abs_x, sum);
         }
+        if n >= 4 {
+            let x = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(a)) };
+            let abs_x = _mm256_and_ps(abs, x);
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = _mm256_add_ps(abs_x, sum);
+        }
+        let mut sum = emulate_mm256_reduce_add_ps(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let abs_x = x.abs();
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += abs_x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -527,30 +515,28 @@ mod reduce_sum_of_abs_x {
     #[crate::target_cpu(enable = "v2")]
     fn reduce_sum_of_abs_x_v2(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let abs = _mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = _mm_setzero_ps();
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                let abs_x = _mm_and_ps(abs, x);
-                a = a.add(4);
-                n -= 4;
-                sum = _mm_add_ps(abs_x, sum);
-            }
-            let mut sum = emulate_mm_reduce_add_ps(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let abs_x = x.abs();
-                a = a.add(1);
-                n -= 1;
-                sum += abs_x;
-            }
-            sum
+        use std::arch::x86_64::*;
+        let abs = _mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = _mm_setzero_ps();
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            let abs_x = _mm_and_ps(abs, x);
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = _mm_add_ps(abs_x, sum);
         }
+        let mut sum = emulate_mm_reduce_add_ps(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let abs_x = x.abs();
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += abs_x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -584,29 +570,27 @@ mod reduce_sum_of_abs_x {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_abs_x_a2(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut sum = vdupq_n_f32(0.0);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                let abs_x = vabsq_f32(x);
-                a = a.add(4);
-                n -= 4;
-                sum = vaddq_f32(abs_x, sum);
-            }
-            let mut sum = vaddvq_f32(sum);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let abs_x = x.abs();
-                a = a.add(1);
-                n -= 1;
-                sum += abs_x;
-            }
-            sum
+        use std::arch::aarch64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut sum = vdupq_n_f32(0.0);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            let abs_x = vabsq_f32(x);
+            a = unsafe { a.add(4) };
+            n -= 4;
+            sum = vaddq_f32(abs_x, sum);
         }
+        let mut sum = vaddvq_f32(sum);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let abs_x = x.abs();
+            a = unsafe { a.add(1) };
+            n -= 1;
+            sum += abs_x;
+        }
+        sum
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -642,8 +626,8 @@ mod reduce_sum_of_abs_x {
     #[target_feature(enable = "sve")]
     fn reduce_sum_of_abs_x_a3_256(this: &[f32]) -> f32 {
         unsafe {
-            extern "C" {
-                fn fp32_reduce_sum_of_abs_x_a3_256(this: *const f32, n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_sum_of_abs_x_a3_256(this: *const f32, n: usize) -> f32;
             }
             fp32_reduce_sum_of_abs_x_a3_256(this.as_ptr(), this.len())
         }
@@ -692,24 +676,22 @@ mod reduce_sum_of_x2 {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_sum_of_x2_v4_512(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut x2 = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                a = a.add(16);
-                n -= 16;
-                x2 = _mm512_fmadd_ps(x, x, x2);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                x2 = _mm512_fmadd_ps(x, x, x2);
-            }
-            _mm512_reduce_add_ps(x2)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut x2 = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            a = unsafe { a.add(16) };
+            n -= 16;
+            x2 = _mm512_fmadd_ps(x, x, x2);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            x2 = _mm512_fmadd_ps(x, x, x2);
+        }
+        _mm512_reduce_add_ps(x2)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -744,33 +726,31 @@ mod reduce_sum_of_x2 {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x2_v3(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut x2 = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                a = a.add(8);
-                n -= 8;
-                x2 = _mm256_fmadd_ps(x, x, x2);
-            }
-            if n >= 4 {
-                let x = _mm256_zextps128_ps256(_mm_loadu_ps(a));
-                a = a.add(4);
-                n -= 4;
-                x2 = _mm256_fmadd_ps(x, x, x2);
-            }
-            let mut x2 = emulate_mm256_reduce_add_ps(x2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                x2 += x * x;
-            }
-            x2
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut x2 = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            a = unsafe { a.add(8) };
+            n -= 8;
+            x2 = _mm256_fmadd_ps(x, x, x2);
         }
+        if n >= 4 {
+            let x = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(a)) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            x2 = _mm256_fmadd_ps(x, x, x2);
+        }
+        let mut x2 = emulate_mm256_reduce_add_ps(x2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            x2 += x * x;
+        }
+        x2
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -806,27 +786,25 @@ mod reduce_sum_of_x2 {
     #[target_feature(enable = "fma")]
     fn reduce_sum_of_x2_v2_fma(this: &[f32]) -> f32 {
         use crate::emulate::emulate_mm_reduce_add_ps;
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut x2 = _mm_setzero_ps();
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                a = a.add(4);
-                n -= 4;
-                x2 = _mm_fmadd_ps(x, x, x2);
-            }
-            let mut x2 = emulate_mm_reduce_add_ps(x2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                x2 += x * x;
-            }
-            x2
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut x2 = _mm_setzero_ps();
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            x2 = _mm_fmadd_ps(x, x, x2);
         }
+        let mut x2 = emulate_mm_reduce_add_ps(x2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            x2 += x * x;
+        }
+        x2
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -860,27 +838,25 @@ mod reduce_sum_of_x2 {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_x2_a2(this: &[f32]) -> f32 {
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut x2 = vdupq_n_f32(0.0);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                a = a.add(4);
-                n -= 4;
-                x2 = vfmaq_f32(x2, x, x);
-            }
-            let mut x2 = vaddvq_f32(x2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                x2 += x * x;
-            }
-            x2
+        use std::arch::aarch64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut x2 = vdupq_n_f32(0.0);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            x2 = vfmaq_f32(x2, x, x);
         }
+        let mut x2 = vaddvq_f32(x2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            x2 += x * x;
+        }
+        x2
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -916,8 +892,8 @@ mod reduce_sum_of_x2 {
     #[target_feature(enable = "sve")]
     fn reduce_sum_of_x2_a3_256(this: &[f32]) -> f32 {
         unsafe {
-            extern "C" {
-                fn fp32_reduce_sum_of_x2_a3_256(this: *const f32, n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_sum_of_x2_a3_256(this: *const f32, n: usize) -> f32;
             }
             fp32_reduce_sum_of_x2_a3_256(this.as_ptr(), this.len())
         }
@@ -969,29 +945,27 @@ mod reduce_min_max_of_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_min_max_of_x_v4_512(this: &[f32]) -> (f32, f32) {
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut min = _mm512_set1_ps(f32::INFINITY);
-            let mut max = _mm512_set1_ps(f32::NEG_INFINITY);
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                a = a.add(16);
-                n -= 16;
-                min = _mm512_min_ps(x, min);
-                max = _mm512_max_ps(x, max);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                min = _mm512_mask_min_ps(min, mask, x, min);
-                max = _mm512_mask_max_ps(max, mask, x, max);
-            }
-            let min = _mm512_reduce_min_ps(min);
-            let max = _mm512_reduce_max_ps(max);
-            (min, max)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut min = _mm512_set1_ps(f32::INFINITY);
+        let mut max = _mm512_set1_ps(f32::NEG_INFINITY);
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            a = unsafe { a.add(16) };
+            n -= 16;
+            min = _mm512_min_ps(x, min);
+            max = _mm512_max_ps(x, max);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            min = _mm512_mask_min_ps(min, mask, x, min);
+            max = _mm512_mask_max_ps(max, mask, x, max);
+        }
+        let min = _mm512_reduce_min_ps(min);
+        let max = _mm512_reduce_max_ps(max);
+        (min, max)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -1023,31 +997,29 @@ mod reduce_min_max_of_x {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_min_max_of_x_v3(this: &[f32]) -> (f32, f32) {
         use crate::emulate::{emulate_mm256_reduce_max_ps, emulate_mm256_reduce_min_ps};
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut min = _mm256_set1_ps(f32::INFINITY);
-            let mut max = _mm256_set1_ps(f32::NEG_INFINITY);
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                a = a.add(8);
-                n -= 8;
-                min = _mm256_min_ps(x, min);
-                max = _mm256_max_ps(x, max);
-            }
-            let mut min = emulate_mm256_reduce_min_ps(min);
-            let mut max = emulate_mm256_reduce_max_ps(max);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                min = x.min(min);
-                max = x.max(max);
-            }
-            (min, max)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut min = _mm256_set1_ps(f32::INFINITY);
+        let mut max = _mm256_set1_ps(f32::NEG_INFINITY);
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            a = unsafe { a.add(8) };
+            n -= 8;
+            min = _mm256_min_ps(x, min);
+            max = _mm256_max_ps(x, max);
         }
+        let mut min = emulate_mm256_reduce_min_ps(min);
+        let mut max = emulate_mm256_reduce_max_ps(max);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            min = x.min(min);
+            max = x.max(max);
+        }
+        (min, max)
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1079,31 +1051,29 @@ mod reduce_min_max_of_x {
     #[crate::target_cpu(enable = "v2")]
     fn reduce_min_max_of_x_v2(this: &[f32]) -> (f32, f32) {
         use crate::emulate::{emulate_mm_reduce_max_ps, emulate_mm_reduce_min_ps};
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut min = _mm_set1_ps(f32::INFINITY);
-            let mut max = _mm_set1_ps(f32::NEG_INFINITY);
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                a = a.add(4);
-                n -= 4;
-                min = _mm_min_ps(x, min);
-                max = _mm_max_ps(x, max);
-            }
-            let mut min = emulate_mm_reduce_min_ps(min);
-            let mut max = emulate_mm_reduce_max_ps(max);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                min = x.min(min);
-                max = x.max(max);
-            }
-            (min, max)
+        use std::arch::x86_64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut min = _mm_set1_ps(f32::INFINITY);
+        let mut max = _mm_set1_ps(f32::NEG_INFINITY);
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            min = _mm_min_ps(x, min);
+            max = _mm_max_ps(x, max);
         }
+        let mut min = emulate_mm_reduce_min_ps(min);
+        let mut max = emulate_mm_reduce_max_ps(max);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            min = x.min(min);
+            max = x.max(max);
+        }
+        (min, max)
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1134,31 +1104,29 @@ mod reduce_min_max_of_x {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_min_max_of_x_a2(this: &[f32]) -> (f32, f32) {
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = this.len();
-            let mut a = this.as_ptr();
-            let mut min = vdupq_n_f32(f32::INFINITY);
-            let mut max = vdupq_n_f32(f32::NEG_INFINITY);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                a = a.add(4);
-                n -= 4;
-                min = vminq_f32(x, min);
-                max = vmaxq_f32(x, max);
-            }
-            let mut min = vminvq_f32(min);
-            let mut max = vmaxvq_f32(max);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                a = a.add(1);
-                n -= 1;
-                min = x.min(min);
-                max = x.max(max);
-            }
-            (min, max)
+        use std::arch::aarch64::*;
+        let mut n = this.len();
+        let mut a = this.as_ptr();
+        let mut min = vdupq_n_f32(f32::INFINITY);
+        let mut max = vdupq_n_f32(f32::NEG_INFINITY);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            a = unsafe { a.add(4) };
+            n -= 4;
+            min = vminq_f32(x, min);
+            max = vmaxq_f32(x, max);
         }
+        let mut min = vminvq_f32(min);
+        let mut max = vmaxvq_f32(max);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            a = unsafe { a.add(1) };
+            n -= 1;
+            min = x.min(min);
+            max = x.max(max);
+        }
+        (min, max)
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -1193,8 +1161,8 @@ mod reduce_min_max_of_x {
         let mut min = f32::INFINITY;
         let mut max = -f32::INFINITY;
         unsafe {
-            extern "C" {
-                fn fp32_reduce_min_max_of_x_a3_256(
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_min_max_of_x_a3_256(
                     this: *const f32,
                     n: usize,
                     out_min: &mut f32,
@@ -1249,28 +1217,26 @@ mod reduce_sum_of_xy {
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_sum_of_xy_v4_512(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                let y = _mm512_loadu_ps(b);
-                a = a.add(16);
-                b = b.add(16);
-                n -= 16;
-                xy = _mm512_fmadd_ps(x, y, xy);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                let y = _mm512_maskz_loadu_ps(mask, b);
-                xy = _mm512_fmadd_ps(x, y, xy);
-            }
-            _mm512_reduce_add_ps(xy)
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            let y = unsafe { _mm512_loadu_ps(b) };
+            a = unsafe { a.add(16) };
+            b = unsafe { b.add(16) };
+            n -= 16;
+            xy = _mm512_fmadd_ps(x, y, xy);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            let y = unsafe { _mm512_maskz_loadu_ps(mask, b) };
+            xy = _mm512_fmadd_ps(x, y, xy);
+        }
+        _mm512_reduce_add_ps(xy)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -1310,40 +1276,38 @@ mod reduce_sum_of_xy {
     fn reduce_sum_of_xy_v3(lhs: &[f32], rhs: &[f32]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                let y = _mm256_loadu_ps(b);
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                xy = _mm256_fmadd_ps(x, y, xy);
-            }
-            if n >= 4 {
-                let x = _mm256_zextps128_ps256(_mm_loadu_ps(a));
-                let y = _mm256_zextps128_ps256(_mm_loadu_ps(b));
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                xy = _mm256_fmadd_ps(x, y, xy);
-            }
-            let mut xy = emulate_mm256_reduce_add_ps(xy);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                xy += x * y;
-            }
-            xy
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            let y = unsafe { _mm256_loadu_ps(b) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            xy = _mm256_fmadd_ps(x, y, xy);
         }
+        if n >= 4 {
+            let x = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(a)) };
+            let y = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(b)) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            xy = _mm256_fmadd_ps(x, y, xy);
+        }
+        let mut xy = emulate_mm256_reduce_add_ps(xy);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            xy += x * y;
+        }
+        xy
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1384,32 +1348,30 @@ mod reduce_sum_of_xy {
     fn reduce_sum_of_xy_v2_fma(lhs: &[f32], rhs: &[f32]) -> f32 {
         use crate::emulate::emulate_mm_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm_setzero_ps();
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                let y = _mm_loadu_ps(b);
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                xy = _mm_fmadd_ps(x, y, xy);
-            }
-            let mut xy = emulate_mm_reduce_add_ps(xy);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                xy += x * y;
-            }
-            xy
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm_setzero_ps();
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            let y = unsafe { _mm_loadu_ps(b) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            xy = _mm_fmadd_ps(x, y, xy);
         }
+        let mut xy = emulate_mm_reduce_add_ps(xy);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            xy += x * y;
+        }
+        xy
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1448,32 +1410,30 @@ mod reduce_sum_of_xy {
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_xy_a2(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = vdupq_n_f32(0.0);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                let y = vld1q_f32(b);
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                xy = vfmaq_f32(xy, x, y);
-            }
-            let mut xy = vaddvq_f32(xy);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                xy += x * y;
-            }
-            xy
+        use std::arch::aarch64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = vdupq_n_f32(0.0);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            let y = unsafe { vld1q_f32(b) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            xy = vfmaq_f32(xy, x, y);
         }
+        let mut xy = vaddvq_f32(xy);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            xy += x * y;
+        }
+        xy
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -1514,8 +1474,12 @@ mod reduce_sum_of_xy {
     fn reduce_sum_of_xy_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp32_reduce_sum_of_xy_a3_256(a: *const f32, b: *const f32, n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_sum_of_xy_a3_256(
+                    a: *const f32,
+                    b: *const f32,
+                    n: usize,
+                ) -> f32;
             }
             fp32_reduce_sum_of_xy_a3_256(lhs.as_ptr(), rhs.as_ptr(), lhs.len())
         }
@@ -1570,30 +1534,28 @@ mod reduce_sum_of_d2 {
     #[crate::target_cpu(enable = "v4.512")]
     fn reduce_sum_of_d2_v4_512(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len() as u32;
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_loadu_ps(a);
-                let y = _mm512_loadu_ps(b);
-                a = a.add(16);
-                b = b.add(16);
-                n -= 16;
-                let d = _mm512_sub_ps(x, y);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n) as u16;
-                let x = _mm512_maskz_loadu_ps(mask, a);
-                let y = _mm512_maskz_loadu_ps(mask, b);
-                let d = _mm512_sub_ps(x, y);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-            }
-            _mm512_reduce_add_ps(d2)
+        use std::arch::x86_64::*;
+        let mut n = lhs.len() as u32;
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_loadu_ps(a) };
+            let y = unsafe { _mm512_loadu_ps(b) };
+            a = unsafe { a.add(16) };
+            b = unsafe { b.add(16) };
+            n -= 16;
+            let d = _mm512_sub_ps(x, y);
+            d2 = _mm512_fmadd_ps(d, d, d2);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n) as u16;
+            let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
+            let y = unsafe { _mm512_maskz_loadu_ps(mask, b) };
+            let d = _mm512_sub_ps(x, y);
+            d2 = _mm512_fmadd_ps(d, d, d2);
+        }
+        _mm512_reduce_add_ps(d2)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -1633,43 +1595,41 @@ mod reduce_sum_of_d2 {
     fn reduce_sum_of_d2_v3(lhs: &[f32], rhs: &[f32]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_loadu_ps(a);
-                let y = _mm256_loadu_ps(b);
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                let d = _mm256_sub_ps(x, y);
-                d2 = _mm256_fmadd_ps(d, d, d2);
-            }
-            if n >= 4 {
-                let x = _mm256_zextps128_ps256(_mm_loadu_ps(a));
-                let y = _mm256_zextps128_ps256(_mm_loadu_ps(b));
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                let d = _mm256_sub_ps(x, y);
-                d2 = _mm256_fmadd_ps(d, d, d2);
-            }
-            let mut d2 = emulate_mm256_reduce_add_ps(d2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                let d = x - y;
-                d2 += d * d;
-            }
-            d2
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_loadu_ps(a) };
+            let y = unsafe { _mm256_loadu_ps(b) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            let d = _mm256_sub_ps(x, y);
+            d2 = _mm256_fmadd_ps(d, d, d2);
         }
+        if n >= 4 {
+            let x = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(a)) };
+            let y = unsafe { _mm256_zextps128_ps256(_mm_loadu_ps(b)) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            let d = _mm256_sub_ps(x, y);
+            d2 = _mm256_fmadd_ps(d, d, d2);
+        }
+        let mut d2 = emulate_mm256_reduce_add_ps(d2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            let d = x - y;
+            d2 += d * d;
+        }
+        d2
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1710,34 +1670,32 @@ mod reduce_sum_of_d2 {
     fn reduce_sum_of_d2_v2_fma(lhs: &[f32], rhs: &[f32]) -> f32 {
         use crate::emulate::emulate_mm_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm_setzero_ps();
-            while n >= 4 {
-                let x = _mm_loadu_ps(a);
-                let y = _mm_loadu_ps(b);
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                let d = _mm_sub_ps(x, y);
-                d2 = _mm_fmadd_ps(d, d, d2);
-            }
-            let mut d2 = emulate_mm_reduce_add_ps(d2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                let d = x - y;
-                d2 += d * d;
-            }
-            d2
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm_setzero_ps();
+        while n >= 4 {
+            let x = unsafe { _mm_loadu_ps(a) };
+            let y = unsafe { _mm_loadu_ps(b) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            let d = _mm_sub_ps(x, y);
+            d2 = _mm_fmadd_ps(d, d, d2);
         }
+        let mut d2 = emulate_mm_reduce_add_ps(d2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            let d = x - y;
+            d2 += d * d;
+        }
+        d2
     }
 
     #[cfg(all(target_arch = "x86_64", test))]
@@ -1776,34 +1734,32 @@ mod reduce_sum_of_d2 {
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_d2_a2(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::aarch64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = vdupq_n_f32(0.0);
-            while n >= 4 {
-                let x = vld1q_f32(a);
-                let y = vld1q_f32(b);
-                a = a.add(4);
-                b = b.add(4);
-                n -= 4;
-                let d = vsubq_f32(x, y);
-                d2 = vfmaq_f32(d2, d, d);
-            }
-            let mut d2 = vaddvq_f32(d2);
-            // this hint is used to disable loop unrolling
-            while std::hint::black_box(n) > 0 {
-                let x = a.read();
-                let y = b.read();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                let d = x - y;
-                d2 += d * d;
-            }
-            d2
+        use std::arch::aarch64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = vdupq_n_f32(0.0);
+        while n >= 4 {
+            let x = unsafe { vld1q_f32(a) };
+            let y = unsafe { vld1q_f32(b) };
+            a = unsafe { a.add(4) };
+            b = unsafe { b.add(4) };
+            n -= 4;
+            let d = vsubq_f32(x, y);
+            d2 = vfmaq_f32(d2, d, d);
         }
+        let mut d2 = vaddvq_f32(d2);
+        // this hint is used to disable loop unrolling
+        while std::hint::black_box(n) > 0 {
+            let x = unsafe { a.read() };
+            let y = unsafe { b.read() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            let d = x - y;
+            d2 += d * d;
+        }
+        d2
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
@@ -1844,8 +1800,12 @@ mod reduce_sum_of_d2 {
     fn reduce_sum_of_d2_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp32_reduce_sum_of_d2_a3_256(a: *const f32, b: *const f32, n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp32_reduce_sum_of_d2_a3_256(
+                    a: *const f32,
+                    b: *const f32,
+                    n: usize,
+                ) -> f32;
             }
             fp32_reduce_sum_of_d2_a3_256(lhs.as_ptr(), rhs.as_ptr(), lhs.len())
         }
@@ -1907,39 +1867,39 @@ mod reduce_sum_of_xy_sparse {
         let (mut rp, rn) = (0, ri.len());
         let (li, lv) = (li.as_ptr(), lv.as_ptr());
         let (ri, rv) = (ri.as_ptr(), rv.as_ptr());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut xy = _mm512_setzero_ps();
-            while lp + 16 <= ln && rp + 16 <= rn {
-                let lx = _mm512_loadu_epi32(li.add(lp).cast());
-                let rx = _mm512_loadu_epi32(ri.add(rp).cast());
-                let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
-                let lv = _mm512_maskz_compress_ps(lk, _mm512_loadu_ps(lv.add(lp)));
-                let rv = _mm512_maskz_compress_ps(rk, _mm512_loadu_ps(rv.add(rp)));
-                xy = _mm512_fmadd_ps(lv, rv, xy);
-                let lt = li.add(lp + 16 - 1).read();
-                let rt = ri.add(rp + 16 - 1).read();
-                lp += (lt <= rt) as usize * 16;
-                rp += (lt >= rt) as usize * 16;
-            }
-            while lp < ln && rp < rn {
-                let lw = 16.min(ln - lp);
-                let rw = 16.min(rn - rp);
-                let lm = _bzhi_u32(0xffff, lw as _) as u16;
-                let rm = _bzhi_u32(0xffff, rw as _) as u16;
-                let lx = _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), lm, li.add(lp).cast());
-                let rx = _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), rm, ri.add(rp).cast());
-                let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
-                let lv = _mm512_maskz_compress_ps(lk, _mm512_maskz_loadu_ps(lm, lv.add(lp)));
-                let rv = _mm512_maskz_compress_ps(rk, _mm512_maskz_loadu_ps(rm, rv.add(rp)));
-                xy = _mm512_fmadd_ps(lv, rv, xy);
-                let lt = li.add(lp + lw - 1).read();
-                let rt = ri.add(rp + rw - 1).read();
-                lp += (lt <= rt) as usize * lw;
-                rp += (lt >= rt) as usize * rw;
-            }
-            _mm512_reduce_add_ps(xy)
+        use std::arch::x86_64::*;
+        let mut xy = _mm512_setzero_ps();
+        while lp + 16 <= ln && rp + 16 <= rn {
+            let lx = unsafe { _mm512_loadu_epi32(li.add(lp).cast()) };
+            let rx = unsafe { _mm512_loadu_epi32(ri.add(rp).cast()) };
+            let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
+            let lv = unsafe { _mm512_maskz_compress_ps(lk, _mm512_loadu_ps(lv.add(lp))) };
+            let rv = unsafe { _mm512_maskz_compress_ps(rk, _mm512_loadu_ps(rv.add(rp))) };
+            xy = _mm512_fmadd_ps(lv, rv, xy);
+            let lt = unsafe { li.add(lp + 16 - 1).read() };
+            let rt = unsafe { ri.add(rp + 16 - 1).read() };
+            lp += (lt <= rt) as usize * 16;
+            rp += (lt >= rt) as usize * 16;
         }
+        while lp < ln && rp < rn {
+            let lw = 16.min(ln - lp);
+            let rw = 16.min(rn - rp);
+            let lm = _bzhi_u32(0xffff, lw as _) as u16;
+            let rm = _bzhi_u32(0xffff, rw as _) as u16;
+            let lx =
+                unsafe { _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), lm, li.add(lp).cast()) };
+            let rx =
+                unsafe { _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), rm, ri.add(rp).cast()) };
+            let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
+            let lv = unsafe { _mm512_maskz_compress_ps(lk, _mm512_maskz_loadu_ps(lm, lv.add(lp))) };
+            let rv = unsafe { _mm512_maskz_compress_ps(rk, _mm512_maskz_loadu_ps(rm, rv.add(rp))) };
+            xy = _mm512_fmadd_ps(lv, rv, xy);
+            let lt = unsafe { li.add(lp + lw - 1).read() };
+            let rt = unsafe { ri.add(rp + rw - 1).read() };
+            lp += (lt <= rt) as usize * lw;
+            rp += (lt >= rt) as usize * rw;
+        }
+        _mm512_reduce_add_ps(xy)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -2023,73 +1983,73 @@ mod reduce_sum_of_d2_sparse {
         let (mut rp, rn) = (0, ri.len());
         let (li, lv) = (li.as_ptr(), lv.as_ptr());
         let (ri, rv) = (ri.as_ptr(), rv.as_ptr());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut d2 = _mm512_setzero_ps();
-            while lp + 16 <= ln && rp + 16 <= rn {
-                let lx = _mm512_loadu_epi32(li.add(lp).cast());
-                let rx = _mm512_loadu_epi32(ri.add(rp).cast());
-                let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
-                let lv = _mm512_maskz_compress_ps(lk, _mm512_loadu_ps(lv.add(lp)));
-                let rv = _mm512_maskz_compress_ps(rk, _mm512_loadu_ps(rv.add(rp)));
-                let d = _mm512_sub_ps(lv, rv);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-                d2 = _mm512_sub_ps(d2, _mm512_mul_ps(lv, lv));
-                d2 = _mm512_sub_ps(d2, _mm512_mul_ps(rv, rv));
-                let lt = li.add(lp + 16 - 1).read();
-                let rt = ri.add(rp + 16 - 1).read();
-                lp += (lt <= rt) as usize * 16;
-                rp += (lt >= rt) as usize * 16;
-            }
-            while lp < ln && rp < rn {
-                let lw = 16.min(ln - lp);
-                let rw = 16.min(rn - rp);
-                let lm = _bzhi_u32(0xffff, lw as _) as u16;
-                let rm = _bzhi_u32(0xffff, rw as _) as u16;
-                let lx = _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), lm, li.add(lp).cast());
-                let rx = _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), rm, ri.add(rp).cast());
-                let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
-                let lv = _mm512_maskz_compress_ps(lk, _mm512_maskz_loadu_ps(lm, lv.add(lp)));
-                let rv = _mm512_maskz_compress_ps(rk, _mm512_maskz_loadu_ps(rm, rv.add(rp)));
-                let d = _mm512_sub_ps(lv, rv);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-                d2 = _mm512_sub_ps(d2, _mm512_mul_ps(lv, lv));
-                d2 = _mm512_sub_ps(d2, _mm512_mul_ps(rv, rv));
-                let lt = li.add(lp + lw - 1).read();
-                let rt = ri.add(rp + rw - 1).read();
-                lp += (lt <= rt) as usize * lw;
-                rp += (lt >= rt) as usize * rw;
-            }
-            {
-                let mut lp = 0;
-                while lp + 16 <= ln {
-                    let d = _mm512_loadu_ps(lv.add(lp));
-                    d2 = _mm512_fmadd_ps(d, d, d2);
-                    lp += 16;
-                }
-                if lp < ln {
-                    let lw = ln - lp;
-                    let lm = _bzhi_u32(0xffff, lw as _) as u16;
-                    let d = _mm512_maskz_loadu_ps(lm, lv.add(lp));
-                    d2 = _mm512_fmadd_ps(d, d, d2);
-                }
-            }
-            {
-                let mut rp = 0;
-                while rp + 16 <= rn {
-                    let d = _mm512_loadu_ps(rv.add(rp));
-                    d2 = _mm512_fmadd_ps(d, d, d2);
-                    rp += 16;
-                }
-                if rp < rn {
-                    let rw = rn - rp;
-                    let rm = _bzhi_u32(0xffff, rw as _) as u16;
-                    let d = _mm512_maskz_loadu_ps(rm, rv.add(rp));
-                    d2 = _mm512_fmadd_ps(d, d, d2);
-                }
-            }
-            _mm512_reduce_add_ps(d2)
+        use std::arch::x86_64::*;
+        let mut d2 = _mm512_setzero_ps();
+        while lp + 16 <= ln && rp + 16 <= rn {
+            let lx = unsafe { _mm512_loadu_epi32(li.add(lp).cast()) };
+            let rx = unsafe { _mm512_loadu_epi32(ri.add(rp).cast()) };
+            let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
+            let lv = unsafe { _mm512_maskz_compress_ps(lk, _mm512_loadu_ps(lv.add(lp))) };
+            let rv = unsafe { _mm512_maskz_compress_ps(rk, _mm512_loadu_ps(rv.add(rp))) };
+            let d = _mm512_sub_ps(lv, rv);
+            d2 = _mm512_fmadd_ps(d, d, d2);
+            d2 = _mm512_sub_ps(d2, _mm512_mul_ps(lv, lv));
+            d2 = _mm512_sub_ps(d2, _mm512_mul_ps(rv, rv));
+            let lt = unsafe { li.add(lp + 16 - 1).read() };
+            let rt = unsafe { ri.add(rp + 16 - 1).read() };
+            lp += (lt <= rt) as usize * 16;
+            rp += (lt >= rt) as usize * 16;
         }
+        while lp < ln && rp < rn {
+            let lw = 16.min(ln - lp);
+            let rw = 16.min(rn - rp);
+            let lm = _bzhi_u32(0xffff, lw as _) as u16;
+            let rm = _bzhi_u32(0xffff, rw as _) as u16;
+            let lx =
+                unsafe { _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), lm, li.add(lp).cast()) };
+            let rx =
+                unsafe { _mm512_mask_loadu_epi32(_mm512_set1_epi32(-1), rm, ri.add(rp).cast()) };
+            let (lk, rk) = emulate_mm512_2intersect_epi32(lx, rx);
+            let lv = unsafe { _mm512_maskz_compress_ps(lk, _mm512_maskz_loadu_ps(lm, lv.add(lp))) };
+            let rv = unsafe { _mm512_maskz_compress_ps(rk, _mm512_maskz_loadu_ps(rm, rv.add(rp))) };
+            let d = _mm512_sub_ps(lv, rv);
+            d2 = _mm512_fmadd_ps(d, d, d2);
+            d2 = _mm512_sub_ps(d2, _mm512_mul_ps(lv, lv));
+            d2 = _mm512_sub_ps(d2, _mm512_mul_ps(rv, rv));
+            let lt = unsafe { li.add(lp + lw - 1).read() };
+            let rt = unsafe { ri.add(rp + rw - 1).read() };
+            lp += (lt <= rt) as usize * lw;
+            rp += (lt >= rt) as usize * rw;
+        }
+        {
+            let mut lp = 0;
+            while lp + 16 <= ln {
+                let d = unsafe { _mm512_loadu_ps(lv.add(lp)) };
+                d2 = _mm512_fmadd_ps(d, d, d2);
+                lp += 16;
+            }
+            if lp < ln {
+                let lw = ln - lp;
+                let lm = _bzhi_u32(0xffff, lw as _) as u16;
+                let d = unsafe { _mm512_maskz_loadu_ps(lm, lv.add(lp)) };
+                d2 = _mm512_fmadd_ps(d, d, d2);
+            }
+        }
+        {
+            let mut rp = 0;
+            while rp + 16 <= rn {
+                let d = unsafe { _mm512_loadu_ps(rv.add(rp)) };
+                d2 = _mm512_fmadd_ps(d, d, d2);
+                rp += 16;
+            }
+            if rp < rn {
+                let rw = rn - rp;
+                let rm = _bzhi_u32(0xffff, rw as _) as u16;
+                let d = unsafe { _mm512_maskz_loadu_ps(rm, rv.add(rp)) };
+                d2 = _mm512_fmadd_ps(d, d, d2);
+            }
+        }
+        _mm512_reduce_add_ps(d2)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]

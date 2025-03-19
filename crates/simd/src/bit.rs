@@ -12,28 +12,26 @@ mod sum_of_and {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn sum_of_and_v4_512_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut and = _mm512_setzero_si512();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut n = lhs.len();
-            while n >= 8 {
-                let x = _mm512_loadu_si512(a.cast());
-                let y = _mm512_loadu_si512(b.cast());
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xff, n as u32) as u8;
-                let x = _mm512_maskz_loadu_epi64(mask, a.cast());
-                let y = _mm512_maskz_loadu_epi64(mask, b.cast());
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
-            }
-            _mm512_reduce_add_epi64(and) as u32
+        use std::arch::x86_64::*;
+        let mut and = _mm512_setzero_si512();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut n = lhs.len();
+        while n >= 8 {
+            let x = unsafe { _mm512_loadu_si512(a.cast()) };
+            let y = unsafe { _mm512_loadu_si512(b.cast()) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xff, n as u32) as u8;
+            let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
+            let y = unsafe { _mm512_maskz_loadu_epi64(mask, b.cast()) };
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
+        }
+        _mm512_reduce_add_epi64(and) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -81,28 +79,26 @@ mod sum_of_or {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn sum_of_or_v4_512_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut or = _mm512_setzero_si512();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut n = lhs.len();
-            while n >= 8 {
-                let x = _mm512_loadu_si512(a.cast());
-                let y = _mm512_loadu_si512(b.cast());
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xff, n as u32) as u8;
-                let x = _mm512_maskz_loadu_epi64(mask, a.cast());
-                let y = _mm512_maskz_loadu_epi64(mask, b.cast());
-                or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
-            }
-            _mm512_reduce_add_epi64(or) as u32
+        use std::arch::x86_64::*;
+        let mut or = _mm512_setzero_si512();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut n = lhs.len();
+        while n >= 8 {
+            let x = unsafe { _mm512_loadu_si512(a.cast()) };
+            let y = unsafe { _mm512_loadu_si512(b.cast()) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xff, n as u32) as u8;
+            let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
+            let y = unsafe { _mm512_maskz_loadu_epi64(mask, b.cast()) };
+            or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
+        }
+        _mm512_reduce_add_epi64(or) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -150,28 +146,26 @@ mod sum_of_xor {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn sum_of_xor_v4_512_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut xor = _mm512_setzero_si512();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut n = lhs.len();
-            while n >= 8 {
-                let x = _mm512_loadu_si512(a.cast());
-                let y = _mm512_loadu_si512(b.cast());
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                xor = _mm512_add_epi64(xor, _mm512_popcnt_epi64(_mm512_xor_si512(x, y)));
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xff, n as u32) as u8;
-                let x = _mm512_maskz_loadu_epi64(mask, a.cast());
-                let y = _mm512_maskz_loadu_epi64(mask, b.cast());
-                xor = _mm512_add_epi64(xor, _mm512_popcnt_epi64(_mm512_xor_si512(x, y)));
-            }
-            _mm512_reduce_add_epi64(xor) as u32
+        use std::arch::x86_64::*;
+        let mut xor = _mm512_setzero_si512();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut n = lhs.len();
+        while n >= 8 {
+            let x = unsafe { _mm512_loadu_si512(a.cast()) };
+            let y = unsafe { _mm512_loadu_si512(b.cast()) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            xor = _mm512_add_epi64(xor, _mm512_popcnt_epi64(_mm512_xor_si512(x, y)));
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xff, n as u32) as u8;
+            let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
+            let y = unsafe { _mm512_maskz_loadu_epi64(mask, b.cast()) };
+            xor = _mm512_add_epi64(xor, _mm512_popcnt_epi64(_mm512_xor_si512(x, y)));
+        }
+        _mm512_reduce_add_epi64(xor) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -219,34 +213,32 @@ mod sum_of_and_or {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn sum_of_and_or_v4_512_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut and = _mm512_setzero_si512();
-            let mut or = _mm512_setzero_si512();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut n = lhs.len();
-            while n >= 8 {
-                let x = _mm512_loadu_si512(a.cast());
-                let y = _mm512_loadu_si512(b.cast());
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
-                or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xff, n as u32) as u8;
-                let x = _mm512_maskz_loadu_epi64(mask, a.cast());
-                let y = _mm512_maskz_loadu_epi64(mask, b.cast());
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
-                or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
-            }
-            (
-                _mm512_reduce_add_epi64(and) as u32,
-                _mm512_reduce_add_epi64(or) as u32,
-            )
+        use std::arch::x86_64::*;
+        let mut and = _mm512_setzero_si512();
+        let mut or = _mm512_setzero_si512();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut n = lhs.len();
+        while n >= 8 {
+            let x = unsafe { _mm512_loadu_si512(a.cast()) };
+            let y = unsafe { _mm512_loadu_si512(b.cast()) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
+            or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xff, n as u32) as u8;
+            let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
+            let y = unsafe { _mm512_maskz_loadu_epi64(mask, b.cast()) };
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(_mm512_and_si512(x, y)));
+            or = _mm512_add_epi64(or, _mm512_popcnt_epi64(_mm512_or_si512(x, y)));
+        }
+        (
+            _mm512_reduce_add_epi64(and) as u32,
+            _mm512_reduce_add_epi64(or) as u32,
+        )
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -295,24 +287,22 @@ mod sum_of_x {
     #[crate::target_cpu(enable = "v4.512")]
     #[target_feature(enable = "avx512vpopcntdq")]
     fn sum_of_x_v4_512_avx512vpopcntdq(this: &[u64]) -> u32 {
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut and = _mm512_setzero_si512();
-            let mut a = this.as_ptr();
-            let mut n = this.len();
-            while n >= 8 {
-                let x = _mm512_loadu_si512(a.cast());
-                a = a.add(8);
-                n -= 8;
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(x));
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xff, n as u32) as u8;
-                let x = _mm512_maskz_loadu_epi64(mask, a.cast());
-                and = _mm512_add_epi64(and, _mm512_popcnt_epi64(x));
-            }
-            _mm512_reduce_add_epi64(and) as u32
+        use std::arch::x86_64::*;
+        let mut and = _mm512_setzero_si512();
+        let mut a = this.as_ptr();
+        let mut n = this.len();
+        while n >= 8 {
+            let x = unsafe { _mm512_loadu_si512(a.cast()) };
+            a = unsafe { a.add(8) };
+            n -= 8;
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(x));
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xff, n as u32) as u8;
+            let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
+            and = _mm512_add_epi64(and, _mm512_popcnt_epi64(x));
+        }
+        _mm512_reduce_add_epi64(and) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]

@@ -1,5 +1,13 @@
+#if defined(__clang__)
 #if !(__clang_major__ >= 16)
-#error "clang version must be >= 16"
+#error "Clang version must be at least 16."
+#endif
+#elif defined(__GNUC__)
+#if !(__GNUC__ >= 14)
+#error "GCC version must be at least 14."
+#endif
+#else
+#error "This file requires Clang or GCC."
 #endif
 
 #ifdef __aarch64__
@@ -12,7 +20,7 @@
 typedef __fp16 f16;
 typedef float f32;
 
-__attribute__((target("fp16"))) float
+__attribute__((target("+fp16"))) float
 fp16_reduce_sum_of_xy_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   float16x8_t xy_0 = vdupq_n_f16(0.0);
   float16x8_t xy_1 = vdupq_n_f16(0.0);
@@ -61,7 +69,7 @@ fp16_reduce_sum_of_xy_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t xy = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
@@ -73,7 +81,7 @@ fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   return svaddv_f16(svptrue_b16(), xy);
 }
 
-__attribute__((target("fp16"))) float
+__attribute__((target("+fp16"))) float
 fp16_reduce_sum_of_d2_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   float16x8_t d2_0 = vdupq_n_f16(0.0);
   float16x8_t d2_1 = vdupq_n_f16(0.0);
@@ -130,7 +138,7 @@ fp16_reduce_sum_of_d2_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t d2 = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
@@ -143,7 +151,7 @@ fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   return svaddv_f16(svptrue_b16(), d2);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
@@ -154,7 +162,7 @@ fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
@@ -165,7 +173,7 @@ fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
@@ -176,7 +184,7 @@ fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("sve"))) void
+__attribute__((target("+sve"))) void
 fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
                                 float *out_max) {
   svfloat32_t min = svdup_f32(1.0 / 0.0);
@@ -191,7 +199,7 @@ fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
   *out_max = svmaxv_f32(svptrue_b32(), max);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
@@ -204,7 +212,7 @@ fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
   return svaddv_f32(svptrue_b32(), sum);
 }
 
-__attribute__((target("sve"))) float
+__attribute__((target("+sve"))) float
 fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
   svfloat32_t sum = svdup_f32(0.0);

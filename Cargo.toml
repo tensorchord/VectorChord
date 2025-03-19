@@ -1,7 +1,7 @@
 [package]
 name = "vchord"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 
 [lib]
 name = "vchord"
@@ -30,8 +30,8 @@ vector = { path = "./crates/vector" }
 
 half.workspace = true
 paste.workspace = true
-pgrx = { version = "=0.12.9", default-features = false, features = ["cshim"] }
-pgrx-catalog = "0.1.0"
+pgrx = { version = "=0.13.1", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.1.1"
 rand.workspace = true
 serde.workspace = true
 toml = "0.8.20"
@@ -40,7 +40,7 @@ zerocopy.workspace = true
 zerocopy-derive.workspace = true
 
 [patch.crates-io]
-half = { git = "https://github.com/tensorchord/half-rs.git", rev = "3f9a8843d6722bd1833de2289347640ad8770146" }
+half = { git = "https://github.com/tensorchord/half-rs.git", rev = "9dc2559e95f295aaa8ffef5e0529167731dffd47" }
 
 [lints]
 workspace = true
@@ -51,16 +51,16 @@ members = ["crates/*"]
 
 [workspace.package]
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
-half = { version = "2.4.1", features = ["serde", "zerocopy"] }
+half = { version = "2.5.0", features = ["serde", "zerocopy"] }
 paste = "1"
 rand = "0.9.0"
 serde = "1"
 validator = { version = "0.20.0", features = ["derive"] }
-zerocopy = "0.8.17"
-zerocopy-derive = "0.8.17"
+zerocopy = "0.8.23"
+zerocopy-derive = "0.8.23"
 
 [workspace.lints]
 clippy.identity_op = "allow"

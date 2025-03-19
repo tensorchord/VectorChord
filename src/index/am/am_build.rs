@@ -271,7 +271,6 @@ mod vchordrq_cached {
 
     use crate::index::storage::PostgresPage;
     use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-    use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
     #[repr(C, align(8))]
     #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
@@ -872,7 +871,7 @@ pub fn make_external_build(
             LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
             WHERE e.extname = 'vector';";
         let pgvector_schema: String = client
-            .select(schema_query, None, None)
+            .select(schema_query, None, &[])
             .unwrap_or_report()
             .first()
             .get_by_name("nspname")
@@ -880,7 +879,7 @@ pub fn make_external_build(
             .expect("external build: cannot get schema of pgvector");
         let dump_query =
             format!("SELECT id, parent, vector::{pgvector_schema}.vector FROM {table};");
-        let centroids = client.select(&dump_query, None, None).unwrap_or_report();
+        let centroids = client.select(&dump_query, None, &[]).unwrap_or_report();
         for row in centroids {
             let id: Option<i32> = row.get_by_name("id").unwrap();
             let parent: Option<i32> = row.get_by_name("parent").unwrap();

@@ -217,28 +217,26 @@ mod reduce_sum_of_xy {
     #[target_feature(enable = "avx512fp16")]
     pub fn reduce_sum_of_xy_v4_512_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm512_setzero_ph();
-            while n >= 32 {
-                let x = _mm512_loadu_ph(a.cast());
-                let y = _mm512_loadu_ph(b.cast());
-                a = a.add(32);
-                b = b.add(32);
-                n -= 32;
-                xy = _mm512_fmadd_ph(x, y, xy);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffffffff, n as u32);
-                let x = _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, a.cast()));
-                let y = _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, b.cast()));
-                xy = _mm512_fmadd_ph(x, y, xy);
-            }
-            _mm512_reduce_add_ph(xy) as f32
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm512_setzero_ph();
+        while n >= 32 {
+            let x = unsafe { _mm512_loadu_ph(a.cast()) };
+            let y = unsafe { _mm512_loadu_ph(b.cast()) };
+            a = unsafe { a.add(32) };
+            b = unsafe { b.add(32) };
+            n -= 32;
+            xy = _mm512_fmadd_ph(x, y, xy);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffffffff, n as u32);
+            let x = unsafe { _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, a.cast())) };
+            let y = unsafe { _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, b.cast())) };
+            xy = _mm512_fmadd_ph(x, y, xy);
+        }
+        _mm512_reduce_add_ph(xy) as f32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -277,28 +275,26 @@ mod reduce_sum_of_xy {
     #[crate::target_cpu(enable = "v4.512")]
     pub fn reduce_sum_of_xy_v4_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_cvtph_ps(_mm256_loadu_epi16(a.cast()));
-                let y = _mm512_cvtph_ps(_mm256_loadu_epi16(b.cast()));
-                a = a.add(16);
-                b = b.add(16);
-                n -= 16;
-                xy = _mm512_fmadd_ps(x, y, xy);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n as u32) as u16;
-                let x = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a.cast()));
-                let y = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b.cast()));
-                xy = _mm512_fmadd_ps(x, y, xy);
-            }
-            _mm512_reduce_add_ps(xy)
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_cvtph_ps(_mm256_loadu_epi16(a.cast())) };
+            let y = unsafe { _mm512_cvtph_ps(_mm256_loadu_epi16(b.cast())) };
+            a = unsafe { a.add(16) };
+            b = unsafe { b.add(16) };
+            n -= 16;
+            xy = _mm512_fmadd_ps(x, y, xy);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
+            let x = unsafe { _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a.cast())) };
+            let y = unsafe { _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b.cast())) };
+            xy = _mm512_fmadd_ps(x, y, xy);
+        }
+        _mm512_reduce_add_ps(xy)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -334,31 +330,29 @@ mod reduce_sum_of_xy {
     pub fn reduce_sum_of_xy_v3(lhs: &[f16], rhs: &[f16]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len();
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut xy = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_cvtph_ps(_mm_loadu_si128(a.cast()));
-                let y = _mm256_cvtph_ps(_mm_loadu_si128(b.cast()));
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                xy = _mm256_fmadd_ps(x, y, xy);
-            }
-            let mut xy = emulate_mm256_reduce_add_ps(xy);
-            while n > 0 {
-                let x = a.read().to_f32();
-                let y = b.read().to_f32();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                xy += x * y;
-            }
-            xy
+        use std::arch::x86_64::*;
+        let mut n = lhs.len();
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut xy = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_cvtph_ps(_mm_loadu_si128(a.cast())) };
+            let y = unsafe { _mm256_cvtph_ps(_mm_loadu_si128(b.cast())) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            xy = _mm256_fmadd_ps(x, y, xy);
         }
+        let mut xy = emulate_mm256_reduce_add_ps(xy);
+        while n > 0 {
+            let x = unsafe { a.read().to_f32() };
+            let y = unsafe { b.read().to_f32() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            xy += x * y;
+        }
+        xy
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -399,8 +393,12 @@ mod reduce_sum_of_xy {
     pub fn reduce_sum_of_xy_a2_fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp16_reduce_sum_of_xy_a2_fp16(a: *const (), b: *const (), n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp16_reduce_sum_of_xy_a2_fp16(
+                    a: *const (),
+                    b: *const (),
+                    n: usize,
+                ) -> f32;
             }
             fp16_reduce_sum_of_xy_a2_fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }
@@ -444,8 +442,9 @@ mod reduce_sum_of_xy {
     pub fn reduce_sum_of_xy_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp16_reduce_sum_of_xy_a3_512(a: *const (), b: *const (), n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp16_reduce_sum_of_xy_a3_512(a: *const (), b: *const (), n: usize)
+                -> f32;
             }
             fp16_reduce_sum_of_xy_a3_512(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }
@@ -503,30 +502,28 @@ mod reduce_sum_of_d2 {
     #[target_feature(enable = "avx512fp16")]
     pub fn reduce_sum_of_d2_v4_512_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len() as u32;
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm512_setzero_ph();
-            while n >= 32 {
-                let x = _mm512_loadu_ph(a.cast());
-                let y = _mm512_loadu_ph(b.cast());
-                a = a.add(32);
-                b = b.add(32);
-                n -= 32;
-                let d = _mm512_sub_ph(x, y);
-                d2 = _mm512_fmadd_ph(d, d, d2);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffffffff, n);
-                let x = _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, a.cast()));
-                let y = _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, b.cast()));
-                let d = _mm512_sub_ph(x, y);
-                d2 = _mm512_fmadd_ph(d, d, d2);
-            }
-            _mm512_reduce_add_ph(d2) as f32
+        use std::arch::x86_64::*;
+        let mut n = lhs.len() as u32;
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm512_setzero_ph();
+        while n >= 32 {
+            let x = unsafe { _mm512_loadu_ph(a.cast()) };
+            let y = unsafe { _mm512_loadu_ph(b.cast()) };
+            a = unsafe { a.add(32) };
+            b = unsafe { b.add(32) };
+            n -= 32;
+            let d = _mm512_sub_ph(x, y);
+            d2 = _mm512_fmadd_ph(d, d, d2);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffffffff, n);
+            let x = unsafe { _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, a.cast())) };
+            let y = unsafe { _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(mask, b.cast())) };
+            let d = _mm512_sub_ph(x, y);
+            d2 = _mm512_fmadd_ph(d, d, d2);
+        }
+        _mm512_reduce_add_ph(d2) as f32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -565,30 +562,28 @@ mod reduce_sum_of_d2 {
     #[crate::target_cpu(enable = "v4.512")]
     pub fn reduce_sum_of_d2_v4_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len() as u32;
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm512_setzero_ps();
-            while n >= 16 {
-                let x = _mm512_cvtph_ps(_mm256_loadu_epi16(a.cast()));
-                let y = _mm512_cvtph_ps(_mm256_loadu_epi16(b.cast()));
-                a = a.add(16);
-                b = b.add(16);
-                n -= 16;
-                let d = _mm512_sub_ps(x, y);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-            }
-            if n > 0 {
-                let mask = _bzhi_u32(0xffff, n) as u16;
-                let x = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a.cast()));
-                let y = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b.cast()));
-                let d = _mm512_sub_ps(x, y);
-                d2 = _mm512_fmadd_ps(d, d, d2);
-            }
-            _mm512_reduce_add_ps(d2)
+        use std::arch::x86_64::*;
+        let mut n = lhs.len() as u32;
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm512_setzero_ps();
+        while n >= 16 {
+            let x = unsafe { _mm512_cvtph_ps(_mm256_loadu_epi16(a.cast())) };
+            let y = unsafe { _mm512_cvtph_ps(_mm256_loadu_epi16(b.cast())) };
+            a = unsafe { a.add(16) };
+            b = unsafe { b.add(16) };
+            n -= 16;
+            let d = _mm512_sub_ps(x, y);
+            d2 = _mm512_fmadd_ps(d, d, d2);
         }
+        if n > 0 {
+            let mask = _bzhi_u32(0xffff, n) as u16;
+            let x = unsafe { _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, a.cast())) };
+            let y = unsafe { _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask, b.cast())) };
+            let d = _mm512_sub_ps(x, y);
+            d2 = _mm512_fmadd_ps(d, d, d2);
+        }
+        _mm512_reduce_add_ps(d2)
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -628,33 +623,31 @@ mod reduce_sum_of_d2 {
     pub fn reduce_sum_of_d2_v3(lhs: &[f16], rhs: &[f16]) -> f32 {
         use crate::emulate::emulate_mm256_reduce_add_ps;
         assert!(lhs.len() == rhs.len());
-        unsafe {
-            use std::arch::x86_64::*;
-            let mut n = lhs.len() as u32;
-            let mut a = lhs.as_ptr();
-            let mut b = rhs.as_ptr();
-            let mut d2 = _mm256_setzero_ps();
-            while n >= 8 {
-                let x = _mm256_cvtph_ps(_mm_loadu_si128(a.cast()));
-                let y = _mm256_cvtph_ps(_mm_loadu_si128(b.cast()));
-                a = a.add(8);
-                b = b.add(8);
-                n -= 8;
-                let d = _mm256_sub_ps(x, y);
-                d2 = _mm256_fmadd_ps(d, d, d2);
-            }
-            let mut d2 = emulate_mm256_reduce_add_ps(d2);
-            while n > 0 {
-                let x = a.read().to_f32();
-                let y = b.read().to_f32();
-                a = a.add(1);
-                b = b.add(1);
-                n -= 1;
-                let d = x - y;
-                d2 += d * d;
-            }
-            d2
+        use std::arch::x86_64::*;
+        let mut n = lhs.len() as u32;
+        let mut a = lhs.as_ptr();
+        let mut b = rhs.as_ptr();
+        let mut d2 = _mm256_setzero_ps();
+        while n >= 8 {
+            let x = unsafe { _mm256_cvtph_ps(_mm_loadu_si128(a.cast())) };
+            let y = unsafe { _mm256_cvtph_ps(_mm_loadu_si128(b.cast())) };
+            a = unsafe { a.add(8) };
+            b = unsafe { b.add(8) };
+            n -= 8;
+            let d = _mm256_sub_ps(x, y);
+            d2 = _mm256_fmadd_ps(d, d, d2);
         }
+        let mut d2 = emulate_mm256_reduce_add_ps(d2);
+        while n > 0 {
+            let x = unsafe { a.read().to_f32() };
+            let y = unsafe { b.read().to_f32() };
+            a = unsafe { a.add(1) };
+            b = unsafe { b.add(1) };
+            n -= 1;
+            let d = x - y;
+            d2 += d * d;
+        }
+        d2
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -695,8 +688,12 @@ mod reduce_sum_of_d2 {
     pub fn reduce_sum_of_d2_a2_fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp16_reduce_sum_of_d2_a2_fp16(a: *const (), b: *const (), n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp16_reduce_sum_of_d2_a2_fp16(
+                    a: *const (),
+                    b: *const (),
+                    n: usize,
+                ) -> f32;
             }
             fp16_reduce_sum_of_d2_a2_fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }
@@ -740,8 +737,9 @@ mod reduce_sum_of_d2 {
     pub fn reduce_sum_of_d2_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
-            extern "C" {
-                fn fp16_reduce_sum_of_d2_a3_512(a: *const (), b: *const (), n: usize) -> f32;
+            unsafe extern "C" {
+                unsafe fn fp16_reduce_sum_of_d2_a3_512(a: *const (), b: *const (), n: usize)
+                -> f32;
             }
             fp16_reduce_sum_of_d2_a3_512(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }

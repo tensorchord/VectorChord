@@ -131,108 +131,106 @@ mod fast_scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
+        use std::arch::x86_64::*;
+
+        #[inline]
+        #[crate::target_cpu(enable = "v4.512")]
+        fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {
+            let x1y0 = _mm256_permute2f128_si256(x0x1, y0y1, 0x21);
+            let x0y1 = _mm256_blend_epi32(x0x1, y0y1, 0xf0);
+            _mm256_add_epi16(x1y0, x0y1)
+        }
+
+        #[inline]
+        #[crate::target_cpu(enable = "v4.512")]
+        fn combine4x2(x0x1x2x3: __m512i, y0y1y2y3: __m512i) -> __m256i {
+            let x0x1 = _mm512_castsi512_si256(x0x1x2x3);
+            let x2x3 = _mm512_extracti64x4_epi64(x0x1x2x3, 1);
+            let y0y1 = _mm512_castsi512_si256(y0y1y2y3);
+            let y2y3 = _mm512_extracti64x4_epi64(y0y1y2y3, 1);
+            let x01y01 = combine2x2(x0x1, y0y1);
+            let x23y23 = combine2x2(x2x3, y2y3);
+            _mm256_add_epi16(x01y01, x23y23)
+        }
+
+        let mut accu_0 = _mm512_setzero_si512();
+        let mut accu_1 = _mm512_setzero_si512();
+        let mut accu_2 = _mm512_setzero_si512();
+        let mut accu_3 = _mm512_setzero_si512();
+
+        let mut i = 0_usize;
+        while i + 4 <= n {
+            let code = unsafe { _mm512_loadu_si512(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm512_set1_epi8(0xf);
+            let clo = _mm512_and_si512(code, mask);
+            let chi = _mm512_and_si512(_mm512_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm512_loadu_si512(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm512_shuffle_epi8(lut, clo);
+            accu_0 = _mm512_add_epi16(accu_0, res_lo);
+            accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
+            let res_hi = _mm512_shuffle_epi8(lut, chi);
+            accu_2 = _mm512_add_epi16(accu_2, res_hi);
+            accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
+
+            i += 4;
+        }
+        if i + 2 <= n {
+            let code = unsafe { _mm256_loadu_si256(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm256_set1_epi8(0xf);
+            let clo = _mm256_and_si256(code, mask);
+            let chi = _mm256_and_si256(_mm256_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm256_loadu_si256(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm512_zextsi256_si512(_mm256_shuffle_epi8(lut, clo));
+            accu_0 = _mm512_add_epi16(accu_0, res_lo);
+            accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
+            let res_hi = _mm512_zextsi256_si512(_mm256_shuffle_epi8(lut, chi));
+            accu_2 = _mm512_add_epi16(accu_2, res_hi);
+            accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
+
+            i += 2;
+        }
+        if i < n {
+            let code = unsafe { _mm_loadu_si128(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm_set1_epi8(0xf);
+            let clo = _mm_and_si128(code, mask);
+            let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm_loadu_si128(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm512_zextsi128_si512(_mm_shuffle_epi8(lut, clo));
+            accu_0 = _mm512_add_epi16(accu_0, res_lo);
+            accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
+            let res_hi = _mm512_zextsi128_si512(_mm_shuffle_epi8(lut, chi));
+            accu_2 = _mm512_add_epi16(accu_2, res_hi);
+            accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
+
+            i += 1;
+        }
+        debug_assert_eq!(i, n);
+
+        let mut result = [0_u16; 32];
+
+        accu_0 = _mm512_sub_epi16(accu_0, _mm512_slli_epi16(accu_1, 8));
         unsafe {
-            use std::arch::x86_64::*;
-
-            #[inline]
-            #[crate::target_cpu(enable = "v4.512")]
-            fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {
-                unsafe {
-                    let x1y0 = _mm256_permute2f128_si256(x0x1, y0y1, 0x21);
-                    let x0y1 = _mm256_blend_epi32(x0x1, y0y1, 0xf0);
-                    _mm256_add_epi16(x1y0, x0y1)
-                }
-            }
-
-            #[inline]
-            #[crate::target_cpu(enable = "v4.512")]
-            fn combine4x2(x0x1x2x3: __m512i, y0y1y2y3: __m512i) -> __m256i {
-                unsafe {
-                    let x0x1 = _mm512_castsi512_si256(x0x1x2x3);
-                    let x2x3 = _mm512_extracti64x4_epi64(x0x1x2x3, 1);
-                    let y0y1 = _mm512_castsi512_si256(y0y1y2y3);
-                    let y2y3 = _mm512_extracti64x4_epi64(y0y1y2y3, 1);
-                    let x01y01 = combine2x2(x0x1, y0y1);
-                    let x23y23 = combine2x2(x2x3, y2y3);
-                    _mm256_add_epi16(x01y01, x23y23)
-                }
-            }
-
-            let mut accu_0 = _mm512_setzero_si512();
-            let mut accu_1 = _mm512_setzero_si512();
-            let mut accu_2 = _mm512_setzero_si512();
-            let mut accu_3 = _mm512_setzero_si512();
-
-            let mut i = 0_usize;
-            while i + 4 <= n {
-                let code = _mm512_loadu_si512(code.as_ptr().add(i).cast());
-
-                let mask = _mm512_set1_epi8(0xf);
-                let clo = _mm512_and_si512(code, mask);
-                let chi = _mm512_and_si512(_mm512_srli_epi16(code, 4), mask);
-
-                let lut = _mm512_loadu_si512(lut.as_ptr().add(i).cast());
-                let res_lo = _mm512_shuffle_epi8(lut, clo);
-                accu_0 = _mm512_add_epi16(accu_0, res_lo);
-                accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
-                let res_hi = _mm512_shuffle_epi8(lut, chi);
-                accu_2 = _mm512_add_epi16(accu_2, res_hi);
-                accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
-
-                i += 4;
-            }
-            if i + 2 <= n {
-                let code = _mm256_loadu_si256(code.as_ptr().add(i).cast());
-
-                let mask = _mm256_set1_epi8(0xf);
-                let clo = _mm256_and_si256(code, mask);
-                let chi = _mm256_and_si256(_mm256_srli_epi16(code, 4), mask);
-
-                let lut = _mm256_loadu_si256(lut.as_ptr().add(i).cast());
-                let res_lo = _mm512_zextsi256_si512(_mm256_shuffle_epi8(lut, clo));
-                accu_0 = _mm512_add_epi16(accu_0, res_lo);
-                accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
-                let res_hi = _mm512_zextsi256_si512(_mm256_shuffle_epi8(lut, chi));
-                accu_2 = _mm512_add_epi16(accu_2, res_hi);
-                accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
-
-                i += 2;
-            }
-            if i < n {
-                let code = _mm_loadu_si128(code.as_ptr().add(i).cast());
-
-                let mask = _mm_set1_epi8(0xf);
-                let clo = _mm_and_si128(code, mask);
-                let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
-
-                let lut = _mm_loadu_si128(lut.as_ptr().add(i).cast());
-                let res_lo = _mm512_zextsi128_si512(_mm_shuffle_epi8(lut, clo));
-                accu_0 = _mm512_add_epi16(accu_0, res_lo);
-                accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
-                let res_hi = _mm512_zextsi128_si512(_mm_shuffle_epi8(lut, chi));
-                accu_2 = _mm512_add_epi16(accu_2, res_hi);
-                accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
-
-                i += 1;
-            }
-            debug_assert_eq!(i, n);
-
-            let mut result = [0_u16; 32];
-
-            accu_0 = _mm512_sub_epi16(accu_0, _mm512_slli_epi16(accu_1, 8));
             _mm256_storeu_si256(
                 result.as_mut_ptr().add(0).cast(),
                 combine4x2(accu_0, accu_1),
             );
+        }
 
-            accu_2 = _mm512_sub_epi16(accu_2, _mm512_slli_epi16(accu_3, 8));
+        accu_2 = _mm512_sub_epi16(accu_2, _mm512_slli_epi16(accu_3, 8));
+        unsafe {
             _mm256_storeu_si256(
                 result.as_mut_ptr().add(16).cast(),
                 combine4x2(accu_2, accu_3),
             );
-
-            result
         }
+
+        result
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -265,77 +263,77 @@ mod fast_scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
+        use std::arch::x86_64::*;
+
+        #[inline]
+        #[crate::target_cpu(enable = "v3")]
+        fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {
+            let x1y0 = _mm256_permute2f128_si256(x0x1, y0y1, 0x21);
+            let x0y1 = _mm256_blend_epi32(x0x1, y0y1, 0xf0);
+            _mm256_add_epi16(x1y0, x0y1)
+        }
+
+        let mut accu_0 = _mm256_setzero_si256();
+        let mut accu_1 = _mm256_setzero_si256();
+        let mut accu_2 = _mm256_setzero_si256();
+        let mut accu_3 = _mm256_setzero_si256();
+
+        let mut i = 0_usize;
+        while i + 2 <= n {
+            let code = unsafe { _mm256_loadu_si256(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm256_set1_epi8(0xf);
+            let clo = _mm256_and_si256(code, mask);
+            let chi = _mm256_and_si256(_mm256_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm256_loadu_si256(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm256_shuffle_epi8(lut, clo);
+            accu_0 = _mm256_add_epi16(accu_0, res_lo);
+            accu_1 = _mm256_add_epi16(accu_1, _mm256_srli_epi16(res_lo, 8));
+            let res_hi = _mm256_shuffle_epi8(lut, chi);
+            accu_2 = _mm256_add_epi16(accu_2, res_hi);
+            accu_3 = _mm256_add_epi16(accu_3, _mm256_srli_epi16(res_hi, 8));
+
+            i += 2;
+        }
+        if i < n {
+            let code = unsafe { _mm_loadu_si128(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm_set1_epi8(0xf);
+            let clo = _mm_and_si128(code, mask);
+            let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm_loadu_si128(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm256_zextsi128_si256(_mm_shuffle_epi8(lut, clo));
+            accu_0 = _mm256_add_epi16(accu_0, res_lo);
+            accu_1 = _mm256_add_epi16(accu_1, _mm256_srli_epi16(res_lo, 8));
+            let res_hi = _mm256_zextsi128_si256(_mm_shuffle_epi8(lut, chi));
+            accu_2 = _mm256_add_epi16(accu_2, res_hi);
+            accu_3 = _mm256_add_epi16(accu_3, _mm256_srli_epi16(res_hi, 8));
+
+            i += 1;
+        }
+        debug_assert_eq!(i, n);
+
+        let mut result = [0_u16; 32];
+
+        accu_0 = _mm256_sub_epi16(accu_0, _mm256_slli_epi16(accu_1, 8));
         unsafe {
-            use std::arch::x86_64::*;
-
-            #[inline]
-            #[crate::target_cpu(enable = "v3")]
-            fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {
-                unsafe {
-                    let x1y0 = _mm256_permute2f128_si256(x0x1, y0y1, 0x21);
-                    let x0y1 = _mm256_blend_epi32(x0x1, y0y1, 0xf0);
-                    _mm256_add_epi16(x1y0, x0y1)
-                }
-            }
-
-            let mut accu_0 = _mm256_setzero_si256();
-            let mut accu_1 = _mm256_setzero_si256();
-            let mut accu_2 = _mm256_setzero_si256();
-            let mut accu_3 = _mm256_setzero_si256();
-
-            let mut i = 0_usize;
-            while i + 2 <= n {
-                let code = _mm256_loadu_si256(code.as_ptr().add(i).cast());
-
-                let mask = _mm256_set1_epi8(0xf);
-                let clo = _mm256_and_si256(code, mask);
-                let chi = _mm256_and_si256(_mm256_srli_epi16(code, 4), mask);
-
-                let lut = _mm256_loadu_si256(lut.as_ptr().add(i).cast());
-                let res_lo = _mm256_shuffle_epi8(lut, clo);
-                accu_0 = _mm256_add_epi16(accu_0, res_lo);
-                accu_1 = _mm256_add_epi16(accu_1, _mm256_srli_epi16(res_lo, 8));
-                let res_hi = _mm256_shuffle_epi8(lut, chi);
-                accu_2 = _mm256_add_epi16(accu_2, res_hi);
-                accu_3 = _mm256_add_epi16(accu_3, _mm256_srli_epi16(res_hi, 8));
-
-                i += 2;
-            }
-            if i < n {
-                let code = _mm_loadu_si128(code.as_ptr().add(i).cast());
-
-                let mask = _mm_set1_epi8(0xf);
-                let clo = _mm_and_si128(code, mask);
-                let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
-
-                let lut = _mm_loadu_si128(lut.as_ptr().add(i).cast());
-                let res_lo = _mm256_zextsi128_si256(_mm_shuffle_epi8(lut, clo));
-                accu_0 = _mm256_add_epi16(accu_0, res_lo);
-                accu_1 = _mm256_add_epi16(accu_1, _mm256_srli_epi16(res_lo, 8));
-                let res_hi = _mm256_zextsi128_si256(_mm_shuffle_epi8(lut, chi));
-                accu_2 = _mm256_add_epi16(accu_2, res_hi);
-                accu_3 = _mm256_add_epi16(accu_3, _mm256_srli_epi16(res_hi, 8));
-
-                i += 1;
-            }
-            debug_assert_eq!(i, n);
-
-            let mut result = [0_u16; 32];
-
-            accu_0 = _mm256_sub_epi16(accu_0, _mm256_slli_epi16(accu_1, 8));
             _mm256_storeu_si256(
                 result.as_mut_ptr().add(0).cast(),
                 combine2x2(accu_0, accu_1),
             );
+        }
 
-            accu_2 = _mm256_sub_epi16(accu_2, _mm256_slli_epi16(accu_3, 8));
+        accu_2 = _mm256_sub_epi16(accu_2, _mm256_slli_epi16(accu_3, 8));
+        unsafe {
             _mm256_storeu_si256(
                 result.as_mut_ptr().add(16).cast(),
                 combine2x2(accu_2, accu_3),
             );
-
-            result
         }
+
+        result
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -367,46 +365,48 @@ mod fast_scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
+        use std::arch::x86_64::*;
+
+        let mut accu_0 = _mm_setzero_si128();
+        let mut accu_1 = _mm_setzero_si128();
+        let mut accu_2 = _mm_setzero_si128();
+        let mut accu_3 = _mm_setzero_si128();
+
+        let mut i = 0_usize;
+        while i < n {
+            let code = unsafe { _mm_loadu_si128(code.as_ptr().add(i).cast()) };
+
+            let mask = _mm_set1_epi8(0xf);
+            let clo = _mm_and_si128(code, mask);
+            let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
+
+            let lut = unsafe { _mm_loadu_si128(lut.as_ptr().add(i).cast()) };
+            let res_lo = _mm_shuffle_epi8(lut, clo);
+            accu_0 = _mm_add_epi16(accu_0, res_lo);
+            accu_1 = _mm_add_epi16(accu_1, _mm_srli_epi16(res_lo, 8));
+            let res_hi = _mm_shuffle_epi8(lut, chi);
+            accu_2 = _mm_add_epi16(accu_2, res_hi);
+            accu_3 = _mm_add_epi16(accu_3, _mm_srli_epi16(res_hi, 8));
+
+            i += 1;
+        }
+        debug_assert_eq!(i, n);
+
+        let mut result = [0_u16; 32];
+
+        accu_0 = _mm_sub_epi16(accu_0, _mm_slli_epi16(accu_1, 8));
         unsafe {
-            use std::arch::x86_64::*;
-
-            let mut accu_0 = _mm_setzero_si128();
-            let mut accu_1 = _mm_setzero_si128();
-            let mut accu_2 = _mm_setzero_si128();
-            let mut accu_3 = _mm_setzero_si128();
-
-            let mut i = 0_usize;
-            while i < n {
-                let code = _mm_loadu_si128(code.as_ptr().add(i).cast());
-
-                let mask = _mm_set1_epi8(0xf);
-                let clo = _mm_and_si128(code, mask);
-                let chi = _mm_and_si128(_mm_srli_epi16(code, 4), mask);
-
-                let lut = _mm_loadu_si128(lut.as_ptr().add(i).cast());
-                let res_lo = _mm_shuffle_epi8(lut, clo);
-                accu_0 = _mm_add_epi16(accu_0, res_lo);
-                accu_1 = _mm_add_epi16(accu_1, _mm_srli_epi16(res_lo, 8));
-                let res_hi = _mm_shuffle_epi8(lut, chi);
-                accu_2 = _mm_add_epi16(accu_2, res_hi);
-                accu_3 = _mm_add_epi16(accu_3, _mm_srli_epi16(res_hi, 8));
-
-                i += 1;
-            }
-            debug_assert_eq!(i, n);
-
-            let mut result = [0_u16; 32];
-
-            accu_0 = _mm_sub_epi16(accu_0, _mm_slli_epi16(accu_1, 8));
             _mm_storeu_si128(result.as_mut_ptr().add(0).cast(), accu_0);
             _mm_storeu_si128(result.as_mut_ptr().add(8).cast(), accu_1);
+        }
 
-            accu_2 = _mm_sub_epi16(accu_2, _mm_slli_epi16(accu_3, 8));
+        accu_2 = _mm_sub_epi16(accu_2, _mm_slli_epi16(accu_3, 8));
+        unsafe {
             _mm_storeu_si128(result.as_mut_ptr().add(16).cast(), accu_2);
             _mm_storeu_si128(result.as_mut_ptr().add(24).cast(), accu_3);
-
-            result
         }
+
+        result
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -438,45 +438,47 @@ mod fast_scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
+        use std::arch::aarch64::*;
+
+        let mut accu_0 = vdupq_n_u16(0);
+        let mut accu_1 = vdupq_n_u16(0);
+        let mut accu_2 = vdupq_n_u16(0);
+        let mut accu_3 = vdupq_n_u16(0);
+
+        let mut i = 0_usize;
+        while i < n {
+            let code = unsafe { vld1q_u8(code.as_ptr().add(i).cast()) };
+
+            let clo = vandq_u8(code, vdupq_n_u8(0xf));
+            let chi = vshrq_n_u8(code, 4);
+
+            let lut = unsafe { vld1q_u8(lut.as_ptr().add(i).cast()) };
+            let res_lo = vreinterpretq_u16_u8(vqtbl1q_u8(lut, clo));
+            accu_0 = vaddq_u16(accu_0, res_lo);
+            accu_1 = vaddq_u16(accu_1, vshrq_n_u16(res_lo, 8));
+            let res_hi = vreinterpretq_u16_u8(vqtbl1q_u8(lut, chi));
+            accu_2 = vaddq_u16(accu_2, res_hi);
+            accu_3 = vaddq_u16(accu_3, vshrq_n_u16(res_hi, 8));
+
+            i += 1;
+        }
+        debug_assert_eq!(i, n);
+
+        let mut result = [0_u16; 32];
+
+        accu_0 = vsubq_u16(accu_0, vshlq_n_u16(accu_1, 8));
         unsafe {
-            use std::arch::aarch64::*;
-
-            let mut accu_0 = vdupq_n_u16(0);
-            let mut accu_1 = vdupq_n_u16(0);
-            let mut accu_2 = vdupq_n_u16(0);
-            let mut accu_3 = vdupq_n_u16(0);
-
-            let mut i = 0_usize;
-            while i < n {
-                let code = vld1q_u8(code.as_ptr().add(i).cast());
-
-                let clo = vandq_u8(code, vdupq_n_u8(0xf));
-                let chi = vshrq_n_u8(code, 4);
-
-                let lut = vld1q_u8(lut.as_ptr().add(i).cast());
-                let res_lo = vreinterpretq_u16_u8(vqtbl1q_u8(lut, clo));
-                accu_0 = vaddq_u16(accu_0, res_lo);
-                accu_1 = vaddq_u16(accu_1, vshrq_n_u16(res_lo, 8));
-                let res_hi = vreinterpretq_u16_u8(vqtbl1q_u8(lut, chi));
-                accu_2 = vaddq_u16(accu_2, res_hi);
-                accu_3 = vaddq_u16(accu_3, vshrq_n_u16(res_hi, 8));
-
-                i += 1;
-            }
-            debug_assert_eq!(i, n);
-
-            let mut result = [0_u16; 32];
-
-            accu_0 = vsubq_u16(accu_0, vshlq_n_u16(accu_1, 8));
             vst1q_u16(result.as_mut_ptr().add(0).cast(), accu_0);
             vst1q_u16(result.as_mut_ptr().add(8).cast(), accu_1);
+        }
 
-            accu_2 = vsubq_u16(accu_2, vshlq_n_u16(accu_3, 8));
+        accu_2 = vsubq_u16(accu_2, vshlq_n_u16(accu_3, 8));
+        unsafe {
             vst1q_u16(result.as_mut_ptr().add(16).cast(), accu_2);
             vst1q_u16(result.as_mut_ptr().add(24).cast(), accu_3);
-
-            result
         }
+
+        result
     }
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
