@@ -121,12 +121,11 @@ pub fn any_pack<T: Default>(mut x: impl Iterator<Item = T>) -> [T; 32] {
     std::array::from_fn(|_| x.next()).map(|x| x.unwrap_or_default())
 }
 
-#[allow(clippy::module_inception)]
-mod fast_scan {
+mod scan {
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4.512")]
-    fn fast_scan_v4_512(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    #[crate::target_cpu(enable = "v4")]
+    fn scan_v4(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         // bounds checking is not enforced by compiler, so check it manually
         assert_eq!(code.len(), lut.len());
         let n = code.len();
@@ -134,7 +133,7 @@ mod fast_scan {
         use std::arch::x86_64::*;
 
         #[inline]
-        #[crate::target_cpu(enable = "v4.512")]
+        #[crate::target_cpu(enable = "v4")]
         fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {
             let x1y0 = _mm256_permute2f128_si256(x0x1, y0y1, 0x21);
             let x0y1 = _mm256_blend_epi32(x0x1, y0y1, 0xf0);
@@ -142,7 +141,7 @@ mod fast_scan {
         }
 
         #[inline]
-        #[crate::target_cpu(enable = "v4.512")]
+        #[crate::target_cpu(enable = "v4")]
         fn combine4x2(x0x1x2x3: __m512i, y0y1y2y3: __m512i) -> __m256i {
             let x0x1 = _mm512_castsi512_si256(x0x1x2x3);
             let x2x3 = _mm512_extracti64x4_epi64(x0x1x2x3, 1);
@@ -235,8 +234,8 @@ mod fast_scan {
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn fast_scan_v4_test() {
-        if !crate::is_cpu_detected!("v4.512") {
+    fn scan_v4_test() {
+        if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
@@ -249,7 +248,7 @@ mod fast_scan {
                     .map(|_| std::array::from_fn(|_| rand::random()))
                     .collect::<Vec<[u8; 16]>>();
                 unsafe {
-                    assert_eq!(fast_scan_v4_512(&code, &lut), fallback(&code, &lut));
+                    assert_eq!(scan_v4(&code, &lut), fallback(&code, &lut));
                 }
             }
         }
@@ -258,7 +257,7 @@ mod fast_scan {
     #[inline]
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v3")]
-    fn fast_scan_v3(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    fn scan_v3(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         // bounds checking is not enforced by compiler, so check it manually
         assert_eq!(code.len(), lut.len());
         let n = code.len();
@@ -338,7 +337,7 @@ mod fast_scan {
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn fast_scan_v3_test() {
+    fn scan_v3_test() {
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -352,7 +351,7 @@ mod fast_scan {
                     .map(|_| std::array::from_fn(|_| rand::random()))
                     .collect::<Vec<[u8; 16]>>();
                 unsafe {
-                    assert_eq!(fast_scan_v3(&code, &lut), fallback(&code, &lut));
+                    assert_eq!(scan_v3(&code, &lut), fallback(&code, &lut));
                 }
             }
         }
@@ -360,7 +359,7 @@ mod fast_scan {
 
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v2")]
-    fn fast_scan_v2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    fn scan_v2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         // bounds checking is not enforced by compiler, so check it manually
         assert_eq!(code.len(), lut.len());
         let n = code.len();
@@ -411,7 +410,7 @@ mod fast_scan {
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn fast_scan_v2_test() {
+    fn scan_v2_test() {
         if !crate::is_cpu_detected!("v2") {
             println!("test {} ... skipped (v2)", module_path!());
             return;
@@ -425,7 +424,7 @@ mod fast_scan {
                     .map(|_| std::array::from_fn(|_| rand::random()))
                     .collect::<Vec<[u8; 16]>>();
                 unsafe {
-                    assert_eq!(fast_scan_v2(&code, &lut), fallback(&code, &lut));
+                    assert_eq!(scan_v2(&code, &lut), fallback(&code, &lut));
                 }
             }
         }
@@ -433,7 +432,7 @@ mod fast_scan {
 
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
-    fn fast_scan_a2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    fn scan_a2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         // bounds checking is not enforced by compiler, so check it manually
         assert_eq!(code.len(), lut.len());
         let n = code.len();
@@ -483,7 +482,7 @@ mod fast_scan {
 
     #[cfg(all(target_arch = "aarch64", test, not(miri)))]
     #[test]
-    fn fast_scan_a2_test() {
+    fn scan_a2_test() {
         if !crate::is_cpu_detected!("a2") {
             println!("test {} ... skipped (a2)", module_path!());
             return;
@@ -497,14 +496,14 @@ mod fast_scan {
                     .map(|_| std::array::from_fn(|_| rand::random()))
                     .collect::<Vec<[u8; 16]>>();
                 unsafe {
-                    assert_eq!(fast_scan_a2(&code, &lut), fallback(&code, &lut));
+                    assert_eq!(scan_a2(&code, &lut), fallback(&code, &lut));
                 }
             }
         }
     }
 
-    #[crate::multiversion(@"v4.512", @"v3", @"v2", @"a2")]
-    pub fn fast_scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2")]
+    pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         fn binary(op: impl Fn(u16, u16) -> u16, a: [u16; 8], b: [u16; 8]) -> [u16; 8] {
             std::array::from_fn(|i| op(a[i], b[i]))
         }
@@ -543,6 +542,6 @@ mod fast_scan {
 }
 
 #[inline(always)]
-pub fn fast_scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
-    fast_scan::fast_scan(code, lut)
+pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+    scan::scan(code, lut)
 }

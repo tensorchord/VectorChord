@@ -70,7 +70,7 @@ mod internal {
     pub use is_riscv64_cpu_detected;
 
     #[cfg(target_arch = "x86_64")]
-    pub fn is_v4_512_detected() -> bool {
+    pub fn is_v4_detected() -> bool {
         std::arch::is_x86_feature_detected!("avx512bw")
             && std::arch::is_x86_feature_detected!("avx512cd")
             && std::arch::is_x86_feature_detected!("avx512dq")
@@ -130,6 +130,12 @@ mod internal {
             vl >= 256
         }
         std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_256_detected() }
+    }
+
+    #[expect(dead_code)]
+    #[cfg(target_arch = "aarch64")]
+    pub fn is_a3_128_detected() -> bool {
+        std::arch::is_aarch64_feature_detected!("sve")
     }
 
     #[cfg(target_arch = "aarch64")]

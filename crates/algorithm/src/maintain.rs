@@ -63,7 +63,7 @@ pub fn maintain<O: Operator>(index: impl RelationWrite, check: impl Fn()) {
         let mut trace = Vec::new();
 
         let mut tuples = 0_u64;
-        let mut callback = |code: (f32, f32, f32, f32, Vec<_>), mean, payload| {
+        let mut callback = |code: (_, _, _, _, _), mean, payload| {
             tape.push(Branch {
                 mean,
                 dis_u_2: code.0,

@@ -1,9 +1,10 @@
 use distance::Distance;
 use simd::Floating;
 
-pub fn preprocess(
-    vector: &[f32],
-) -> (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)) {
+pub type BinaryLut = (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>));
+pub type BinaryCode<'a> = (f32, f32, f32, f32, &'a [u64]);
+
+pub fn preprocess(vector: &[f32]) -> BinaryLut {
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
     let (k, b, qvector) = simd::quantize::quantize(vector, 15.0);
     let qvector_sum = if vector.len() <= 4369 {
@@ -15,8 +16,8 @@ pub fn preprocess(
 }
 
 pub fn process_lowerbound_l2(
-    lut: &(f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-    (dis_u_2, factor_ppc, factor_ip, factor_err, t): (f32, f32, f32, f32, &[u64]),
+    lut: &BinaryLut,
+    (dis_u_2, factor_ppc, factor_ip, factor_err, t): BinaryCode<'_>,
     epsilon: f32,
 ) -> Distance {
     let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
@@ -28,8 +29,8 @@ pub fn process_lowerbound_l2(
 }
 
 pub fn process_lowerbound_dot(
-    lut: &(f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-    (_, factor_ppc, factor_ip, factor_err, t): (f32, f32, f32, f32, &[u64]),
+    lut: &BinaryLut,
+    (_, factor_ppc, factor_ip, factor_err, t): BinaryCode<'_>,
     epsilon: f32,
 ) -> Distance {
     let &(dis_v_2, b, k, qvector_sum, ref s) = lut;

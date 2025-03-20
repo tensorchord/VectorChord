@@ -6,7 +6,7 @@ pub struct TargetCpu {
 
 pub const TARGET_CPUS: &[TargetCpu] = &[
     TargetCpu {
-        target_cpu: "v4.512",
+        target_cpu: "v4",
         target_arch: "x86_64",
         target_features: &[
             "avx512bw", "avx512cd", "avx512dq", "avx512vl", // simd
@@ -38,6 +38,13 @@ pub const TARGET_CPUS: &[TargetCpu] = &[
     },
     TargetCpu {
         target_cpu: "a3.256",
+        target_arch: "aarch64",
+        target_features: &[
+            "sve", // simd
+        ],
+    },
+    TargetCpu {
+        target_cpu: "a3.128",
         target_arch: "aarch64",
         target_features: &[
             "sve", // simd

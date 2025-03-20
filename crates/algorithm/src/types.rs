@@ -81,4 +81,7 @@ impl<V> Structure<V> {
     pub fn len(&self) -> usize {
         self.children.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.children.is_empty()
+    }
 }

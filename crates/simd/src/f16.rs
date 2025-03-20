@@ -1,10 +1,22 @@
 use crate::{Floating, f32};
 use half::f16;
+use zerocopy::FromZeros;
+
+trait AsF32 {
+    #[allow(clippy::wrong_self_convention)]
+    fn as_f32(self) -> f32;
+}
+
+impl AsF32 for f16 {
+    fn as_f32(self) -> f32 {
+        self.into()
+    }
+}
 
 impl Floating for f16 {
     #[inline(always)]
     fn zero() -> Self {
-        f16::ZERO
+        FromZeros::new_zeroed()
     }
 
     #[inline(always)]
@@ -129,12 +141,12 @@ impl Floating for f16 {
 }
 
 mod reduce_or_of_is_zero_x {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_or_of_is_zero_x(this: &[f16]) -> bool {
         for &x in this {
-            if x == f16::ZERO {
+            if x == FromZeros::new_zeroed() {
                 return true;
             }
         }
@@ -145,14 +157,14 @@ mod reduce_or_of_is_zero_x {
 mod reduce_sum_of_x {
     // FIXME: add manually-implemented SIMD version
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_sum_of_x(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x = 0.0f32;
         for i in 0..n {
-            x += this[i].to_f32();
+            x += this[i].as_f32();
         }
         x
     }
@@ -161,14 +173,14 @@ mod reduce_sum_of_x {
 mod reduce_sum_of_abs_x {
     // FIXME: add manually-implemented SIMD version
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_sum_of_abs_x(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x = 0.0f32;
         for i in 0..n {
-            x += this[i].to_f32().abs();
+            x += (this[i].as_f32()).abs();
         }
         x
     }
@@ -177,14 +189,14 @@ mod reduce_sum_of_abs_x {
 mod reduce_sum_of_x2 {
     // FIXME: add manually-implemented SIMD version
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_sum_of_x2(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x2 = 0.0f32;
         for i in 0..n {
-            x2 += this[i].to_f32() * this[i].to_f32();
+            x2 += this[i].as_f32() * this[i].as_f32();
         }
         x2
     }
@@ -193,29 +205,29 @@ mod reduce_sum_of_x2 {
 mod reduce_min_max_of_x {
     // FIXME: add manually-implemented SIMD version
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_min_max_of_x(this: &[f16]) -> (f32, f32) {
         let mut min = f32::INFINITY;
         let mut max = f32::NEG_INFINITY;
         let n = this.len();
         for i in 0..n {
-            min = min.min(this[i].to_f32());
-            max = max.max(this[i].to_f32());
+            min = min.min(this[i].as_f32());
+            max = max.max(this[i].as_f32());
         }
         (min, max)
     }
 }
 
 mod reduce_sum_of_xy {
-    use half::f16;
+    use super::*;
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4.512")]
+    #[crate::target_cpu(enable = "v4")]
     #[target_feature(enable = "avx512fp16")]
-    pub fn reduce_sum_of_xy_v4_512_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
+    pub fn reduce_sum_of_xy_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         use std::arch::x86_64::*;
         let mut n = lhs.len();
@@ -241,11 +253,11 @@ mod reduce_sum_of_xy {
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn reduce_sum_of_xy_v4_512_avx512fp16_test() {
+    fn reduce_sum_of_xy_v4_avx512fp16_test() {
         use rand::Rng;
         const EPSILON: f32 = 2.0;
-        if !crate::is_cpu_detected!("v4.512") || !crate::is_feature_detected!("avx512fp16") {
-            println!("test {} ... skipped (v4_512:avx512fp16)", module_path!());
+        if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
+            println!("test {} ... skipped (v4:avx512fp16)", module_path!());
             return;
         }
         let mut rng = rand::rng();
@@ -260,7 +272,7 @@ mod reduce_sum_of_xy {
             for z in 3984..4016 {
                 let lhs = &lhs[..z];
                 let rhs = &rhs[..z];
-                let specialized = unsafe { reduce_sum_of_xy_v4_512_avx512fp16(lhs, rhs) };
+                let specialized = unsafe { reduce_sum_of_xy_v4_avx512fp16(lhs, rhs) };
                 let fallback = fallback(lhs, rhs);
                 assert!(
                     (specialized - fallback).abs() < EPSILON,
@@ -272,8 +284,8 @@ mod reduce_sum_of_xy {
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4.512")]
-    pub fn reduce_sum_of_xy_v4_512(lhs: &[f16], rhs: &[f16]) -> f32 {
+    #[crate::target_cpu(enable = "v4")]
+    pub fn reduce_sum_of_xy_v4(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         use std::arch::x86_64::*;
         let mut n = lhs.len();
@@ -302,7 +314,7 @@ mod reduce_sum_of_xy {
     fn reduce_sum_of_xy_v4_test() {
         use rand::Rng;
         const EPSILON: f32 = 2.0;
-        if !crate::is_cpu_detected!("v4.512") {
+        if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
@@ -315,7 +327,7 @@ mod reduce_sum_of_xy {
             let rhs = (0..n)
                 .map(|_| f16::from_f32(rng.random_range(-1.0..=1.0)))
                 .collect::<Vec<_>>();
-            let specialized = unsafe { reduce_sum_of_xy_v4_512(&lhs, &rhs) };
+            let specialized = unsafe { reduce_sum_of_xy_v4(&lhs, &rhs) };
             let fallback = fallback(&lhs, &rhs);
             assert!(
                 (specialized - fallback).abs() < EPSILON,
@@ -345,8 +357,8 @@ mod reduce_sum_of_xy {
         }
         let mut xy = emulate_mm256_reduce_add_ps(xy);
         while n > 0 {
-            let x = unsafe { a.read().to_f32() };
-            let y = unsafe { b.read().to_f32() };
+            let x = unsafe { a.read().as_f32() };
+            let y = unsafe { b.read().as_f32() };
             a = unsafe { a.add(1) };
             b = unsafe { b.add(1) };
             n -= 1;
@@ -481,26 +493,26 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[crate::multiversion(@"v4.512:avx512fp16", @"v4.512", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_xy(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
         let mut xy = 0.0f32;
         for i in 0..n {
-            xy += lhs[i].to_f32() * rhs[i].to_f32();
+            xy += lhs[i].as_f32() * rhs[i].as_f32();
         }
         xy
     }
 }
 
 mod reduce_sum_of_d2 {
-    use half::f16;
+    use super::*;
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4.512")]
+    #[crate::target_cpu(enable = "v4")]
     #[target_feature(enable = "avx512fp16")]
-    pub fn reduce_sum_of_d2_v4_512_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
+    pub fn reduce_sum_of_d2_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         use std::arch::x86_64::*;
         let mut n = lhs.len() as u32;
@@ -528,11 +540,11 @@ mod reduce_sum_of_d2 {
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn reduce_sum_of_d2_v4_512_avx512fp16_test() {
+    fn reduce_sum_of_d2_v4_avx512fp16_test() {
         use rand::Rng;
         const EPSILON: f32 = 6.4;
-        if !crate::is_cpu_detected!("v4.512") || !crate::is_feature_detected!("avx512fp16") {
-            println!("test {} ... skipped (v4_512:avx512fp16)", module_path!());
+        if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
+            println!("test {} ... skipped (v4:avx512fp16)", module_path!());
             return;
         }
         let mut rng = rand::rng();
@@ -547,7 +559,7 @@ mod reduce_sum_of_d2 {
             for z in 3984..4016 {
                 let lhs = &lhs[..z];
                 let rhs = &rhs[..z];
-                let specialized = unsafe { reduce_sum_of_d2_v4_512_avx512fp16(lhs, rhs) };
+                let specialized = unsafe { reduce_sum_of_d2_v4_avx512fp16(lhs, rhs) };
                 let fallback = fallback(lhs, rhs);
                 assert!(
                     (specialized - fallback).abs() < EPSILON,
@@ -559,8 +571,8 @@ mod reduce_sum_of_d2 {
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4.512")]
-    pub fn reduce_sum_of_d2_v4_512(lhs: &[f16], rhs: &[f16]) -> f32 {
+    #[crate::target_cpu(enable = "v4")]
+    pub fn reduce_sum_of_d2_v4(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         use std::arch::x86_64::*;
         let mut n = lhs.len() as u32;
@@ -591,7 +603,7 @@ mod reduce_sum_of_d2 {
     fn reduce_sum_of_d2_v4_test() {
         use rand::Rng;
         const EPSILON: f32 = 2.0;
-        if !crate::is_cpu_detected!("v4.512") {
+        if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
         }
@@ -607,7 +619,7 @@ mod reduce_sum_of_d2 {
             for z in 3984..4016 {
                 let lhs = &lhs[..z];
                 let rhs = &rhs[..z];
-                let specialized = unsafe { reduce_sum_of_d2_v4_512(lhs, rhs) };
+                let specialized = unsafe { reduce_sum_of_d2_v4(lhs, rhs) };
                 let fallback = fallback(lhs, rhs);
                 assert!(
                     (specialized - fallback).abs() < EPSILON,
@@ -639,8 +651,8 @@ mod reduce_sum_of_d2 {
         }
         let mut d2 = emulate_mm256_reduce_add_ps(d2);
         while n > 0 {
-            let x = unsafe { a.read().to_f32() };
-            let y = unsafe { b.read().to_f32() };
+            let x = unsafe { a.read().as_f32() };
+            let y = unsafe { b.read().as_f32() };
             a = unsafe { a.add(1) };
             b = unsafe { b.add(1) };
             n -= 1;
@@ -776,13 +788,13 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[crate::multiversion(@"v4.512:avx512fp16", @"v4.512", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
         let mut d2 = 0.0;
         for i in 0..n {
-            let d = lhs[i].to_f32() - rhs[i].to_f32();
+            let d = lhs[i].as_f32() - rhs[i].as_f32();
             d2 += d * d;
         }
         d2
@@ -793,9 +805,9 @@ mod reduce_sum_of_xy_sparse {
     // There is no manually-implemented SIMD version.
     // Add it if `svecf16` is supported.
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {
         use std::cmp::Ordering;
         assert_eq!(lidx.len(), lval.len());
@@ -806,7 +818,7 @@ mod reduce_sum_of_xy_sparse {
         while lp < ln && rp < rn {
             match Ord::cmp(&lidx[lp], &ridx[rp]) {
                 Ordering::Equal => {
-                    xy += lval[lp].to_f32() * rval[rp].to_f32();
+                    xy += lval[lp].as_f32() * rval[rp].as_f32();
                     lp += 1;
                     rp += 1;
                 }
@@ -826,9 +838,9 @@ mod reduce_sum_of_d2_sparse {
     // There is no manually-implemented SIMD version.
     // Add it if `svecf16` is supported.
 
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {
         use std::cmp::Ordering;
         assert_eq!(lidx.len(), lval.len());
@@ -839,35 +851,35 @@ mod reduce_sum_of_d2_sparse {
         while lp < ln && rp < rn {
             match Ord::cmp(&lidx[lp], &ridx[rp]) {
                 Ordering::Equal => {
-                    let d = lval[lp].to_f32() - rval[rp].to_f32();
+                    let d = lval[lp].as_f32() - rval[rp].as_f32();
                     d2 += d * d;
                     lp += 1;
                     rp += 1;
                 }
                 Ordering::Less => {
-                    d2 += lval[lp].to_f32() * lval[lp].to_f32();
+                    d2 += lval[lp].as_f32() * lval[lp].as_f32();
                     lp += 1;
                 }
                 Ordering::Greater => {
-                    d2 += rval[rp].to_f32() * rval[rp].to_f32();
+                    d2 += rval[rp].as_f32() * rval[rp].as_f32();
                     rp += 1;
                 }
             }
         }
         for i in lp..ln {
-            d2 += lval[i].to_f32() * lval[i].to_f32();
+            d2 += lval[i].as_f32() * lval[i].as_f32();
         }
         for i in rp..rn {
-            d2 += rval[i].to_f32() * rval[i].to_f32();
+            d2 += rval[i].as_f32() * rval[i].as_f32();
         }
         d2
     }
 }
 
 mod vector_add {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_add(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -885,9 +897,9 @@ mod vector_add {
 }
 
 mod vector_add_inplace {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_add_inplace(lhs: &mut [f16], rhs: &[f16]) {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -898,9 +910,9 @@ mod vector_add_inplace {
 }
 
 mod vector_sub {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_sub(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -918,9 +930,9 @@ mod vector_sub {
 }
 
 mod vector_mul {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_mul(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -938,9 +950,9 @@ mod vector_mul {
 }
 
 mod vector_mul_scalar {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_mul_scalar(lhs: &[f16], rhs: f32) -> Vec<f16> {
         let rhs = f16::from_f32(rhs);
         let n = lhs.len();
@@ -958,9 +970,9 @@ mod vector_mul_scalar {
 }
 
 mod vector_mul_scalar_inplace {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_mul_scalar_inplace(lhs: &mut [f16], rhs: f32) {
         let rhs = f16::from_f32(rhs);
         let n = lhs.len();
@@ -971,21 +983,21 @@ mod vector_mul_scalar_inplace {
 }
 
 mod vector_abs_inplace {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_abs_inplace(this: &mut [f16]) {
         let n = this.len();
         for i in 0..n {
-            this[i] = f16::from_f32(this[i].to_f32().abs());
+            this[i] = f16::from_f32(this[i].as_f32().abs());
         }
     }
 }
 
 mod vector_from_f32 {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_from_f32(this: &[f32]) -> Vec<f16> {
         let n = this.len();
         let mut r = Vec::<f16>::with_capacity(n);
@@ -1002,15 +1014,15 @@ mod vector_from_f32 {
 }
 
 mod vector_to_f32 {
-    use half::f16;
+    use super::*;
 
-    #[crate::multiversion("v4.512", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
     pub fn vector_to_f32(this: &[f16]) -> Vec<f32> {
         let n = this.len();
         let mut r = Vec::<f32>::with_capacity(n);
         for i in 0..n {
             unsafe {
-                r.as_mut_ptr().add(i).write(this[i].to_f32());
+                r.as_mut_ptr().add(i).write(this[i].as_f32());
             }
         }
         unsafe {

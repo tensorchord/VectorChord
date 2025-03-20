@@ -37,7 +37,9 @@ serde.workspace = true
 toml = "0.8.20"
 validator.workspace = true
 zerocopy.workspace = true
-zerocopy-derive.workspace = true
+
+[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), any(target_os = "linux", target_os = "macos", target_os = "windows")))'.dependencies]
+mimalloc = { version = "*", features = ["local_dynamic_tls"] }
 
 [patch.crates-io]
 half = { git = "https://github.com/tensorchord/half-rs.git", rev = "9dc2559e95f295aaa8ffef5e0529167731dffd47" }
@@ -54,13 +56,12 @@ version = "0.0.0"
 edition = "2024"
 
 [workspace.dependencies]
-half = { version = "2.5.0", features = ["serde", "zerocopy"] }
+half = { version = "2.5.0", features = ["zerocopy"] }
 paste = "1"
 rand = "0.9.0"
-serde = "1"
+serde = { version = "1", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
-zerocopy = "0.8.23"
-zerocopy-derive = "0.8.23"
+zerocopy = { version = "0.8.23", features = ["derive"] }
 
 [workspace.lints]
 clippy.identity_op = "allow"

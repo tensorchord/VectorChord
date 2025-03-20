@@ -1,8 +1,3 @@
-#![feature(generic_arg_infer)]
-#![allow(clippy::collapsible_else_if)]
-#![allow(clippy::type_complexity)]
-#![allow(clippy::len_without_is_empty)]
-
 mod build;
 mod bulkdelete;
 mod cache;
@@ -31,7 +26,7 @@ pub use rerank::{how, rerank_heap, rerank_index};
 pub use search::{search, search_and_estimate};
 
 use std::ops::{Deref, DerefMut};
-use zerocopy_derive::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[repr(C, align(8))]
 #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
@@ -40,11 +35,13 @@ pub struct Opaque {
     pub skip: u32,
 }
 
-#[allow(clippy::len_without_is_empty)]
 pub trait Page: Sized {
     fn get_opaque(&self) -> &Opaque;
     fn get_opaque_mut(&mut self) -> &mut Opaque;
     fn len(&self) -> u16;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn get(&self, i: u16) -> Option<&[u8]>;
     fn get_mut(&mut self, i: u16) -> Option<&mut [u8]>;
     fn alloc(&mut self, data: &[u8]) -> Option<u16>;

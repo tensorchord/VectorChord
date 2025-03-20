@@ -1,8 +1,9 @@
 use crate::IndexPointer;
 use crate::operator::Vector;
+use rabitq::binary::BinaryCode;
 use std::marker::PhantomData;
 use std::num::{NonZeroU8, NonZeroU64};
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
@@ -141,9 +142,9 @@ pub struct FreepageTuple {}
 impl Tuple for FreepageTuple {
     fn serialize(&self) -> Vec<u8> {
         FreepageTupleHeader {
-            level_0: [0; _],
-            level_1: [0; _],
-            level_2: [0; _],
+            level_0: FromZeros::new_zeroed(),
+            level_1: FromZeros::new_zeroed(),
+            level_2: FromZeros::new_zeroed(),
             _padding_0: Default::default(),
         }
         .as_bytes()
@@ -172,22 +173,21 @@ impl FreepageTupleWriter<'_> {
         set(&mut self.header.level_1[i >> 10], (i >> 5) % 32, true);
         set(&mut self.header.level_2[i >> 15], (i >> 10) % 32, true);
     }
-    #[allow(clippy::just_underscores_and_digits)]
     fn find(&self) -> Option<usize> {
-        let _3 = 0_usize;
-        let _2 = self.header.level_2[_3 << 0].trailing_zeros() as usize;
-        if _2 == 32 {
+        let i_3 = 0_usize;
+        let i_2 = self.header.level_2[i_3 << 0].trailing_zeros() as usize;
+        if i_2 == 32 {
             return None;
         }
-        let _1 = self.header.level_1[_3 << 5 | _2 << 0].trailing_zeros() as usize;
-        if _1 == 32 {
+        let i_1 = self.header.level_1[i_3 << 5 | i_2 << 0].trailing_zeros() as usize;
+        if i_1 == 32 {
             panic!("data corruption");
         }
-        let _0 = self.header.level_0[_3 << 10 | _2 << 5 | _1 << 0].trailing_zeros() as usize;
-        if _0 == 32 {
+        let i_0 = self.header.level_0[i_3 << 10 | i_2 << 5 | i_1 << 0].trailing_zeros() as usize;
+        if i_0 == 32 {
             panic!("data corruption");
         }
-        Some(_3 << 15 | _2 << 10 | _1 << 5 | _0 << 0)
+        Some(i_3 << 15 | i_2 << 10 | i_1 << 5 | i_0 << 0)
     }
     pub fn fetch(&mut self) -> Option<usize> {
         let i = self.find()?;
@@ -873,7 +873,6 @@ struct AppendableTupleHeader {
     elements_e: usize,
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppendableTuple {
     pub mean: IndexPointer,
@@ -941,7 +940,7 @@ impl<'a> AppendableTupleReader<'a> {
     pub fn mean(self) -> IndexPointer {
         self.header.mean
     }
-    pub fn code(self) -> (f32, f32, f32, f32, &'a [u64]) {
+    pub fn code(self) -> BinaryCode<'a> {
         (
             self.header.dis_u_2,
             self.header.factor_ppc,

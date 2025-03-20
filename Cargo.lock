@@ -29,7 +29,6 @@ dependencies = [
  "validator",
  "vector",
  "zerocopy",
- "zerocopy-derive",
 ]
 
 [[package]]
@@ -377,7 +376,6 @@ source = "git+https://github.com/tensorchord/half-rs.git?rev=9dc2559e95f295aaa8f
 dependencies = [
  "cfg-if",
  "crunchy",
- "serde",
  "zerocopy",
 ]
 
@@ -618,7 +616,6 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 name = "k_means"
 version = "0.0.0"
 dependencies = [
- "half 2.5.0",
  "rabitq",
  "rand",
  "rayon",
@@ -648,6 +645,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
+name = "libmimalloc-sys"
+version = "0.1.40"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07d0e07885d6a754b9c7993f2625187ad694ee985d60f23355ff0e7077261502"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "litemap"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -668,6 +675,15 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+
+[[package]]
+name = "mimalloc"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99585191385958383e13f6b822e6b6d8d9cf928e7d286ceb092da92b43c87bc1"
+dependencies = [
+ "libmimalloc-sys",
+]
 
 [[package]]
 name = "minimal-lexical"
@@ -1478,6 +1494,7 @@ dependencies = [
  "distance",
  "half 2.5.0",
  "k_means",
+ "mimalloc",
  "paste",
  "pgrx",
  "pgrx-catalog",
@@ -1489,7 +1506,6 @@ dependencies = [
  "validator",
  "vector",
  "zerocopy",
- "zerocopy-derive",
 ]
 
 [[package]]

@@ -1,6 +1,8 @@
 use crate::types::*;
 use distance::Distance;
 use half::f16;
+use rabitq::binary::{BinaryCode, BinaryLut};
+use rabitq::block::BlockLut;
 use simd::Floating;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -183,7 +185,7 @@ impl
     type Output = [Distance; 32];
 
     fn push(&mut self, input: &[[u8; 16]], target: &[[u8; 16]]) {
-        let t = simd::fast_scan::fast_scan(input, target);
+        let t = simd::fast_scan::scan(input, target);
         for i in 0..32 {
             self.0[i] += t[i];
         }
@@ -221,7 +223,7 @@ impl
     type Output = [Distance; 32];
 
     fn push(&mut self, input: &[[u8; 16]], target: &[[u8; 16]]) {
-        let t = simd::fast_scan::fast_scan(input, target);
+        let t = simd::fast_scan::scan(input, target);
         for i in 0..32 {
             self.0[i] += t[i];
         }
@@ -383,14 +385,9 @@ pub trait Vector: VectorOwned {
     fn elements_and_metadata(vector: Self::Borrowed<'_>) -> (&[Self::Element], Self::Metadata);
     fn from_owned(vector: OwnedVector) -> Self;
 
-    fn compute_lut_block(vector: Self::Borrowed<'_>) -> (f32, f32, f32, f32, Vec<[u8; 16]>);
+    fn compute_lut_block(vector: Self::Borrowed<'_>) -> BlockLut;
 
-    fn compute_lut(
-        vector: Self::Borrowed<'_>,
-    ) -> (
-        (f32, f32, f32, f32, Vec<[u8; 16]>),
-        (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-    );
+    fn compute_lut(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut);
 
     fn code(vector: Self::Borrowed<'_>) -> rabitq::Code;
 }
@@ -423,16 +420,11 @@ impl Vector for VectOwned<f32> {
         }
     }
 
-    fn compute_lut_block(vector: Self::Borrowed<'_>) -> (f32, f32, f32, f32, Vec<[u8; 16]>) {
+    fn compute_lut_block(vector: Self::Borrowed<'_>) -> BlockLut {
         rabitq::block::preprocess(vector.slice())
     }
 
-    fn compute_lut(
-        vector: Self::Borrowed<'_>,
-    ) -> (
-        (f32, f32, f32, f32, Vec<[u8; 16]>),
-        (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-    ) {
+    fn compute_lut(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
         rabitq::compute_lut(vector.slice())
     }
 
@@ -469,16 +461,11 @@ impl Vector for VectOwned<f16> {
         }
     }
 
-    fn compute_lut_block(vector: Self::Borrowed<'_>) -> (f32, f32, f32, f32, Vec<[u8; 16]>) {
+    fn compute_lut_block(vector: Self::Borrowed<'_>) -> BlockLut {
         rabitq::block::preprocess(&f16::vector_to_f32(vector.slice()))
     }
 
-    fn compute_lut(
-        vector: Self::Borrowed<'_>,
-    ) -> (
-        (f32, f32, f32, f32, Vec<[u8; 16]>),
-        (f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-    ) {
+    fn compute_lut(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
         rabitq::compute_lut(&f16::vector_to_f32(vector.slice()))
     }
 
@@ -490,11 +477,7 @@ impl Vector for VectOwned<f16> {
 pub trait OperatorDistance: 'static + Debug + Copy {
     const KIND: DistanceKind;
 
-    fn compute_lowerbound_binary(
-        lut: &(f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-        code: (f32, f32, f32, f32, &[u64]),
-        epsilon: f32,
-    ) -> Distance;
+    fn compute_lowerbound_binary(lut: &BinaryLut, code: BinaryCode<'_>, epsilon: f32) -> Distance;
 
     type BlockAccessor: for<'a> Accessor2<
             [u8; 16],
@@ -515,11 +498,7 @@ pub struct L2;
 impl OperatorDistance for L2 {
     const KIND: DistanceKind = DistanceKind::L2;
 
-    fn compute_lowerbound_binary(
-        lut: &(f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-        code: (f32, f32, f32, f32, &[u64]),
-        epsilon: f32,
-    ) -> Distance {
+    fn compute_lowerbound_binary(lut: &BinaryLut, code: BinaryCode<'_>, epsilon: f32) -> Distance {
         rabitq::binary::process_lowerbound_l2(lut, code, epsilon)
     }
 
@@ -532,11 +511,7 @@ pub struct Dot;
 impl OperatorDistance for Dot {
     const KIND: DistanceKind = DistanceKind::Dot;
 
-    fn compute_lowerbound_binary(
-        lut: &(f32, f32, f32, f32, (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>)),
-        code: (f32, f32, f32, f32, &[u64]),
-        epsilon: f32,
-    ) -> Distance {
+    fn compute_lowerbound_binary(lut: &BinaryLut, code: BinaryCode<'_>, epsilon: f32) -> Distance {
         rabitq::binary::process_lowerbound_dot(lut, code, epsilon)
     }
 
@@ -570,7 +545,7 @@ pub trait Operator: 'static + Debug + Copy {
 }
 
 #[derive(Debug)]
-pub struct Op<V, D>(PhantomData<(fn(V) -> V, fn(D) -> D)>);
+pub struct Op<V, D>(PhantomData<fn(V) -> V>, PhantomData<fn(D) -> D>);
 
 impl<V, D> Clone for Op<V, D> {
     fn clone(&self) -> Self {

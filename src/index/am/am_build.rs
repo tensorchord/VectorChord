@@ -338,7 +338,8 @@ mod vchordrq_cached {
 
     #[derive(Debug, Clone, Copy)]
     pub enum VchordrqCachedReader<'a> {
-        _0(#[allow(dead_code)] VchordrqCachedReader0<'a>),
+        #[allow(dead_code)]
+        _0(VchordrqCachedReader0<'a>),
         _1(VchordrqCachedReader1<'a>),
     }
 
@@ -853,6 +854,7 @@ pub fn make_internal_build(
     result
 }
 
+#[allow(clippy::collapsible_else_if)]
 pub fn make_external_build(
     vector_options: VectorOptions,
     _opfamily: Opfamily,

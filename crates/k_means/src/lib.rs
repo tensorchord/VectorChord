@@ -1,6 +1,4 @@
-#![allow(clippy::type_complexity)]
-
-use half::f16;
+use rabitq::block::BlockCode;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -126,7 +124,7 @@ fn rabitq_index(
         elements: Vec<[u8; 16]>,
     }
     impl Block {
-        fn code(&self) -> (&[f32; 32], &[f32; 32], &[f32; 32], &[f32; 32], &[[u8; 16]]) {
+        fn code(&self) -> BlockCode<'_> {
             (
                 &self.dis_u_2,
                 &self.factor_ppc,
@@ -201,7 +199,7 @@ struct LloydKMeans<'a, F> {
     compute: F,
 }
 
-const DELTA: f32 = f16::EPSILON.to_f32_const();
+const DELTA: f32 = 9.7656e-4_f32;
 
 impl<'a, F: Fn(&[Vec<f32>]) -> Vec<usize>> LloydKMeans<'a, F> {
     fn new(c: usize, dims: usize, samples: &'a [Vec<f32>], is_spherical: bool, compute: F) -> Self {

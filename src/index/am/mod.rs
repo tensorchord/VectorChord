@@ -126,6 +126,7 @@ pub unsafe extern "C" fn amoptions(reloptions: Datum, validate: bool) -> *mut pg
     rdopts as *mut pgrx::pg_sys::bytea
 }
 
+#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn amcostestimate(
     _root: *mut pgrx::pg_sys::PlannerInfo,
@@ -155,6 +156,7 @@ pub unsafe extern "C" fn amcostestimate(
 }
 
 #[cfg(feature = "pg13")]
+#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
@@ -169,6 +171,7 @@ pub unsafe extern "C" fn aminsert(
 }
 
 #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16", feature = "pg17"))]
+#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,

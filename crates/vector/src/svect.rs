@@ -155,9 +155,13 @@ impl<'a, S: Floating> SVectBorrowed<'a, S> {
     }
 
     #[inline(always)]
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u32 {
         self.indexes.len() as u32
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.indexes.is_empty()
     }
 }
 

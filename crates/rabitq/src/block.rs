@@ -1,7 +1,16 @@
 use distance::Distance;
 use simd::Floating;
 
-pub fn preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<[u8; 16]>) {
+pub type BlockLut = (f32, f32, f32, f32, Vec<[u8; 16]>);
+pub type BlockCode<'a> = (
+    &'a [f32; 32],
+    &'a [f32; 32],
+    &'a [f32; 32],
+    &'a [f32; 32],
+    &'a [[u8; 16]],
+);
+
+pub fn preprocess(vector: &[f32]) -> BlockLut {
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
     let (k, b, qvector) = simd::quantize::quantize(vector, 15.0);
     let qvector_sum = if vector.len() <= 4369 {
@@ -13,18 +22,12 @@ pub fn preprocess(vector: &[f32]) -> (f32, f32, f32, f32, Vec<[u8; 16]>) {
 }
 
 pub fn process_lowerbound_l2(
-    lut: &(f32, f32, f32, f32, Vec<[u8; 16]>),
-    (dis_u_2, factor_ppc, factor_ip, factor_err, t): (
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[[u8; 16]],
-    ),
+    lut: &BlockLut,
+    (dis_u_2, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
     epsilon: f32,
 ) -> [Distance; 32] {
     let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
-    let r = simd::fast_scan::fast_scan(t, s);
+    let r = simd::fast_scan::scan(t, s);
     std::array::from_fn(|i| {
         let rough = dis_u_2[i]
             + dis_v_2
@@ -36,18 +39,12 @@ pub fn process_lowerbound_l2(
 }
 
 pub fn process_lowerbound_dot(
-    lut: &(f32, f32, f32, f32, Vec<[u8; 16]>),
-    (_, factor_ppc, factor_ip, factor_err, t): (
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[f32; 32],
-        &[[u8; 16]],
-    ),
+    lut: &BlockLut,
+    (_, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
     epsilon: f32,
 ) -> [Distance; 32] {
     let &(dis_v_2, b, k, qvector_sum, ref s) = lut;
-    let r = simd::fast_scan::fast_scan(t, s);
+    let r = simd::fast_scan::scan(t, s);
     std::array::from_fn(|i| {
         let rough =
             0.5 * b * factor_ppc[i] + 0.5 * ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;

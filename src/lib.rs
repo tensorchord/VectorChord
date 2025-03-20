@@ -1,5 +1,3 @@
-#![allow(clippy::collapsible_else_if)]
-#![allow(clippy::too_many_arguments)]
 #![allow(unsafe_code)]
 #![feature(lazy_get)]
 
@@ -27,3 +25,8 @@ extern "C" fn _PG_init() {
 
 #[cfg(not(target_endian = "little"))]
 compile_error!("Target architecture is not supported.");
+
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;

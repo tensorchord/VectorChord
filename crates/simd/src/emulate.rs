@@ -3,7 +3,7 @@
 // Instructions. arXiv preprint arXiv:2112.06342.
 #[inline]
 #[cfg(target_arch = "x86_64")]
-#[crate::target_cpu(enable = "v4.512")]
+#[crate::target_cpu(enable = "v4")]
 pub fn emulate_mm512_2intersect_epi32(
     a: std::arch::x86_64::__m512i,
     b: std::arch::x86_64::__m512i,
@@ -79,7 +79,7 @@ pub fn emulate_mm_reduce_add_ps(mut x: std::arch::x86_64::__m128) -> f32 {
 
 #[inline]
 #[cfg(target_arch = "x86_64")]
-#[crate::target_cpu(enable = "v4.512")]
+#[crate::target_cpu(enable = "v4")]
 pub fn emulate_mm512_reduce_add_epi16(x: std::arch::x86_64::__m512i) -> i16 {
     use std::arch::x86_64::*;
     _mm256_reduce_add_epi16(_mm512_castsi512_si256(x))

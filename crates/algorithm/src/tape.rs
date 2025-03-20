@@ -1,6 +1,7 @@
 use crate::operator::Accessor1;
 use crate::tuples::*;
 use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite};
+use rabitq::binary::BinaryCode;
 use std::marker::PhantomData;
 use std::num::NonZeroU64;
 use std::ops::DerefMut;
@@ -164,7 +165,7 @@ pub fn read_frozen_tape<A, T>(
 pub fn read_appendable_tape<T>(
     index: impl RelationRead,
     first: u32,
-    mut access: impl FnMut((f32, f32, f32, f32, &[u64])) -> T,
+    mut access: impl for<'a> FnMut(BinaryCode<'a>) -> T,
     mut callback: impl FnMut(T, IndexPointer, NonZeroU64),
     mut step: impl FnMut(u32),
 ) {
@@ -185,6 +186,7 @@ pub fn read_appendable_tape<T>(
     }
 }
 
+#[allow(clippy::collapsible_else_if)]
 pub fn append(
     index: impl RelationWrite,
     first: u32,

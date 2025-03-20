@@ -9,16 +9,18 @@ use std::collections::BinaryHeap;
 use std::num::NonZeroU64;
 use vector::{VectorBorrowed, VectorOwned};
 
+type Results = Vec<(
+    Reverse<Distance>,
+    AlwaysEqual<IndexPointer>,
+    AlwaysEqual<NonZeroU64>,
+)>;
+
 pub fn search<O: Operator>(
     index: impl RelationRead,
     vector: O::Vector,
     probes: Vec<u32>,
     epsilon: f32,
-) -> Vec<(
-    Reverse<Distance>,
-    AlwaysEqual<IndexPointer>,
-    AlwaysEqual<NonZeroU64>,
-)> {
+) -> Results {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -169,14 +171,7 @@ pub fn search_and_estimate<O: Operator>(
     probes: Vec<u32>,
     epsilon: f32,
     mut t: u32,
-) -> (
-    Vec<(
-        Reverse<Distance>,
-        AlwaysEqual<IndexPointer>,
-        AlwaysEqual<NonZeroU64>,
-    )>,
-    Distance,
-) {
+) -> (Results, Distance) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);

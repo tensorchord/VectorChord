@@ -4,7 +4,7 @@
 // * https://www.postgresql.org/message-id/CACX+KaPOzzRHEt4w_=iqKbTpMKjyrUGVng1C749yP3r6dprtcg@mail.gmail.com
 // * https://github.com/tensorchord/pgvecto.rs/issues/397
 
-#[allow(unused)]
+#[allow(unused_macros)]
 macro_rules! symbol {
     ($t:ident) => {
         paste::paste! {
