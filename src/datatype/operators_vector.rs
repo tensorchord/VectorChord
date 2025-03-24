@@ -77,7 +77,7 @@ fn _vchord_vector_sphere_cosine_in(
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_vector_operator_maxsim_ip(
+fn _vchord_vector_operator_maxsim(
     lhs: Array<'_, VectorInput<'_>>,
     rhs: Array<'_, VectorInput<'_>>,
 ) -> f32 {

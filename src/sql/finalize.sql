@@ -114,13 +114,13 @@ CREATE OPERATOR <<=>> (
 );
 
 CREATE OPERATOR @# (
-    PROCEDURE = _vchord_vector_operator_maxsim_ip,
+    PROCEDURE = _vchord_vector_operator_maxsim,
     LEFTARG = vector[],
     RIGHTARG = vector[]
 );
 
 CREATE OPERATOR @# (
-    PROCEDURE = _vchord_halfvec_operator_maxsim_ip,
+    PROCEDURE = _vchord_halfvec_operator_maxsim,
     LEFTARG = halfvec[],
     RIGHTARG = halfvec[]
 );
@@ -160,8 +160,8 @@ CREATE OPERATOR FAMILY vector_cosine_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_l2_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_ip_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_cosine_ops USING vchordrq;
-CREATE OPERATOR FAMILY vector_maxsim_ip_ops USING vchordrq;
-CREATE OPERATOR FAMILY halfvec_maxsim_ip_ops USING vchordrq;
+CREATE OPERATOR FAMILY vector_maxsim_ops USING vchordrq;
+CREATE OPERATOR FAMILY halfvec_maxsim_ops USING vchordrq;
 
 -- List of operator classes
 
@@ -201,12 +201,12 @@ CREATE OPERATOR CLASS halfvec_cosine_ops
     OPERATOR 2 <<=>> (halfvec, sphere_halfvec) FOR SEARCH,
     FUNCTION 1 _vchordrq_support_halfvec_cosine_ops();
 
-CREATE OPERATOR CLASS vector_maxsim_ip_ops
-    FOR TYPE vector[] USING vchordrq FAMILY vector_maxsim_ip_ops AS
+CREATE OPERATOR CLASS vector_maxsim_ops
+    FOR TYPE vector[] USING vchordrq FAMILY vector_maxsim_ops AS
     OPERATOR 3 @# (vector[], vector[]) FOR ORDER BY float_ops,
-    FUNCTION 1 _vchordrq_support_vector_maxsim_ip_ops();
+    FUNCTION 1 _vchordrq_support_vector_maxsim_ops();
 
-CREATE OPERATOR CLASS halfvec_maxsim_ip_ops
-    FOR TYPE halfvec[] USING vchordrq FAMILY halfvec_maxsim_ip_ops AS
+CREATE OPERATOR CLASS halfvec_maxsim_ops
+    FOR TYPE halfvec[] USING vchordrq FAMILY halfvec_maxsim_ops AS
     OPERATOR 3 @# (halfvec[], halfvec[]) FOR ORDER BY float_ops,
-    FUNCTION 1 _vchordrq_support_halfvec_maxsim_ip_ops();
+    FUNCTION 1 _vchordrq_support_halfvec_maxsim_ops();

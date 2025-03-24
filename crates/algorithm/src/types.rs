@@ -51,7 +51,7 @@ pub enum VectorKind {
 #[serde(deny_unknown_fields)]
 #[validate(schema(function = "Self::validate_self"))]
 pub struct VectorOptions {
-    #[validate(range(min = 1, max = 1_048_575))]
+    #[validate(range(min = 1))]
     #[serde(rename = "dimensions")]
     pub dims: u32,
     #[serde(rename = "vector")]
@@ -63,11 +63,11 @@ pub struct VectorOptions {
 impl VectorOptions {
     pub fn validate_self(&self) -> Result<(), ValidationError> {
         match (self.v, self.d, self.dims) {
-            (VectorKind::Vecf32, DistanceKind::L2, 1..65536) => Ok(()),
-            (VectorKind::Vecf32, DistanceKind::Dot, 1..65536) => Ok(()),
-            (VectorKind::Vecf16, DistanceKind::L2, 1..65536) => Ok(()),
-            (VectorKind::Vecf16, DistanceKind::Dot, 1..65536) => Ok(()),
-            _ => Err(ValidationError::new("not valid vector options")),
+            (VectorKind::Vecf32, DistanceKind::L2, 1..=60000) => Ok(()),
+            (VectorKind::Vecf32, DistanceKind::Dot, 1..=60000) => Ok(()),
+            (VectorKind::Vecf16, DistanceKind::L2, 1..=60000) => Ok(()),
+            (VectorKind::Vecf16, DistanceKind::Dot, 1..=60000) => Ok(()),
+            _ => Err(ValidationError::new("invalid vector options")),
         }
     }
 }

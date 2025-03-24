@@ -9,9 +9,66 @@ use half::f16;
 use pgrx::pg_sys::{Datum, ItemPointerData};
 use rand::Rng;
 use simd::Floating;
+use std::ffi::CStr;
+use std::num::NonZero;
 use std::ops::Deref;
 use vector::VectorOwned;
 use vector::vect::VectOwned;
+
+#[derive(Debug, Clone, Copy)]
+#[repr(i64)]
+pub enum BuildPhase {
+    Initializing = 1,
+    InternalBuild = 2,
+    ExternalBuild = 3,
+    Build = 4,
+    Inserting = 5,
+    Compacting = 6,
+}
+
+impl TryFrom<NonZero<i64>> for BuildPhase {
+    type Error = ();
+
+    fn try_from(value: NonZero<i64>) -> Result<Self, Self::Error> {
+        const INITIALIZING: NonZero<i64> = NonZero::new(BuildPhase::Initializing as _).unwrap();
+        const INTERNAL_BUILD: NonZero<i64> = NonZero::new(BuildPhase::InternalBuild as _).unwrap();
+        const EXTERNAL_BUILD: NonZero<i64> = NonZero::new(BuildPhase::ExternalBuild as _).unwrap();
+        const BUILD: NonZero<i64> = NonZero::new(BuildPhase::Build as _).unwrap();
+        const INSERTING: NonZero<i64> = NonZero::new(BuildPhase::Inserting as _).unwrap();
+        const COMPACTING: NonZero<i64> = NonZero::new(BuildPhase::Compacting as _).unwrap();
+        match value {
+            INITIALIZING => Ok(BuildPhase::Initializing),
+            INTERNAL_BUILD => Ok(BuildPhase::InternalBuild),
+            EXTERNAL_BUILD => Ok(BuildPhase::ExternalBuild),
+            BUILD => Ok(BuildPhase::Build),
+            INSERTING => Ok(BuildPhase::Inserting),
+            COMPACTING => Ok(BuildPhase::Compacting),
+            _ => Err(()),
+        }
+    }
+}
+
+impl BuildPhase {
+    fn name(self) -> &'static CStr {
+        match self {
+            Self::Initializing => c"initializing",
+            Self::InternalBuild => c"initializing index, by internal build",
+            Self::ExternalBuild => c"initializing index, by external build",
+            Self::Build => c"initializing index",
+            Self::Inserting => c"inserting tuples from table to index",
+            Self::Compacting => c"compacting tuples in index",
+        }
+    }
+}
+
+#[pgrx::pg_guard]
+pub extern "C" fn ambuildphasename(x: i64) -> *mut core::ffi::c_char {
+    if let Some(x) = NonZero::new(x).and_then(|x| BuildPhase::try_from(x).ok()) {
+        x.name().as_ptr().cast_mut()
+    } else {
+        std::ptr::null_mut()
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Heap {
@@ -78,6 +135,14 @@ impl Heap {
 struct PostgresReporter {}
 
 impl PostgresReporter {
+    fn phase(&mut self, phase: BuildPhase) {
+        unsafe {
+            pgrx::pg_sys::pgstat_progress_update_param(
+                pgrx::pg_sys::PROGRESS_CREATEIDX_SUBPHASE as _,
+                phase as _,
+            );
+        }
+    }
     fn tuples_total(&mut self, tuples_total: u64) {
         unsafe {
             pgrx::pg_sys::pgstat_progress_update_param(
@@ -107,14 +172,13 @@ pub unsafe extern "C" fn ambuild(
     if let Err(errors) = Validate::validate(&vector_options) {
         pgrx::error!("error while validating options: {}", errors);
     }
-    if vector_options.dims == 0 {
-        pgrx::error!("error while validating options: dimension cannot be 0");
-    }
-    if vector_options.dims > 60000 {
-        pgrx::error!("error while validating options: dimension is too large");
-    }
     if let Err(errors) = Validate::validate(&vchordrq_options) {
         pgrx::error!("error while validating options: {}", errors);
+    }
+    if vector_options.d != DistanceKind::L2 && vchordrq_options.index.residual_quantization {
+        pgrx::error!(
+            "error while validating options: residual_quantization can be enabled only if distance type is L2"
+        );
     }
     let opfamily = unsafe { opfamily(index_relation) };
     let heap = Heap {
@@ -128,9 +192,13 @@ pub unsafe extern "C" fn ambuild(
     let mut reporter = PostgresReporter {};
     let structures = match vchordrq_options.build.source.clone() {
         VchordrqBuildSourceOptions::External(external_build) => {
+            reporter.phase(BuildPhase::ExternalBuild);
+            let reltuples = unsafe { (*(*index_relation).rd_rel).reltuples };
+            reporter.tuples_total(reltuples as u64);
             make_external_build(vector_options.clone(), opfamily, external_build.clone())
         }
         VchordrqBuildSourceOptions::Internal(internal_build) => {
+            reporter.phase(BuildPhase::InternalBuild);
             let mut tuples_total = 0_u64;
             let samples = 'a: {
                 let mut rand = rand::rng();
@@ -170,12 +238,14 @@ pub unsafe extern "C" fn ambuild(
             make_internal_build(vector_options.clone(), internal_build.clone(), samples)
         }
     };
+    reporter.phase(BuildPhase::Build);
     crate::index::algorithm::build(
         vector_options,
         vchordrq_options.index,
         index.clone(),
         structures,
     );
+    reporter.phase(BuildPhase::Inserting);
     let cache = if vchordrq_options.build.pin {
         let mut trace = algorithm::cache(index.clone());
         trace.sort();
@@ -210,7 +280,9 @@ pub unsafe extern "C" fn ambuild(
                 leader.tablescandesc,
                 leader.vchordrqshared,
                 leader.vchordrqcached,
-                Some(reporter),
+                |indtuples| {
+                    reporter.tuples_done(indtuples);
+                },
             );
             leader.wait();
             let nparticipants = leader.nparticipants;
@@ -226,6 +298,8 @@ pub unsafe extern "C" fn ambuild(
                     pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN,
                 );
             }
+            reporter.tuples_done((*leader.vchordrqshared).indtuples);
+            reporter.tuples_total((*leader.vchordrqshared).indtuples);
             pgrx::pg_sys::ConditionVariableCancelSleep();
         }
     } else {
@@ -240,10 +314,12 @@ pub unsafe extern "C" fn ambuild(
             indtuples += 1;
             reporter.tuples_done(indtuples);
         });
+        reporter.tuples_total(indtuples);
     }
     let check = || {
         pgrx::check_for_interrupts!();
     };
+    reporter.phase(BuildPhase::Compacting);
     crate::index::algorithm::maintain(opfamily, index, check);
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
 }
@@ -673,7 +749,7 @@ pub unsafe extern "C" fn vchordrq_parallel_build_main(
             tablescandesc,
             vchordrqshared,
             vchordrqcached,
-            None,
+            |_| (),
         );
     }
 
@@ -690,7 +766,7 @@ unsafe fn parallel_build(
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     vchordrqshared: *mut VchordrqShared,
     vchordrqcached: *const u8,
-    mut reporter: Option<PostgresReporter>,
+    mut callback: impl FnMut(u64),
 ) {
     use vchordrq_cached::VchordrqCachedReader;
     let cached = VchordrqCachedReader::deserialize_ref(unsafe {
@@ -724,9 +800,7 @@ unsafe fn parallel_build(
                         indtuples = (*vchordrqshared).indtuples;
                         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
                     }
-                    if let Some(reporter) = reporter.as_mut() {
-                        reporter.tuples_done(indtuples);
-                    }
+                    callback(indtuples);
                 }
             });
         }
@@ -748,9 +822,7 @@ unsafe fn parallel_build(
                         indtuples = (*vchordrqshared).indtuples;
                         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
                     }
-                    if let Some(reporter) = reporter.as_mut() {
-                        reporter.tuples_done(indtuples);
-                    }
+                    callback(indtuples);
                 }
             });
         }
@@ -816,26 +888,43 @@ pub fn make_internal_build(
     mut samples: Vec<Vec<f32>>,
 ) -> Vec<Structure<Vec<f32>>> {
     use std::iter::once;
-    for sample in samples.iter_mut() {
-        *sample = crate::index::projection::project(sample);
-    }
+    k_means::preprocess(internal_build.build_threads as _, &mut samples, |sample| {
+        *sample = crate::index::projection::project(sample)
+    });
     let mut result = Vec::<Structure<Vec<f32>>>::new();
     for w in internal_build.lists.iter().rev().copied().chain(once(1)) {
+        let input = if let Some(structure) = result.last() {
+            &structure.means
+        } else {
+            &samples
+        };
+        let num_threads = internal_build.build_threads as _;
+        let num_points = input.len();
+        let num_dims = vector_options.dims as usize;
+        let num_lists = w as usize;
+        let num_iterations = internal_build.kmeans_iterations as _;
+        if num_lists > 1 {
+            pgrx::info!(
+                "clustering: starting, using {num_threads} threads, clustering {num_points} vectors of {num_dims} dimension into {num_lists} clusters, in {num_iterations} iterations"
+            );
+        }
         let means = k_means::k_means(
-            internal_build.build_threads as _,
-            || {
+            num_threads,
+            |i| {
                 pgrx::check_for_interrupts!();
+                if num_lists > 1 {
+                    pgrx::info!("clustering: iteration {}", i + 1);
+                }
             },
-            w as usize,
-            vector_options.dims as usize,
-            if let Some(structure) = result.last() {
-                &structure.means
-            } else {
-                &samples
-            },
+            num_lists,
+            num_dims,
+            input,
             internal_build.spherical_centroids,
-            internal_build.kmeans_iterations as _,
+            num_iterations,
         );
+        if num_lists > 1 {
+            pgrx::info!("clustering: finished");
+        }
         if let Some(structure) = result.last() {
             let mut children = vec![Vec::new(); means.len()];
             for i in 0..structure.len() as u32 {

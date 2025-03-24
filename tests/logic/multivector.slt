@@ -12,7 +12,7 @@ SELECT id,
 FROM generate_series(1, 10000) s(id);
 
 statement ok
-CREATE INDEX t_val_idx ON t USING vchordrq (val vector_maxsim_ip_ops)
+CREATE INDEX t_val_idx ON t USING vchordrq (val vector_maxsim_ops)
 WITH (options = $$
 build.internal.lists = []
 $$);

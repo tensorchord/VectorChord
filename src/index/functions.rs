@@ -1,6 +1,6 @@
 use crate::index::storage::PostgresRelation;
 use pgrx::pg_sys::Oid;
-use pgrx_catalog::{PgAm, PgClass};
+use pgrx_catalog::{PgAm, PgClass, PgClassRelkind};
 
 #[pgrx::pg_extern(sql = "")]
 fn _vchordrq_prewarm(indexrelid: Oid, height: i32) -> String {
@@ -10,19 +10,43 @@ fn _vchordrq_prewarm(indexrelid: Oid, height: i32) -> String {
     };
     let pg_class = PgClass::search_reloid(indexrelid).unwrap();
     let Some(pg_class) = pg_class.get() else {
-        pgrx::error!("there is no such index");
+        pgrx::error!("the relation does not exist");
     };
+    if pg_class.relkind() != PgClassRelkind::Index {
+        pgrx::error!("the relation {:?} is not an index", pg_class.relname());
+    }
     if pg_class.relam() != pg_am.oid() {
-        pgrx::error!("{:?} is not a vchordrq index", pg_class.relname());
+        pgrx::error!("the index {:?} is not a vchordrq index", pg_class.relname());
     }
-    let index = unsafe { pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::AccessShareLock as _) };
-    let relation = unsafe { PostgresRelation::new(index) };
-    let opfamily = unsafe { crate::index::opclass::opfamily(index) };
-    let message = crate::index::algorithm::prewarm(opfamily, relation, height, || {
+    let index = Index::open(indexrelid);
+    let relation = unsafe { PostgresRelation::new(index.raw()) };
+    let opfamily = unsafe { crate::index::opclass::opfamily(index.raw()) };
+    crate::index::algorithm::prewarm(opfamily, relation, height, || {
         pgrx::check_for_interrupts!();
-    });
-    unsafe {
-        pgrx::pg_sys::index_close(index, pgrx::pg_sys::AccessShareLock as _);
+    })
+}
+
+struct Index {
+    raw: *mut pgrx::pg_sys::RelationData,
+}
+
+impl Index {
+    fn open(indexrelid: Oid) -> Self {
+        Self {
+            raw: unsafe {
+                pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::AccessShareLock as _)
+            },
+        }
     }
-    message
+    fn raw(&self) -> *mut pgrx::pg_sys::RelationData {
+        self.raw
+    }
+}
+
+impl Drop for Index {
+    fn drop(&mut self) {
+        unsafe {
+            pgrx::pg_sys::index_close(self.raw, pgrx::pg_sys::AccessShareLock as _);
+        }
+    }
 }

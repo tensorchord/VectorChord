@@ -91,6 +91,7 @@ const AM_HANDLER: pgrx::pg_sys::IndexAmRoutine = const {
     am_routine.amoptions = Some(amoptions);
     am_routine.amcostestimate = Some(amcostestimate);
 
+    am_routine.ambuildphasename = Some(am_build::ambuildphasename);
     am_routine.ambuild = Some(am_build::ambuild);
     am_routine.ambuildempty = Some(am_build::ambuildempty);
     am_routine.aminsert = Some(aminsert);
@@ -332,7 +333,7 @@ pub unsafe extern "C" fn amrescan(
                 }
                 LazyCell::new(Box::new(move || builder.build(relation, options, fetcher)))
             }
-            Opfamily::VectorMaxsimIp | Opfamily::HalfvecMaxsimIp => {
+            Opfamily::VectorMaxsim | Opfamily::HalfvecMaxsim => {
                 let mut builder = MaxsimBuilder::new(opfamily);
                 for i in 0..(*scan).numberOfOrderBys {
                     let data = (*scan).orderByData.add(i as usize);

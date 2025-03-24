@@ -26,6 +26,9 @@ SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <-> '[0.5,0.5,0.5]' limit
 ----
 10
 
+statement error the relation "items_val_idx" is not an index
+select vchordrq_prewarm('items_val_idx');
+
 statement ok
 CREATE INDEX ON id_123 USING vchordrq (val vector_cosine_ops);
 

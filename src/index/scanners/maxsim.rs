@@ -23,7 +23,7 @@ impl SearchBuilder for MaxsimBuilder {
     fn new(opfamily: Opfamily) -> Self {
         assert!(matches!(
             opfamily,
-            Opfamily::VectorMaxsimIp | Opfamily::HalfvecMaxsimIp
+            Opfamily::VectorMaxsim | Opfamily::HalfvecMaxsim
         ));
         Self {
             opfamily,

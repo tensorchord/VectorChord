@@ -77,7 +77,7 @@ fn _vchord_halfvec_sphere_cosine_in(
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_halfvec_operator_maxsim_ip(
+fn _vchord_halfvec_operator_maxsim(
     lhs: Array<'_, HalfvecInput<'_>>,
     rhs: Array<'_, HalfvecInput<'_>>,
 ) -> f32 {

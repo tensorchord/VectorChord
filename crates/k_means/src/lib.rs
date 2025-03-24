@@ -1,13 +1,27 @@
 use rabitq::block::BlockCode;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use simd::Floating;
 use simd::fast_scan::{any_pack, padding_pack};
 
+pub fn preprocess<T: Send>(num_threads: usize, x: &mut [T], f: impl Fn(&mut T) + Sync) {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build_scoped(
+            |thread| thread.run(),
+            move |pool| {
+                pool.install(|| {
+                    x.par_iter_mut().for_each(&f);
+                });
+            },
+        )
+        .expect("failed to build thread pool")
+}
+
 pub fn k_means(
     num_threads: usize,
-    check: impl Fn(),
+    check: impl Fn(usize),
     c: usize,
     dims: usize,
     samples: &[Vec<f32>],
@@ -26,7 +40,7 @@ pub fn k_means(
                 |thread| thread.run(),
                 move |pool| {
                     let compute = |centroids: &[Vec<f32>]| {
-                        if n >= 1000 && c >= 1000 {
+                        if n >= 1024 && c >= 1024 {
                             rabitq_index(dims, n, c, samples, centroids)
                         } else {
                             flat_index(dims, n, c, samples, centroids)
@@ -34,8 +48,8 @@ pub fn k_means(
                     };
                     let mut lloyd_k_means =
                         pool.install(|| LloydKMeans::new(c, dims, samples, is_spherical, compute));
-                    for _ in 0..iterations {
-                        check();
+                    for i in 0..iterations {
+                        check(i);
                         if pool.install(|| lloyd_k_means.iterate()) {
                             break;
                         }
