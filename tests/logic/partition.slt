@@ -1,51 +1,51 @@
 # partition table
 statement ok
-CREATE TABLE items (val vector(3), category_id int) PARTITION BY LIST(category_id);
+CREATE TABLE t (val vector(3), category_id int) PARTITION BY LIST(category_id);
 
 statement ok
-CREATE TABLE id_123 PARTITION OF items FOR VALUES IN (1, 2, 3);
+CREATE TABLE id_123 PARTITION OF t FOR VALUES IN (1, 2, 3);
 
 statement ok
-CREATE TABLE id_456 PARTITION OF items FOR VALUES IN (4, 5, 6);
+CREATE TABLE id_456 PARTITION OF t FOR VALUES IN (4, 5, 6);
 
 statement ok
-CREATE TABLE id_789 PARTITION OF items FOR VALUES IN (7, 8, 9);
+CREATE TABLE id_789 PARTITION OF t FOR VALUES IN (7, 8, 9);
 
 statement ok
-INSERT INTO items (val, category_id)
+INSERT INTO t (val, category_id)
 SELECT
   ARRAY[random(), random(), random()]::real[],
   (random() * 6 + 1)::int
 FROM generate_series(1, 1000);
 
 statement ok
-CREATE INDEX ON items USING vchordrq (val public.vector_l2_ops);
+CREATE INDEX ON t USING vchordrq (val public.vector_l2_ops);
 
 query I
-SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
 ----
 10
 
-statement error the relation "items_val_idx" is not an index
-select vchordrq_prewarm('items_val_idx');
+statement error the relation "t_val_idx" is not an index
+select vchordrq_prewarm('t_val_idx');
 
 statement ok
 CREATE INDEX ON id_123 USING vchordrq (val vector_cosine_ops);
 
 query I
-SELECT COUNT(1) FROM (SELECT 1 FROM items ORDER BY val <=> '[0.5,0.5,0.5]' limit 10) t2;
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <=> '[0.5,0.5,0.5]' limit 10) t2;
 ----
 10
 
 # partial index
 statement ok
-CREATE INDEX ON items USING vchordrq (val public.vector_ip_ops) WHERE (category_id = 1);
+CREATE INDEX ON t USING vchordrq (val public.vector_ip_ops) WHERE (category_id = 1);
 
 query I
 SELECT COUNT(1) FROM
-(SELECT 1 FROM items WHERE (category_id = 1) ORDER BY val <#> '[0.5,0.5,0.5]' limit 10) t2;
+(SELECT 1 FROM t WHERE (category_id = 1) ORDER BY val <#> '[0.5,0.5,0.5]' limit 10) t2;
 ----
 10
 
 statement ok
-DROP TABLE id_789, id_456, id_123, items;
+DROP TABLE id_789, id_456, id_123, t;

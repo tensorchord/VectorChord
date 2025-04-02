@@ -1,7 +1,7 @@
 use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting};
 use std::ffi::CStr;
 
-static PROBES: GucSetting<Option<&'static CStr>> = GucSetting::<Option<&CStr>>::new(Some(c"10"));
+static PROBES: GucSetting<Option<&'static CStr>> = GucSetting::<Option<&CStr>>::new(Some(c""));
 static EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 static MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 static PREWARM_DIM: GucSetting<Option<&CStr>> =

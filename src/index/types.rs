@@ -23,7 +23,7 @@ pub struct VchordrqInternalBuildOptions {
 
 impl VchordrqInternalBuildOptions {
     fn default_lists() -> Vec<u32> {
-        vec![1000]
+        Vec::new()
     }
     fn validate_lists(lists: &[u32]) -> Result<(), ValidationError> {
         if !lists.is_sorted() {

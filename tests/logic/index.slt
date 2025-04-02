@@ -38,6 +38,9 @@ lists = [32]
 spherical_centroids = true
 $$);
 
+statement ok
+SET vchordrq.probes = '16';
+
 query I
 SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
 ----
