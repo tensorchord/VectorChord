@@ -58,17 +58,19 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
         let mut results = LinkedVec::new();
         {
             let (first, residual) = state;
-            let lut = if let Some(residual) = residual {
+            let lut_block = if let Some(residual) = residual {
                 &O::Vector::compute_lut_block(residual.as_borrowed())
+            } else if let Some(lut_block) = default_lut_block.as_ref() {
+                lut_block
             } else {
-                default_lut_block.as_ref().unwrap()
+                unreachable!()
             };
             tape::read_h1_tape(
                 index.clone(),
                 first,
                 || {
                     RAccess::new(
-                        (&lut.4, (lut.0, lut.1, lut.2, lut.3, 1.9f32)),
+                        (&lut_block.1, (lut_block.0, 1.9f32)),
                         O::Distance::block_accessor(),
                     )
                 },
@@ -81,8 +83,9 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
         let mut heap = SelectHeap::from_vec(results.into_vec());
         let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
         {
-            while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-                let (_, AlwaysEqual(mean), AlwaysEqual(first)) = heap.pop().unwrap();
+            while let Some((_, AlwaysEqual(mean), AlwaysEqual(first))) =
+                pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+            {
                 if is_residual {
                     let (dis_u, residual_u) = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
@@ -112,7 +115,9 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
                     cache.push((Reverse(dis_u), AlwaysEqual(first), AlwaysEqual(None)));
                 }
             }
-            let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache.pop().unwrap();
+            let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache
+                .pop()
+                .expect("invariant is violated: tree is not height-balanced");
             (first, mean)
         }
     };
@@ -141,4 +146,9 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
     let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
 
     tape::append(index.clone(), jump_tuple.appendable_first(), &bytes, false);
+}
+
+fn pop_if<T: Ord>(heap: &mut SelectHeap<T>, mut predicate: impl FnMut(&T) -> bool) -> Option<T> {
+    let peek = heap.peek()?;
+    if predicate(peek) { heap.pop() } else { None }
 }

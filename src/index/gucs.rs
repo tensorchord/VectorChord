@@ -9,6 +9,7 @@ static PREWARM_DIM: GucSetting<Option<&CStr>> =
 static MAX_MAXSIM_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 static MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
 static PRERERANK_FILTERING: GucSetting<bool> = GucSetting::<bool>::new(false);
+static ALLOWS_SKIPPING_RERANK: GucSetting<bool> = GucSetting::<bool>::new(false);
 
 pub fn init() {
     GucRegistry::define_string_guc(
@@ -72,6 +73,14 @@ pub fn init() {
         "`prererank_filtering` argument of vchordrq.",
         "`prererank_filtering` argument of vchordrq.",
         &PRERERANK_FILTERING,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_bool_guc(
+        "vchordrq.allows_skipping_rerank",
+        "`allows_skipping_rerank` argument of vchordrq.",
+        "`allows_skipping_rerank` argument of vchordrq.",
+        &ALLOWS_SKIPPING_RERANK,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -153,4 +162,8 @@ pub fn prewarm_dim() -> Vec<u32> {
 
 pub fn prererank_filtering() -> bool {
     PRERERANK_FILTERING.get()
+}
+
+pub fn allows_skipping_rerank() -> bool {
+    ALLOWS_SKIPPING_RERANK.get()
 }

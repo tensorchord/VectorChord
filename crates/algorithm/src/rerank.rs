@@ -8,6 +8,12 @@ use std::collections::BinaryHeap;
 use std::num::NonZeroU64;
 use vector::VectorOwned;
 
+type Results = Vec<(
+    Reverse<Distance>,
+    AlwaysEqual<NonZeroU64>,
+    AlwaysEqual<IndexPointer>,
+)>;
+
 pub fn how(index: impl RelationRead) -> RerankMethod {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
@@ -23,17 +29,14 @@ pub fn how(index: impl RelationRead) -> RerankMethod {
 pub fn rerank_index<O: Operator>(
     index: impl RelationRead,
     vector: O::Vector,
-    results: Vec<(
-        Reverse<Distance>,
-        AlwaysEqual<IndexPointer>,
-        AlwaysEqual<NonZeroU64>,
-    )>,
+    results: Results,
 ) -> impl Iterator<Item = (Distance, NonZeroU64)> {
     let mut heap = BinaryHeap::from(results);
     let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
     std::iter::from_fn(move || {
-        while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-            let (_, AlwaysEqual(mean), AlwaysEqual(pay_u)) = heap.pop().unwrap();
+        while let Some((_, AlwaysEqual(pay_u), AlwaysEqual(mean))) =
+            pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+        {
             if let Some(dis_u) = vectors::read_for_h0_tuple::<O, _>(
                 index.clone(),
                 mean,
@@ -53,11 +56,7 @@ pub fn rerank_index<O: Operator>(
 
 pub fn rerank_heap<O: Operator, F>(
     vector: O::Vector,
-    results: Vec<(
-        Reverse<Distance>,
-        AlwaysEqual<IndexPointer>,
-        AlwaysEqual<NonZeroU64>,
-    )>,
+    results: Results,
     mut fetch: F,
 ) -> impl Iterator<Item = (Distance, NonZeroU64)>
 where
@@ -66,8 +65,9 @@ where
     let mut heap = BinaryHeap::from(results);
     let mut cache = BinaryHeap::<(Reverse<Distance>, _)>::new();
     std::iter::from_fn(move || {
-        while !heap.is_empty() && heap.peek().map(|x| x.0) > cache.peek().map(|x| x.0) {
-            let (_, AlwaysEqual(_), AlwaysEqual(pay_u)) = heap.pop().unwrap();
+        while let Some((_, AlwaysEqual(pay_u), AlwaysEqual(_))) =
+            pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+        {
             let vector = O::Vector::elements_and_metadata(vector.as_borrowed());
             if let Some(vec_u) = fetch(pay_u) {
                 let vec_u = O::Vector::elements_and_metadata(vec_u.as_borrowed());
@@ -80,4 +80,24 @@ where
         let (Reverse(dis_u), AlwaysEqual(pay_u)) = cache.pop()?;
         Some((dis_u, pay_u))
     })
+}
+
+pub fn skip(results: Results) -> impl Iterator<Item = (Distance, NonZeroU64)> {
+    let results = BinaryHeap::from(results);
+    results
+        .into_iter()
+        .map(|(Reverse(x), AlwaysEqual(y), _)| (x, y))
+}
+
+fn pop_if<T: Ord>(
+    heap: &mut BinaryHeap<T>,
+    mut predicate: impl FnMut(&mut T) -> bool,
+) -> Option<T> {
+    use std::collections::binary_heap::PeekMut;
+    let mut peek = heap.peek_mut()?;
+    if predicate(&mut peek) {
+        Some(PeekMut::pop(peek))
+    } else {
+        None
+    }
 }

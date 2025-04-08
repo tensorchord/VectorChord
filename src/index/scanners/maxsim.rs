@@ -96,13 +96,19 @@ impl SearchBuilder for MaxsimBuilder {
                         estimations.push(0.0);
                         continue;
                     }
-                    let returning = algorithm::rerank_index::<Op<VectOwned<f32>, Dot>>(
-                        relation.clone(),
-                        vector.clone(),
-                        results,
-                    )
-                    .take(max_maxsim_tuples as usize)
-                    .collect::<Vec<_>>();
+                    let returning = if options.epsilon == 0.0 && options.allows_skipping_rerank {
+                        algorithm::skip(results)
+                            .take(max_maxsim_tuples as usize)
+                            .collect::<Vec<_>>()
+                    } else {
+                        algorithm::rerank_index::<Op<VectOwned<f32>, Dot>>(
+                            relation.clone(),
+                            vector.clone(),
+                            results,
+                        )
+                        .take(max_maxsim_tuples as usize)
+                        .collect::<Vec<_>>()
+                    };
                     let mut max = f32::NEG_INFINITY;
                     for (distance, payload) in returning {
                         max = max.max(distance.to_f32());
@@ -147,13 +153,19 @@ impl SearchBuilder for MaxsimBuilder {
                         estimations.push(0.0);
                         continue;
                     }
-                    let returning = algorithm::rerank_index::<Op<VectOwned<f16>, Dot>>(
-                        relation.clone(),
-                        vector.clone(),
-                        results,
-                    )
-                    .take(max_maxsim_tuples as usize)
-                    .collect::<Vec<_>>();
+                    let returning = if options.epsilon == 0.0 && options.allows_skipping_rerank {
+                        algorithm::skip(results)
+                            .take(max_maxsim_tuples as usize)
+                            .collect::<Vec<_>>()
+                    } else {
+                        algorithm::rerank_index::<Op<VectOwned<f16>, Dot>>(
+                            relation.clone(),
+                            vector.clone(),
+                            results,
+                        )
+                        .take(max_maxsim_tuples as usize)
+                        .collect::<Vec<_>>()
+                    };
                     let mut max = f32::NEG_INFINITY;
                     for (distance, payload) in returning {
                         max = max.max(distance.to_f32());

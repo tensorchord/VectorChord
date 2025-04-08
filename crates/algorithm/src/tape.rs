@@ -38,7 +38,7 @@ where
     }
     pub fn tape_move(&mut self) {
         if self.head.len() == 0 {
-            panic!("tuple is too large to fit in a fresh page");
+            panic!("implementation: a clear page cannot accommodate a single tuple");
         }
         let next = (self.extend)();
         self.head.get_opaque_mut().next = next.id();
@@ -64,7 +64,7 @@ where
             if let Some(i) = self.head.alloc(&bytes) {
                 pair_to_pointer((self.head.id(), i))
             } else {
-                panic!("tuple is too large to fit in a fresh page")
+                panic!("implementation: a free page cannot accommodate a single tuple")
             }
         }
     }
@@ -73,7 +73,7 @@ where
         if let Some(i) = self.head.alloc(&bytes) {
             pair_to_pointer((self.head.id(), i))
         } else {
-            panic!("tuple is too large to fit in this page")
+            panic!("implementation: a free page cannot accommodate a single tuple")
         }
     }
 }
@@ -214,7 +214,7 @@ pub fn append(
                     past.get_opaque_mut().skip = fresh.max(past.get_opaque().skip);
                     return pair_to_pointer((fresh, i));
                 } else {
-                    panic!("a tuple cannot even be fit in a fresh page");
+                    panic!("implementation: a clear page cannot accommodate a single tuple");
                 }
             }
             if current == first && write.get_opaque().skip != first {

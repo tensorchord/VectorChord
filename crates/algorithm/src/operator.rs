@@ -179,7 +179,7 @@ impl
         [u8; 16],
         [u8; 16],
         (&[f32; 32], &[f32; 32], &[f32; 32], &[f32; 32]),
-        (f32, f32, f32, f32, f32),
+        ((f32, f32, f32, f32), f32),
     > for Block<L2>
 {
     type Output = [Distance; 32];
@@ -199,7 +199,7 @@ impl
             &[f32; 32],
             &[f32; 32],
         ),
-        (dis_v_2, b, k, qvector_sum, epsilon): (f32, f32, f32, f32, f32),
+        ((dis_v_2, b, k, qvector_sum), epsilon): ((f32, f32, f32, f32), f32),
     ) -> Self::Output {
         std::array::from_fn(|i| {
             let rough = dis_u_2[i]
@@ -217,7 +217,7 @@ impl
         [u8; 16],
         [u8; 16],
         (&[f32; 32], &[f32; 32], &[f32; 32], &[f32; 32]),
-        (f32, f32, f32, f32, f32),
+        ((f32, f32, f32, f32), f32),
     > for Block<Dot>
 {
     type Output = [Distance; 32];
@@ -232,7 +232,7 @@ impl
     fn finish(
         self,
         (_, factor_ppc, factor_ip, factor_err): (&[f32; 32], &[f32; 32], &[f32; 32], &[f32; 32]),
-        (dis_v_2, b, k, qvector_sum, epsilon): (f32, f32, f32, f32, f32),
+        ((dis_v_2, b, k, qvector_sum), epsilon): ((f32, f32, f32, f32), f32),
     ) -> Self::Output {
         std::array::from_fn(|i| {
             let rough = 0.5 * b * factor_ppc[i]
@@ -416,7 +416,7 @@ impl Vector for VectOwned<f32> {
     fn from_owned(vector: OwnedVector) -> Self {
         match vector {
             OwnedVector::Vecf32(x) => x,
-            _ => unreachable!(),
+            _ => panic!("internal error: should be a vector"),
         }
     }
 
@@ -457,7 +457,7 @@ impl Vector for VectOwned<f16> {
     fn from_owned(vector: OwnedVector) -> Self {
         match vector {
             OwnedVector::Vecf16(x) => x,
-            _ => unreachable!(),
+            _ => panic!("internal error: should be a halfvec"),
         }
     }
 
@@ -483,7 +483,7 @@ pub trait OperatorDistance: 'static + Debug + Copy {
             [u8; 16],
             [u8; 16],
             (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
-            (f32, f32, f32, f32, f32),
+            ((f32, f32, f32, f32), f32),
             Output = [Distance; 32],
         > + Default;
 

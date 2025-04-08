@@ -14,7 +14,7 @@ pub fn prewarm(
     height: i32,
     check: impl Fn(),
 ) -> String {
-    match (opfamily.vector_kind(), opfamily.distance_kind()) {
+    let message = match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2) => {
             algorithm::prewarm::<Op<VectOwned<f32>, L2>>(index, height, check)
         }
@@ -27,6 +27,10 @@ pub fn prewarm(
         (VectorKind::Vecf16, DistanceKind::Dot) => {
             algorithm::prewarm::<Op<VectOwned<f16>, Dot>>(index, height, check)
         }
+    };
+    match message {
+        Ok(message) => message,
+        Err(e) => panic!("{e}"),
     }
 }
 

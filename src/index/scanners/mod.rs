@@ -12,6 +12,7 @@ pub use maxsim::MaxsimBuilder;
 #[derive(Debug)]
 pub struct SearchOptions {
     pub epsilon: f32,
+    pub allows_skipping_rerank: bool,
     pub probes: Vec<u32>,
     pub max_scan_tuples: Option<u32>,
     pub max_maxsim_tuples: Option<u32>,

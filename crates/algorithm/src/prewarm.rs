@@ -1,9 +1,14 @@
 use crate::operator::{FunctionalAccessor, Operator};
 use crate::tuples::*;
 use crate::{Page, RelationRead, tape, vectors};
+use std::error::Error;
 use std::fmt::Write;
 
-pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl Fn()) -> String {
+pub fn prewarm<O: Operator>(
+    index: impl RelationRead,
+    height: i32,
+    check: impl Fn(),
+) -> Result<String, Box<dyn Error>> {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -13,10 +18,10 @@ pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl F
     drop(meta_guard);
 
     let mut message = String::new();
-    writeln!(message, "height of root: {}", height_of_root).unwrap();
+    writeln!(message, "height of root: {}", height_of_root)?;
     let prewarm_max_height = if height < 0 { 0 } else { height as u32 };
     if prewarm_max_height > height_of_root {
-        return message;
+        return Ok(message);
     }
     type State = Vec<u32>;
     let mut state: State = {
@@ -25,12 +30,12 @@ pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl F
             vectors::read_for_h1_tuple::<O, _>(index.clone(), root_mean, ());
             results.push(root_first);
         }
-        writeln!(message, "------------------------").unwrap();
-        writeln!(message, "number of nodes: {}", results.len()).unwrap();
-        writeln!(message, "number of pages: {}", 1).unwrap();
+        writeln!(message, "------------------------")?;
+        writeln!(message, "number of nodes: {}", results.len())?;
+        writeln!(message, "number of pages: {}", 1)?;
         results
     };
-    let mut step = |state: State| {
+    let mut step = |state: State| -> Result<_, Box<dyn Error>> {
         let mut counter = 0_usize;
         let mut results = Vec::new();
         for first in state {
@@ -54,13 +59,13 @@ pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl F
                 },
             );
         }
-        writeln!(message, "------------------------").unwrap();
-        writeln!(message, "number of nodes: {}", results.len()).unwrap();
-        writeln!(message, "number of pages: {}", counter).unwrap();
-        results
+        writeln!(message, "------------------------")?;
+        writeln!(message, "number of nodes: {}", results.len())?;
+        writeln!(message, "number of pages: {}", counter)?;
+        Ok(results)
     };
     for _ in (std::cmp::max(1, prewarm_max_height)..height_of_root).rev() {
-        state = step(state);
+        state = step(state)?;
     }
     if prewarm_max_height == 0 {
         let mut counter = 0_usize;
@@ -100,9 +105,9 @@ pub fn prewarm<O: Operator>(index: impl RelationRead, height: i32, check: impl F
                 },
             );
         }
-        writeln!(message, "------------------------").unwrap();
-        writeln!(message, "number of nodes: {}", results.len()).unwrap();
-        writeln!(message, "number of pages: {}", counter).unwrap();
+        writeln!(message, "------------------------")?;
+        writeln!(message, "number of nodes: {}", results.len())?;
+        writeln!(message, "number of pages: {}", counter)?;
     }
-    message
+    Ok(message)
 }

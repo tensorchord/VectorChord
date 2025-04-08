@@ -86,7 +86,7 @@ pub fn compute_lut(vector: &[f32]) -> (BlockLut, BinaryLut) {
     let binary = binary::binarize(&qvector);
     let block = block::compress(qvector);
     (
-        (dis_v_2, b, k, qvector_sum, block),
-        (dis_v_2, b, k, qvector_sum, binary),
+        ((dis_v_2, b, k, qvector_sum), block),
+        ((dis_v_2, b, k, qvector_sum), binary),
     )
 }

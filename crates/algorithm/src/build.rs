@@ -39,7 +39,7 @@ pub fn build<O: Operator>(
                     },
                 }));
             }
-            level.push(chain.err().unwrap());
+            level.push(chain.expect_err("internal error: 0-dimensional vector"));
         }
         pointer_of_means.push(level);
     }
@@ -129,8 +129,12 @@ pub fn build<O: Operator>(
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,
         vectors_first: vectors.first(),
-        root_mean: pointer_of_means.last().unwrap()[0],
-        root_first: pointer_of_firsts.last().unwrap()[0],
+        root_mean: pointer_of_means
+            .last()
+            .expect("internal error: empty structure")[0],
+        root_first: pointer_of_firsts
+            .last()
+            .expect("internal error: empty structure")[0],
         freepage_first: freepage.first(),
     });
 }
@@ -154,8 +158,7 @@ where
     }
     fn push(&mut self, branch: Branch<u32>) {
         self.branches.push(branch);
-        if self.branches.len() == 32 {
-            let chunk = std::array::from_fn::<_, 32, _>(|_| self.branches.pop().unwrap());
+        if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
             let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
             loop {
                 let freespace = self.tape.freespace();
@@ -182,6 +185,7 @@ where
                     self.tape.tape_move();
                 }
             }
+            self.branches.clear();
         }
     }
     fn into_inner(self) -> (TapeWriter<G, E, H1Tuple>, Vec<Branch<u32>>) {

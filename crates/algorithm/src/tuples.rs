@@ -77,15 +77,15 @@ impl WithReader for MetaTuple {
     type Reader<'a> = MetaTupleReader<'a>;
     fn deserialize_ref(source: &[u8]) -> MetaTupleReader<'_> {
         if source.len() < 16 {
-            panic!("bad bytes")
+            panic!("deserialization: bad bytes")
         }
         let magic = u64::from_ne_bytes(std::array::from_fn(|i| source[i + 0]));
         if magic != MAGIC {
-            panic!("bad magic number");
+            panic!("deserialization: bad magic number");
         }
         let version = u64::from_ne_bytes(std::array::from_fn(|i| source[i + 8]));
         if version != VERSION {
-            panic!("bad version number");
+            panic!("deserialization: bad version number");
         }
         let checker = RefChecker::new(source);
         let header = checker.prefix(0);
@@ -181,11 +181,11 @@ impl FreepageTupleWriter<'_> {
         }
         let i_1 = self.header.level_1[i_3 << 5 | i_2 << 0].trailing_zeros() as usize;
         if i_1 == 32 {
-            panic!("data corruption");
+            panic!("deserialization: bad bytes");
         }
         let i_0 = self.header.level_0[i_3 << 10 | i_2 << 5 | i_1 << 0].trailing_zeros() as usize;
         if i_0 == 32 {
-            panic!("data corruption");
+            panic!("deserialization: bad bytes");
         }
         Some(i_3 << 15 | i_2 << 10 | i_1 << 5 | i_0 << 0)
     }
@@ -320,7 +320,7 @@ impl<V: Vector> WithReader for VectorTuple<V> {
                 let elements = checker.bytes(header.elements_s, header.elements_e);
                 VectorTupleReader::_1(VectorTupleReader1 { header, elements })
             }
-            _ => panic!("bad bytes"),
+            _ => panic!("deserialization: bad bytes"),
         }
     }
 }
@@ -503,7 +503,7 @@ impl WithReader for H1Tuple {
                 let elements = checker.bytes(header.elements_s, header.elements_e);
                 H1TupleReader::_1(H1TupleReader1 { header, elements })
             }
-            _ => panic!("bad bytes"),
+            _ => panic!("deserialization: bad bytes"),
         }
     }
 }
@@ -760,7 +760,7 @@ impl WithReader for FrozenTuple {
                 let elements = checker.bytes(header.elements_s, header.elements_e);
                 FrozenTupleReader::_1(FrozenTupleReader1 { header, elements })
             }
-            _ => panic!("bad bytes"),
+            _ => panic!("deserialization: bad bytes"),
         }
     }
 }
@@ -783,7 +783,7 @@ impl WithWriter for FrozenTuple {
                 let elements = checker.bytes(header.elements_s, header.elements_e);
                 FrozenTupleWriter::_1(FrozenTupleWriter1 { header, elements })
             }
-            _ => panic!("bad bytes"),
+            _ => panic!("deserialization: bad bytes"),
         }
     }
 }
@@ -1055,7 +1055,7 @@ impl<'a> RefChecker<'a> {
         let start = s;
         let end = s + size_of::<T>();
         let bytes = &self.bytes[start..end];
-        FromBytes::ref_from_bytes(bytes).expect("bad bytes")
+        FromBytes::ref_from_bytes(bytes).expect("deserialization: bad bytes")
     }
     pub fn bytes<T: FromBytes + IntoBytes + KnownLayout + Immutable + ?Sized>(
         &self,
@@ -1065,7 +1065,7 @@ impl<'a> RefChecker<'a> {
         let start = s;
         let end = e;
         let bytes = &self.bytes[start..end];
-        FromBytes::ref_from_bytes(bytes).expect("bad bytes")
+        FromBytes::ref_from_bytes(bytes).expect("deserialization: bad bytes")
     }
 }
 
@@ -1090,10 +1090,10 @@ impl<'a> MutChecker<'a> {
         let start = s;
         let end = s + size_of::<T>();
         if !(start <= end && end <= self.bytes.len()) {
-            panic!("bad bytes");
+            panic!("deserialization: bad bytes");
         }
         if !(self.flag <= start) {
-            panic!("bad bytes");
+            panic!("deserialization: bad bytes");
         } else {
             self.flag = end;
         }
@@ -1101,7 +1101,7 @@ impl<'a> MutChecker<'a> {
         let bytes = unsafe {
             std::slice::from_raw_parts_mut((self.bytes as *mut u8).add(start), end - start)
         };
-        FromBytes::mut_from_bytes(bytes).expect("bad bytes")
+        FromBytes::mut_from_bytes(bytes).expect("deserialization: bad bytes")
     }
     pub fn bytes<T: FromBytes + IntoBytes + KnownLayout + ?Sized>(
         &mut self,
@@ -1111,10 +1111,10 @@ impl<'a> MutChecker<'a> {
         let start = s;
         let end = e;
         if !(start <= end && end <= self.bytes.len()) {
-            panic!("bad bytes");
+            panic!("deserialization: bad bytes");
         }
         if !(self.flag <= start) {
-            panic!("bad bytes");
+            panic!("deserialization: bad bytes");
         } else {
             self.flag = end;
         }
@@ -1122,7 +1122,7 @@ impl<'a> MutChecker<'a> {
         let bytes = unsafe {
             std::slice::from_raw_parts_mut((self.bytes as *mut u8).add(start), end - start)
         };
-        FromBytes::mut_from_bytes(bytes).expect("bad bytes")
+        FromBytes::mut_from_bytes(bytes).expect("deserialization: bad bytes")
     }
 }
 

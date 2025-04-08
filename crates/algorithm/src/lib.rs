@@ -22,7 +22,7 @@ pub use cache::cache;
 pub use insert::insert;
 pub use maintain::maintain;
 pub use prewarm::prewarm;
-pub use rerank::{how, rerank_heap, rerank_index};
+pub use rerank::{how, rerank_heap, rerank_index, skip};
 pub use search::{search, search_and_estimate};
 
 use std::ops::{Deref, DerefMut};
@@ -36,16 +36,24 @@ pub struct Opaque {
 }
 
 pub trait Page: Sized {
+    #[must_use]
     fn get_opaque(&self) -> &Opaque;
+    #[must_use]
     fn get_opaque_mut(&mut self) -> &mut Opaque;
+    #[must_use]
     fn len(&self) -> u16;
+    #[must_use]
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    #[must_use]
     fn get(&self, i: u16) -> Option<&[u8]>;
+    #[must_use]
     fn get_mut(&mut self, i: u16) -> Option<&mut [u8]>;
+    #[must_use]
     fn alloc(&mut self, data: &[u8]) -> Option<u16>;
     fn free(&mut self, i: u16);
+    #[must_use]
     fn freespace(&self) -> u16;
     fn clear(&mut self);
 }

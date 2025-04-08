@@ -1,51 +1,53 @@
 use std::collections::BinaryHeap;
 use std::num::NonZero;
 
+pub struct SortHeap<T> {
+    inner: Vec<T>,
+    t: NonZero<usize>,
+}
+
+impl<T> SortHeap<T> {
+    pub fn peek(&self) -> Option<&T> {
+        self.inner.last()
+    }
+}
+
 pub enum SelectHeap<T> {
-    Sorted { x: Vec<T>, t: NonZero<usize> },
-    Heap { x: BinaryHeap<T> },
+    Sorted(SortHeap<T>),
+    Binary(BinaryHeap<T>),
 }
 
 impl<T: Ord> SelectHeap<T> {
-    pub fn from_vec(mut vec: Vec<T>) -> Self {
+    pub fn from_vec(vec: Vec<T>) -> Self {
         let n = vec.len();
         if let Some(t) = NonZero::new(n / 384) {
+            let mut inner = vec;
             let index = n - t.get();
-            turboselect::select_nth_unstable(&mut vec, index);
-            vec[index..].sort_unstable();
-            Self::Sorted { x: vec, t }
+            turboselect::select_nth_unstable(&mut inner, index);
+            inner[index..].sort_unstable();
+            Self::Sorted(SortHeap { inner, t })
         } else {
-            Self::Heap {
-                x: BinaryHeap::from(vec),
-            }
-        }
-    }
-    pub fn is_empty(&self) -> bool {
-        match self {
-            SelectHeap::Sorted { x, .. } => x.is_empty(),
-            SelectHeap::Heap { x } => x.is_empty(),
+            Self::Binary(BinaryHeap::from(vec))
         }
     }
     pub fn pop(&mut self) -> Option<T> {
         match self {
-            SelectHeap::Sorted { x: inner, t } => {
-                let x = inner.pop().expect("inconsistent internal structure");
+            SelectHeap::Sorted(SortHeap { inner, t }) => {
+                let Some(k) = inner.pop() else { unreachable!() };
                 if let Some(value) = NonZero::new(t.get() - 1) {
                     *t = value;
                 } else {
-                    *self = SelectHeap::Heap {
-                        x: std::mem::take(inner).into(),
-                    };
+                    *self = SelectHeap::Binary(std::mem::take(inner).into());
                 }
-                Some(x)
+                Some(k)
             }
-            SelectHeap::Heap { x } => x.pop(),
+            SelectHeap::Binary(x) => x.pop(),
         }
     }
     pub fn peek(&self) -> Option<&T> {
         match self {
-            SelectHeap::Sorted { x, .. } => x.last(),
-            SelectHeap::Heap { x } => x.peek(),
+            SelectHeap::Sorted(x) => x.peek(),
+            SelectHeap::Binary(x) => x.peek(),
         }
     }
 }

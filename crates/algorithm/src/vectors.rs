@@ -62,7 +62,9 @@ pub fn append<O: Operator>(
 ) -> IndexPointer {
     fn append(index: impl RelationWrite, first: u32, bytes: &[u8]) -> IndexPointer {
         if let Some(mut write) = index.search(bytes.len()) {
-            let i = write.alloc(bytes).unwrap();
+            let i = write
+                .alloc(bytes)
+                .expect("implementation: a free page cannot accommodate a single tuple");
             return pair_to_pointer((write.id(), i));
         }
         tape::append(index, first, bytes, true)
@@ -84,5 +86,5 @@ pub fn append<O: Operator>(
         });
         chain = Err(append(index.clone(), vectors_first, &bytes));
     }
-    chain.err().unwrap()
+    chain.expect_err("internal error: 0-dimensional vector")
 }

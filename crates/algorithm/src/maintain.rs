@@ -155,13 +155,12 @@ where
     fn create(extend: E) -> Self {
         Self {
             tape: TapeWriter::create(extend),
-            branches: Vec::new(),
+            branches: Vec::with_capacity(32),
         }
     }
     fn push(&mut self, branch: Branch<NonZeroU64>) {
         self.branches.push(branch);
-        if self.branches.len() == 32 {
-            let chunk = std::array::from_fn::<_, 32, _>(|_| self.branches.pop().unwrap());
+        if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
             let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
             loop {
                 let freespace = self.tape.freespace();
@@ -187,6 +186,7 @@ where
                     self.tape.tape_move();
                 }
             }
+            self.branches.clear();
         }
     }
     fn into_inner(self) -> (TapeWriter<G, E, FrozenTuple>, Vec<Branch<NonZeroU64>>) {

@@ -1,6 +1,6 @@
 pub mod am_build;
 
-use crate::index::gucs::{epsilon, max_maxsim_tuples, max_scan_tuples, maxsim_threshold, probes};
+use crate::index::gucs;
 use crate::index::opclass::opfamily;
 use crate::index::scanners::*;
 use crate::index::storage::PostgresRelation;
@@ -295,11 +295,12 @@ pub unsafe extern "C" fn amrescan(
         let opfamily = opfamily((*scan).indexRelation);
         let relation = PostgresRelation::new((*scan).indexRelation);
         let options = SearchOptions {
-            epsilon: epsilon(),
-            probes: probes(),
-            max_scan_tuples: max_scan_tuples(),
-            max_maxsim_tuples: max_maxsim_tuples(),
-            maxsim_threshold: maxsim_threshold(),
+            epsilon: gucs::epsilon(),
+            allows_skipping_rerank: gucs::allows_skipping_rerank(),
+            probes: gucs::probes(),
+            max_scan_tuples: gucs::max_scan_tuples(),
+            max_maxsim_tuples: gucs::max_maxsim_tuples(),
+            maxsim_threshold: gucs::maxsim_threshold(),
         };
         let scanner = &mut *(*scan).opaque.cast::<Scanner>();
         let fetcher = {

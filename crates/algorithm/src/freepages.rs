@@ -13,7 +13,9 @@ pub fn mark(index: impl RelationWrite, freepage_first: u32, values: &[u32]) {
     loop {
         let mut freespace_guard = index.write(current, false);
         if freespace_guard.len() == 0 {
-            freespace_guard.alloc(&FreepageTuple::serialize(&FreepageTuple {}));
+            freespace_guard
+                .alloc(&FreepageTuple::serialize(&FreepageTuple {}))
+                .expect("implementation: a clear page cannot accommodate a single tuple");
         }
         let freespace_bytes = freespace_guard.get_mut(1).expect("data corruption");
         let mut freespace_tuple = FreepageTuple::deserialize_mut(freespace_bytes);
@@ -36,7 +38,9 @@ pub fn fetch(index: impl RelationWrite, freepage_first: u32) -> Option<u32> {
     loop {
         let mut freespace_guard = index.write(current, false);
         if freespace_guard.len() == 0 {
-            freespace_guard.alloc(&FreepageTuple::serialize(&FreepageTuple {}));
+            freespace_guard
+                .alloc(&FreepageTuple::serialize(&FreepageTuple {}))
+                .expect("implementation: a clear page cannot accommodate a single tuple");
         }
         let freespace_bytes = freespace_guard.get_mut(1).expect("data corruption");
         let mut freespace_tuple = FreepageTuple::deserialize_mut(freespace_bytes);
