@@ -1,15 +1,17 @@
 use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting};
 use std::ffi::CStr;
 
+static PREWARM_DIM: GucSetting<Option<&CStr>> =
+    GucSetting::<Option<&CStr>>::new(Some(c"64,128,256,384,512,768,1024,1536"));
+
 static PROBES: GucSetting<Option<&'static CStr>> = GucSetting::<Option<&CStr>>::new(Some(c""));
 static EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 static MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
-static PREWARM_DIM: GucSetting<Option<&CStr>> =
-    GucSetting::<Option<&CStr>>::new(Some(c"64,128,256,384,512,768,1024,1536"));
-static MAX_MAXSIM_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
+
+static MAXSIM_REFINE: GucSetting<i32> = GucSetting::<i32>::new(0);
 static MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
+
 static PRERERANK_FILTERING: GucSetting<bool> = GucSetting::<bool>::new(false);
-static ALLOWS_SKIPPING_RERANK: GucSetting<bool> = GucSetting::<bool>::new(false);
 
 pub fn init() {
     GucRegistry::define_string_guc(
@@ -36,7 +38,7 @@ pub fn init() {
         "`max_scan_tuples` argument of vchordrq.",
         &MAX_SCAN_TUPLES,
         -1,
-        u16::MAX as _,
+        i32::MAX,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -49,11 +51,11 @@ pub fn init() {
         GucFlags::default(),
     );
     GucRegistry::define_int_guc(
-        "vchordrq.max_maxsim_tuples",
-        "`max_maxsim_tuples` argument of vchordrq.",
-        "`max_maxsim_tuples` argument of vchordrq.",
-        &MAX_MAXSIM_TUPLES,
-        -1,
+        "vchordrq.maxsim_refine",
+        "`maxsim_refine` argument of vchordrq.",
+        "`maxsim_refine` argument of vchordrq.",
+        &MAXSIM_REFINE,
+        0,
         i32::MAX,
         GucContext::Userset,
         GucFlags::default(),
@@ -73,14 +75,6 @@ pub fn init() {
         "`prererank_filtering` argument of vchordrq.",
         "`prererank_filtering` argument of vchordrq.",
         &PRERERANK_FILTERING,
-        GucContext::Userset,
-        GucFlags::default(),
-    );
-    GucRegistry::define_bool_guc(
-        "vchordrq.allows_skipping_rerank",
-        "`allows_skipping_rerank` argument of vchordrq.",
-        "`allows_skipping_rerank` argument of vchordrq.",
-        &ALLOWS_SKIPPING_RERANK,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -129,14 +123,12 @@ pub fn max_scan_tuples() -> Option<u32> {
     if x < 0 { None } else { Some(x as u32) }
 }
 
-pub fn max_maxsim_tuples() -> Option<u32> {
-    let x = MAX_MAXSIM_TUPLES.get();
-    if x < 0 { None } else { Some(x as u32) }
+pub fn maxsim_refine() -> u32 {
+    MAXSIM_REFINE.get() as u32
 }
 
 pub fn maxsim_threshold() -> u32 {
-    let x = MAXSIM_THRESHOLD.get();
-    x as u32
+    MAXSIM_THRESHOLD.get() as u32
 }
 
 pub fn prewarm_dim() -> Vec<u32> {
@@ -162,8 +154,4 @@ pub fn prewarm_dim() -> Vec<u32> {
 
 pub fn prererank_filtering() -> bool {
     PRERERANK_FILTERING.get()
-}
-
-pub fn allows_skipping_rerank() -> bool {
-    ALLOWS_SKIPPING_RERANK.get()
 }

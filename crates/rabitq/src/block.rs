@@ -1,4 +1,3 @@
-use distance::Distance;
 use simd::Floating;
 
 pub type BlockLut = ((f32, f32, f32, f32), Vec<[u8; 16]>);
@@ -21,11 +20,10 @@ pub fn preprocess(vector: &[f32]) -> BlockLut {
     ((dis_v_2, b, k, qvector_sum), compress(qvector))
 }
 
-pub fn process_lowerbound_l2(
+pub fn process_l2(
     lut: &BlockLut,
     (dis_u_2, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
-    epsilon: f32,
-) -> [Distance; 32] {
+) -> [(f32, f32); 32] {
     let &((dis_v_2, b, k, qvector_sum), ref s) = lut;
     let r = simd::fast_scan::scan(t, s);
     std::array::from_fn(|i| {
@@ -34,26 +32,25 @@ pub fn process_lowerbound_l2(
             + b * factor_ppc[i]
             + ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
         let err = factor_err[i] * dis_v_2.sqrt();
-        Distance::from_f32(rough - epsilon * err)
+        (rough, err)
     })
 }
 
-pub fn process_lowerbound_dot(
+pub fn process_dot(
     lut: &BlockLut,
     (_, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
-    epsilon: f32,
-) -> [Distance; 32] {
+) -> [(f32, f32); 32] {
     let &((dis_v_2, b, k, qvector_sum), ref s) = lut;
     let r = simd::fast_scan::scan(t, s);
     std::array::from_fn(|i| {
         let rough =
             0.5 * b * factor_ppc[i] + 0.5 * ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
         let err = 0.5 * factor_err[i] * dis_v_2.sqrt();
-        Distance::from_f32(rough - epsilon * err)
+        (rough, err)
     })
 }
 
-pub fn compress(mut vector: Vec<u8>) -> Vec<[u8; 16]> {
+pub(crate) fn compress(mut vector: Vec<u8>) -> Vec<[u8; 16]> {
     let n = vector.len().div_ceil(4);
     vector.resize(n * 4, 0);
     let mut result = vec![[0u8; 16]; n];

@@ -164,10 +164,10 @@ fn rabitq_index(
             let lut = rabitq::block::preprocess(&samples[i]);
             let mut result = (f32::INFINITY, 0);
             for block in 0..c.div_ceil(32) {
-                let lowerbound =
-                    rabitq::block::process_lowerbound_l2(&lut, blocks[block].code(), 1.9);
+                let returns = rabitq::block::process_l2(&lut, blocks[block].code());
+                let lowerbound = returns.map(|(rough, err)| rough - err * 1.9);
                 for j in block * 32..std::cmp::min(block * 32 + 32, c) {
-                    if lowerbound[j - block * 32].to_f32() < result.0 {
+                    if lowerbound[j - block * 32] < result.0 {
                         let dis = f32::reduce_sum_of_d2(&samples[i], &centroids[j]);
                         if dis <= result.0 {
                             result = (dis, j);

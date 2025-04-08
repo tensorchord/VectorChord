@@ -5,10 +5,10 @@ use crate::index::opclass::opfamily;
 use crate::index::scanners::*;
 use crate::index::storage::PostgresRelation;
 use pgrx::datum::Internal;
-use pgrx::pg_sys::{Datum, ItemPointerData};
+use pgrx::pg_sys::{BlockIdData, Datum, ItemPointerData};
 use std::cell::LazyCell;
 use std::ffi::CStr;
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
 
@@ -201,7 +201,8 @@ unsafe fn aminsertinner(
     let ctid = unsafe { ctid.read() };
     if let Some(store) = unsafe { datum.and_then(|x| opfamily.store(x)) } {
         for (vector, extra) in store {
-            let payload = ctid_to_pointer(ctid, extra);
+            let key = ctid_to_key(ctid);
+            let payload = kv_to_pointer((key, extra));
             crate::index::algorithm::insert(opfamily, index.clone(), payload, vector);
         }
     }
@@ -227,7 +228,11 @@ pub unsafe extern "C" fn ambulkdelete(
         pgrx::pg_sys::vacuum_delay_point();
     };
     let callback = callback.expect("null function pointer");
-    let callback = |p: NonZeroU64| unsafe { callback(&mut pointer_to_ctid(p).0, callback_state) };
+    let callback = |pointer: NonZero<u64>| {
+        let (key, _) = pointer_to_kv(pointer);
+        let mut ctid = key_to_ctid(key);
+        unsafe { callback(&mut ctid, callback_state) }
+    };
     crate::index::algorithm::bulkdelete(opfamily, index, check, callback);
     stats
 }
@@ -296,10 +301,9 @@ pub unsafe extern "C" fn amrescan(
         let relation = PostgresRelation::new((*scan).indexRelation);
         let options = SearchOptions {
             epsilon: gucs::epsilon(),
-            allows_skipping_rerank: gucs::allows_skipping_rerank(),
             probes: gucs::probes(),
             max_scan_tuples: gucs::max_scan_tuples(),
-            max_maxsim_tuples: gucs::max_maxsim_tuples(),
+            maxsim_refine: gucs::maxsim_refine(),
             maxsim_threshold: gucs::maxsim_threshold(),
         };
         let scanner = &mut *(*scan).opaque.cast::<Scanner>();
@@ -377,9 +381,9 @@ pub unsafe extern "C" fn amgettuple(
         pgrx::error!("scanning with a non-MVCC-compliant snapshot is not supported");
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
-    if let Some((_, ctid, recheck)) = LazyCell::force_mut(&mut scanner.scanning).next() {
+    if let Some((_, key, recheck)) = LazyCell::force_mut(&mut scanner.scanning).next() {
         unsafe {
-            (*scan).xs_heaptid = ctid;
+            (*scan).xs_heaptid = key_to_ctid(key);
             (*scan).xs_recheck = recheck;
             (*scan).xs_recheckorderby = false;
         }
@@ -395,7 +399,7 @@ pub unsafe extern "C" fn amendscan(scan: pgrx::pg_sys::IndexScanDesc) {
     scanner.scanning = LazyCell::new(Box::new(|| Box::new(std::iter::empty())));
 }
 
-type Iter = Box<dyn Iterator<Item = (f32, ItemPointerData, bool)>>;
+type Iter = Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
 
 pub struct Scanner {
     pub hack: Option<NonNull<pgrx::pg_sys::IndexScanState>>,
@@ -452,8 +456,9 @@ impl Drop for HeapFetcher {
 }
 
 impl SearchFetcher for HeapFetcher {
-    fn fetch(&mut self, mut ctid: ItemPointerData) -> Option<(&[Datum; 32], &[bool; 32])> {
+    fn fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
         unsafe {
+            let mut ctid = key_to_ctid(key);
             let table_am = (*self.heap_relation).rd_tableam;
             let fetch_row_version = (*table_am)
                 .tuple_fetch_row_version
@@ -497,45 +502,32 @@ impl SearchFetcher for HeapFetcher {
     }
 }
 
-pub const fn pointer_to_ctid(pointer: NonZeroU64) -> (ItemPointerData, u16) {
+pub const fn ctid_to_key(
+    ItemPointerData {
+        ip_blkid: BlockIdData { bi_hi, bi_lo },
+        ip_posid,
+    }: ItemPointerData,
+) -> [u16; 3] {
+    [bi_hi, bi_lo, ip_posid]
+}
+
+pub const fn key_to_ctid([bi_hi, bi_lo, ip_posid]: [u16; 3]) -> ItemPointerData {
+    ItemPointerData {
+        ip_blkid: BlockIdData { bi_hi, bi_lo },
+        ip_posid,
+    }
+}
+
+pub const fn pointer_to_kv(pointer: NonZero<u64>) -> ([u16; 3], u16) {
     let value = pointer.get();
     let bi_hi = ((value >> 48) & 0xffff) as u16;
     let bi_lo = ((value >> 32) & 0xffff) as u16;
     let ip_posid = ((value >> 16) & 0xffff) as u16;
     let extra = value as u16;
-    (
-        ItemPointerData {
-            ip_blkid: pgrx::pg_sys::BlockIdData { bi_hi, bi_lo },
-            ip_posid,
-        },
-        extra,
-    )
+    ([bi_hi, bi_lo, ip_posid], extra)
 }
 
-pub const fn ctid_to_pointer(ctid: ItemPointerData, extra: u16) -> NonZeroU64 {
-    let mut value = 0;
-    value |= (ctid.ip_blkid.bi_hi as u64) << 48;
-    value |= (ctid.ip_blkid.bi_lo as u64) << 32;
-    value |= (ctid.ip_posid as u64) << 16;
-    value |= extra as u64;
-    NonZeroU64::new(value).expect("invalid pointer")
-}
-
-#[test]
-const fn soundness_check() {
-    let bi_hi = 1;
-    let bi_lo = 2;
-    let ip_posid = 3;
-    let extra = 7;
-    let r = pointer_to_ctid(ctid_to_pointer(
-        ItemPointerData {
-            ip_blkid: pgrx::pg_sys::BlockIdData { bi_hi, bi_lo },
-            ip_posid,
-        },
-        extra,
-    ));
-    assert!(r.0.ip_blkid.bi_hi == bi_hi);
-    assert!(r.0.ip_blkid.bi_lo == bi_lo);
-    assert!(r.0.ip_posid == ip_posid);
-    assert!(r.1 == extra);
+pub const fn kv_to_pointer((key, value): ([u16; 3], u16)) -> NonZero<u64> {
+    let x = (key[0] as u64) << 48 | (key[1] as u64) << 32 | (key[2] as u64) << 16 | value as u64;
+    NonZero::new(x).expect("invalid key")
 }

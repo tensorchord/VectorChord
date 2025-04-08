@@ -4,7 +4,7 @@ use algorithm::operator::{Dot, L2, Op};
 use algorithm::types::*;
 use algorithm::{RelationRead, RelationWrite};
 use half::f16;
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use vector::VectorOwned;
 use vector::vect::{VectBorrowed, VectOwned};
 
@@ -38,7 +38,7 @@ pub fn bulkdelete(
     opfamily: Opfamily,
     index: impl RelationWrite,
     check: impl Fn(),
-    callback: impl Fn(NonZeroU64) -> bool,
+    callback: impl Fn(NonZero<u64>) -> bool,
 ) {
     match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2) => {
@@ -110,7 +110,7 @@ pub fn build(
 pub fn insert(
     opfamily: Opfamily,
     index: impl RelationWrite,
-    payload: NonZeroU64,
+    payload: NonZero<u64>,
     vector: OwnedVector,
 ) {
     match (vector, opfamily.distance_kind()) {

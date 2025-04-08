@@ -21,7 +21,7 @@ statement ok
 SET vchordrq.probes = '';
 
 statement ok
-SET vchordrq.max_maxsim_tuples = 3000;
+SET vchordrq.maxsim_refine = 3000;
 
 statement ok
 SET enable_seqscan TO off;

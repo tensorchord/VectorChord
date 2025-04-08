@@ -1,5 +1,5 @@
 use crate::datatype::typmod::Typmod;
-use crate::index::am::{Reloption, ctid_to_pointer};
+use crate::index::am::{Reloption, ctid_to_key, kv_to_pointer};
 use crate::index::opclass::{Opfamily, opfamily};
 use crate::index::storage::{PostgresPage, PostgresRelation};
 use crate::index::types::*;
@@ -383,7 +383,8 @@ pub unsafe extern "C" fn ambuild(
         let relation = unsafe { PostgresRelation::new(index_relation) };
         heap.traverse(true, |(ctid, store)| {
             for (vector, extra) in store {
-                let payload = ctid_to_pointer(ctid, extra);
+                let key = ctid_to_key(ctid);
+                let payload = kv_to_pointer((key, extra));
                 crate::index::algorithm::insert(opfamily, relation.clone(), payload, vector);
             }
             indtuples += 1;
@@ -864,7 +865,8 @@ unsafe fn parallel_build(
         VchordrqCachedReader::_0(_) => {
             heap.traverse(true, |(ctid, store)| {
                 for (vector, extra) in store {
-                    let payload = ctid_to_pointer(ctid, extra);
+                    let key = ctid_to_key(ctid);
+                    let payload = kv_to_pointer((key, extra));
                     crate::index::algorithm::insert(opfamily, index.clone(), payload, vector);
                 }
                 unsafe {
@@ -886,7 +888,8 @@ unsafe fn parallel_build(
             };
             heap.traverse(true, |(ctid, store)| {
                 for (vector, extra) in store {
-                    let payload = ctid_to_pointer(ctid, extra);
+                    let key = ctid_to_key(ctid);
+                    let payload = kv_to_pointer((key, extra));
                     crate::index::algorithm::insert(opfamily, index.clone(), payload, vector);
                 }
                 unsafe {

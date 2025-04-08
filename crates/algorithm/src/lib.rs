@@ -22,8 +22,8 @@ pub use cache::cache;
 pub use insert::insert;
 pub use maintain::maintain;
 pub use prewarm::prewarm;
-pub use rerank::{how, rerank_heap, rerank_index, skip};
-pub use search::{search, search_and_estimate};
+pub use rerank::{how, rerank_heap, rerank_index};
+pub use search::{default_search, maxsim_search};
 
 use std::ops::{Deref, DerefMut};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};

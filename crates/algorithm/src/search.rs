@@ -6,21 +6,22 @@ use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use vector::{VectorBorrowed, VectorOwned};
 
-type Results = Vec<(
+type Result<T> = (
     Reverse<Distance>,
-    AlwaysEqual<NonZeroU64>,
+    AlwaysEqual<T>,
+    AlwaysEqual<NonZero<u64>>,
     AlwaysEqual<IndexPointer>,
-)>;
+);
 
-pub fn search<O: Operator>(
+pub fn default_search<O: Operator>(
     index: impl RelationRead,
     vector: O::Vector,
     probes: Vec<u32>,
     epsilon: f32,
-) -> Results {
+) -> Vec<Result<()>> {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -40,7 +41,7 @@ pub fn search<O: Operator>(
     drop(meta_guard);
 
     let default_lut = if !is_residual {
-        Some(O::Vector::compute_lut(vector.as_borrowed()))
+        Some(O::Vector::preprocess(vector.as_borrowed()))
     } else {
         None
     };
@@ -53,7 +54,7 @@ pub fn search<O: Operator>(
                 index.clone(),
                 mean,
                 LAccess::new(
-                    O::Vector::elements_and_metadata(vector.as_borrowed()),
+                    O::Vector::unpack(vector.as_borrowed()),
                     O::ResidualAccessor::default(),
                 ),
             );
@@ -65,23 +66,19 @@ pub fn search<O: Operator>(
     let step = |state: State<O>| {
         let mut results = LinkedVec::new();
         for (first, residual) in state {
-            let lut_block = if let Some(residual) = residual {
-                &O::Vector::compute_lut_block(residual.as_borrowed())
-            } else if let Some((lut_block, _)) = default_lut.as_ref() {
-                lut_block
+            let block_lut = if let Some(residual) = residual {
+                &O::Vector::block_preprocess(residual.as_borrowed())
+            } else if let Some((block_lut, _)) = default_lut.as_ref() {
+                block_lut
             } else {
                 unreachable!()
             };
             tape::read_h1_tape(
                 index.clone(),
                 first,
-                || {
-                    RAccess::new(
-                        (&lut_block.1, (lut_block.0, epsilon)),
-                        O::Distance::block_accessor(),
-                    )
-                },
-                |lowerbound, mean, first| {
+                || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
+                |(rough, err), mean, first| {
+                    let lowerbound = Distance::from_f32(rough - err * epsilon);
                     results.push((Reverse(lowerbound), AlwaysEqual(first), AlwaysEqual(mean)));
                 },
                 |_| (),
@@ -92,15 +89,17 @@ pub fn search<O: Operator>(
         let index = index.clone();
         let vector = vector.as_borrowed();
         std::iter::from_fn(move || {
-            while let Some((_, AlwaysEqual(first), AlwaysEqual(mean))) =
-                pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+            while let Some((Reverse(_), AlwaysEqual(first), AlwaysEqual(mean))) =
+                pop_if(&mut heap, |(d, ..)| {
+                    Some(*d) > cache.peek().map(|(d, ..)| *d)
+                })
             {
                 if is_residual {
                     let (dis_u, residual_u) = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
                         mean,
                         LAccess::new(
-                            O::Vector::elements_and_metadata(vector),
+                            O::Vector::unpack(vector),
                             (
                                 O::DistanceAccessor::default(),
                                 O::ResidualAccessor::default(),
@@ -116,10 +115,7 @@ pub fn search<O: Operator>(
                     let dis_u = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
                         mean,
-                        LAccess::new(
-                            O::Vector::elements_and_metadata(vector),
-                            O::DistanceAccessor::default(),
-                        ),
+                        LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
                     );
                     cache.push((Reverse(dis_u), AlwaysEqual(first), AlwaysEqual(None)));
                 }
@@ -134,9 +130,9 @@ pub fn search<O: Operator>(
 
     let mut results = LinkedVec::new();
     for (first, residual) in state {
-        let (lut_block, lut_binary) =
+        let (block_lut, binary_lut) =
             if let Some(residual) = residual.as_ref().map(|x| x.as_borrowed()) {
-                &O::Vector::compute_lut(residual)
+                &O::Vector::preprocess(residual)
             } else if let Some(lut) = default_lut.as_ref() {
                 lut
             } else {
@@ -145,25 +141,26 @@ pub fn search<O: Operator>(
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
         let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
-        let mut callback = |lowerbound, mean, payload| {
-            results.push((Reverse(lowerbound), AlwaysEqual(payload), AlwaysEqual(mean)));
+        let mut callback = |(rough, err), mean, payload| {
+            let lowerbound = Distance::from_f32(rough - err * 1.9);
+            results.push((
+                Reverse(lowerbound),
+                AlwaysEqual(()),
+                AlwaysEqual(payload),
+                AlwaysEqual(mean),
+            ));
         };
         tape::read_frozen_tape(
             index.clone(),
             jump_tuple.frozen_first(),
-            || {
-                RAccess::new(
-                    (&lut_block.1, (lut_block.0, epsilon)),
-                    O::Distance::block_accessor(),
-                )
-            },
+            || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
             &mut callback,
             |_| (),
         );
         tape::read_appendable_tape(
             index.clone(),
             jump_tuple.appendable_first(),
-            |code| O::Distance::compute_lowerbound_binary(lut_binary, code, epsilon),
+            |code| O::binary_process(binary_lut, code),
             &mut callback,
             |_| (),
         );
@@ -171,13 +168,13 @@ pub fn search<O: Operator>(
     results.into_vec()
 }
 
-pub fn search_and_estimate<O: Operator>(
+pub fn maxsim_search<O: Operator>(
     index: impl RelationRead,
     vector: O::Vector,
     probes: Vec<u32>,
     epsilon: f32,
     mut t: u32,
-) -> (Results, Distance) {
+) -> (Vec<Result<Distance>>, Distance) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -197,7 +194,7 @@ pub fn search_and_estimate<O: Operator>(
     drop(meta_guard);
 
     let default_lut = if !is_residual {
-        Some(O::Vector::compute_lut(vector.as_borrowed()))
+        Some(O::Vector::preprocess(vector.as_borrowed()))
     } else {
         None
     };
@@ -210,7 +207,7 @@ pub fn search_and_estimate<O: Operator>(
                 index.clone(),
                 mean,
                 LAccess::new(
-                    O::Vector::elements_and_metadata(vector.as_borrowed()),
+                    O::Vector::unpack(vector.as_borrowed()),
                     O::ResidualAccessor::default(),
                 ),
             );
@@ -222,23 +219,19 @@ pub fn search_and_estimate<O: Operator>(
     let step = |state: State<O>| {
         let mut results = LinkedVec::new();
         for (first, residual) in state {
-            let lut_block = if let Some(residual) = residual {
-                &O::Vector::compute_lut_block(residual.as_borrowed())
-            } else if let Some((lut_block, _)) = default_lut.as_ref() {
-                lut_block
+            let block_lut = if let Some(residual) = residual {
+                &O::Vector::block_preprocess(residual.as_borrowed())
+            } else if let Some((block_lut, _)) = default_lut.as_ref() {
+                block_lut
             } else {
                 unreachable!()
             };
             tape::read_h1_tape(
                 index.clone(),
                 first,
-                || {
-                    RAccess::new(
-                        (&lut_block.1, (lut_block.0, epsilon)),
-                        O::Distance::block_accessor(),
-                    )
-                },
-                |lowerbound, mean, first| {
+                || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
+                |(rough, err), mean, first| {
+                    let lowerbound = Distance::from_f32(rough - err * epsilon);
                     results.push((Reverse(lowerbound), AlwaysEqual(first), AlwaysEqual(mean)));
                 },
                 |_| (),
@@ -249,15 +242,17 @@ pub fn search_and_estimate<O: Operator>(
         let index = index.clone();
         let vector = vector.as_borrowed();
         std::iter::from_fn(move || {
-            while let Some((_, AlwaysEqual(first), AlwaysEqual(mean))) =
-                pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+            while let Some((Reverse(_), AlwaysEqual(first), AlwaysEqual(mean))) =
+                pop_if(&mut heap, |(d, ..)| {
+                    Some(*d) > cache.peek().map(|(d, ..)| *d)
+                })
             {
                 if is_residual {
                     let (dis_u, residual_u) = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
                         mean,
                         LAccess::new(
-                            O::Vector::elements_and_metadata(vector),
+                            O::Vector::unpack(vector),
                             (
                                 O::DistanceAccessor::default(),
                                 O::ResidualAccessor::default(),
@@ -273,10 +268,7 @@ pub fn search_and_estimate<O: Operator>(
                     let dis_u = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
                         mean,
-                        LAccess::new(
-                            O::Vector::elements_and_metadata(vector),
-                            O::DistanceAccessor::default(),
-                        ),
+                        LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
                     );
                     cache.push((Reverse(dis_u), AlwaysEqual(first), AlwaysEqual(None)));
                 }
@@ -305,9 +297,9 @@ pub fn search_and_estimate<O: Operator>(
 
     let mut results = LinkedVec::new();
     for (first, residual) in state {
-        let (lut_block, lut_binary) =
+        let (block_lut, binary_lut) =
             if let Some(residual) = residual.as_ref().map(|x| x.as_borrowed()) {
-                &O::Vector::compute_lut(residual)
+                &O::Vector::preprocess(residual)
             } else if let Some(lut) = default_lut.as_ref() {
                 lut
             } else {
@@ -316,25 +308,27 @@ pub fn search_and_estimate<O: Operator>(
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
         let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
-        let mut callback = |lowerbound, mean, payload| {
-            results.push((Reverse(lowerbound), AlwaysEqual(payload), AlwaysEqual(mean)));
+        let mut callback = |(rough, err), mean, payload| {
+            let lowerbound = Distance::from_f32(rough - err * epsilon);
+            let rough = Distance::from_f32(rough);
+            results.push((
+                Reverse(lowerbound),
+                AlwaysEqual(rough),
+                AlwaysEqual(payload),
+                AlwaysEqual(mean),
+            ));
         };
         tape::read_frozen_tape(
             index.clone(),
             jump_tuple.frozen_first(),
-            || {
-                RAccess::new(
-                    (&lut_block.1, (lut_block.0, epsilon)),
-                    O::Distance::block_accessor(),
-                )
-            },
+            || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
             &mut callback,
             |_| (),
         );
         tape::read_appendable_tape(
             index.clone(),
             jump_tuple.appendable_first(),
-            |code| O::Distance::compute_lowerbound_binary(lut_binary, code, epsilon),
+            |code| O::binary_process(binary_lut, code),
             &mut callback,
             |_| (),
         );

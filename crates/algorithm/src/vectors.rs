@@ -1,7 +1,7 @@
 use crate::operator::*;
 use crate::tuples::*;
 use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite, tape};
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use vector::VectorOwned;
 
 pub fn read_for_h1_tuple<
@@ -33,7 +33,7 @@ pub fn read_for_h0_tuple<
 >(
     index: impl RelationRead,
     mean: IndexPointer,
-    payload: NonZeroU64,
+    payload: NonZero<u64>,
     accessor: A,
 ) -> Option<A::Output> {
     let mut cursor = Err(mean);
@@ -58,7 +58,7 @@ pub fn append<O: Operator>(
     index: impl RelationWrite,
     vectors_first: u32,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,
-    payload: NonZeroU64,
+    payload: NonZero<u64>,
 ) -> IndexPointer {
     fn append(index: impl RelationWrite, first: u32, bytes: &[u8]) -> IndexPointer {
         if let Some(mut write) = index.search(bytes.len()) {
@@ -69,7 +69,7 @@ pub fn append<O: Operator>(
         }
         tape::append(index, first, bytes, true)
     }
-    let (metadata, slices) = O::Vector::vector_split(vector);
+    let (slices, metadata) = O::Vector::split(vector);
     let mut chain = Ok(metadata);
     for i in (0..slices.len()).rev() {
         let bytes = VectorTuple::<O::Vector>::serialize(&match chain {

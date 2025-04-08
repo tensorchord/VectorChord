@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use std::num::{NonZero, NonZeroU32};
+use std::num::NonZero;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Typmod {
     Any,
-    Dims(NonZeroU32),
+    Dims(NonZero<u32>),
 }
 
 impl Typmod {
@@ -14,7 +14,7 @@ impl Typmod {
         if x == -1 {
             Some(Any)
         } else if x >= 1 {
-            Some(Dims(NonZeroU32::new(x as u32).unwrap()))
+            Some(Dims(NonZero::new(x as u32).unwrap()))
         } else {
             None
         }
@@ -33,7 +33,7 @@ impl Typmod {
             Dims(x) => x.get() as i32,
         }
     }
-    pub fn dims(self) -> Option<NonZeroU32> {
+    pub fn dims(self) -> Option<NonZero<u32>> {
         use Typmod::*;
         match self {
             Any => None,

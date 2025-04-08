@@ -3,30 +3,32 @@ use crate::tuples::*;
 use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite};
 use rabitq::binary::BinaryCode;
 use std::marker::PhantomData;
-use std::num::NonZeroU64;
-use std::ops::DerefMut;
+use std::num::NonZero;
 
-pub struct TapeWriter<G, E, T> {
-    head: G,
+pub struct TapeWriter<'a, R, T>
+where
+    R: RelationWrite + 'a,
+{
+    head: R::WriteGuard<'a>,
     first: u32,
-    extend: E,
+    index: &'a R,
+    tracking_freespace: bool,
     _phantom: PhantomData<fn(T) -> T>,
 }
 
-impl<G, E, T> TapeWriter<G, E, T>
+impl<'a, R, T> TapeWriter<'a, R, T>
 where
-    G: PageGuard + DerefMut,
-    G::Target: Page,
-    E: Fn() -> G,
+    R: RelationWrite + 'a,
 {
-    pub fn create(extend: E) -> Self {
-        let mut head = extend();
+    pub fn create(index: &'a R, tracking_freespace: bool) -> Self {
+        let mut head = index.extend(tracking_freespace);
         head.get_opaque_mut().skip = head.id();
         let first = head.id();
         Self {
             head,
             first,
-            extend,
+            index,
+            tracking_freespace,
             _phantom: PhantomData,
         }
     }
@@ -40,17 +42,15 @@ where
         if self.head.len() == 0 {
             panic!("implementation: a clear page cannot accommodate a single tuple");
         }
-        let next = (self.extend)();
+        let next = self.index.extend(self.tracking_freespace);
         self.head.get_opaque_mut().next = next.id();
         self.head = next;
     }
 }
 
-impl<G, E, T> TapeWriter<G, E, T>
+impl<'a, R, T> TapeWriter<'a, R, T>
 where
-    G: PageGuard + DerefMut,
-    G::Target: Page,
-    E: Fn() -> G,
+    R: RelationWrite + 'a,
     T: Tuple,
 {
     pub fn push(&mut self, x: T) -> IndexPointer {
@@ -58,7 +58,7 @@ where
         if let Some(i) = self.head.alloc(&bytes) {
             pair_to_pointer((self.head.id(), i))
         } else {
-            let next = (self.extend)();
+            let next = self.index.extend(self.tracking_freespace);
             self.head.get_opaque_mut().next = next.id();
             self.head = next;
             if let Some(i) = self.head.alloc(&bytes) {
@@ -124,7 +124,7 @@ pub fn read_frozen_tape<A, T>(
     index: impl RelationRead,
     first: u32,
     accessor: impl Fn() -> A,
-    mut callback: impl FnMut(T, IndexPointer, NonZeroU64),
+    mut callback: impl FnMut(T, IndexPointer, NonZero<u64>),
     mut step: impl FnMut(u32),
 ) where
     A: for<'a> Accessor1<
@@ -166,7 +166,7 @@ pub fn read_appendable_tape<T>(
     index: impl RelationRead,
     first: u32,
     mut access: impl for<'a> FnMut(BinaryCode<'a>) -> T,
-    mut callback: impl FnMut(T, IndexPointer, NonZeroU64),
+    mut callback: impl FnMut(T, IndexPointer, NonZero<u64>),
     mut step: impl FnMut(u32),
 ) {
     assert!(first != u32::MAX);

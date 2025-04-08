@@ -1,13 +1,12 @@
 use super::{SearchBuilder, SearchFetcher, SearchOptions};
 use crate::index::algorithm::RandomProject;
-use crate::index::am::pointer_to_ctid;
+use crate::index::am::pointer_to_kv;
 use crate::index::opclass::{Opfamily, Sphere};
-use algorithm::operator::{Dot, L2, Op, Vector};
+use algorithm::operator::{Dot, L2, Op};
 use algorithm::types::{DistanceKind, OwnedVector, VectorKind};
 use algorithm::{RelationRead, RerankMethod};
 use half::f16;
-use pgrx::pg_sys::ItemPointerData;
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use vector::VectorOwned;
 use vector::vect::VectOwned;
 
@@ -54,7 +53,7 @@ impl SearchBuilder for DefaultBuilder {
         relation: impl RelationRead + 'a,
         options: SearchOptions,
         mut fetcher: impl SearchFetcher + 'a,
-    ) -> Box<dyn Iterator<Item = (f32, ItemPointerData, bool)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a> {
         let mut vector = None;
         let mut threshold = None;
         let mut recheck = false;
@@ -74,33 +73,41 @@ impl SearchBuilder for DefaultBuilder {
         }
         let opfamily = self.opfamily;
         let Some(vector) = vector else {
-            return Box::new(std::iter::empty())
-                as Box<dyn Iterator<Item = (f32, ItemPointerData, bool)>>;
+            return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
-        let iter: Box<dyn Iterator<Item = (f32, NonZeroU64)>> =
+        let iter: Box<dyn Iterator<Item = (f32, NonZero<u64>)>> =
             match (opfamily.vector_kind(), opfamily.distance_kind()) {
                 (VectorKind::Vecf32, DistanceKind::L2) => {
                     let vector = RandomProject::project(
-                        VectOwned::<f32>::from_owned(vector.clone()).as_borrowed(),
+                        if let OwnedVector::Vecf32(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
+                        .as_borrowed(),
                     );
-                    let results = algorithm::search::<Op<VectOwned<f32>, L2>>(
+                    let results = algorithm::default_search::<Op<VectOwned<f32>, L2>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
                         options.epsilon,
                     );
                     let fetch = move |payload| {
-                        let (ctid, _) = pointer_to_ctid(payload);
-                        let (datums, is_nulls) = fetcher.fetch(ctid)?;
+                        let (key, _) = pointer_to_kv(payload);
+                        let (datums, is_nulls) = fetcher.fetch(key)?;
                         let datum = (!is_nulls[0]).then_some(datums[0]);
                         let maybe_vector = unsafe { datum.and_then(|x| opfamily.input_vector(x)) };
-                        let raw = VectOwned::<f32>::from_owned(maybe_vector.unwrap());
+                        let raw = if let OwnedVector::Vecf32(vector) = maybe_vector.unwrap() {
+                            vector
+                        } else {
+                            unreachable!()
+                        };
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
                     let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
-                            algorithm::rerank_index::<Op<VectOwned<f32>, L2>>(
+                            algorithm::rerank_index::<Op<VectOwned<f32>, L2>, _>(
                                 relation, vector, results,
                             )
                             .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -115,26 +122,35 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf32, DistanceKind::Dot) => {
                     let vector = RandomProject::project(
-                        VectOwned::<f32>::from_owned(vector.clone()).as_borrowed(),
+                        if let OwnedVector::Vecf32(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
+                        .as_borrowed(),
                     );
-                    let results = algorithm::search::<Op<VectOwned<f32>, Dot>>(
+                    let results = algorithm::default_search::<Op<VectOwned<f32>, Dot>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
                         options.epsilon,
                     );
                     let fetch = move |payload| {
-                        let (ctid, _) = pointer_to_ctid(payload);
-                        let (datums, is_nulls) = fetcher.fetch(ctid)?;
+                        let (key, _) = pointer_to_kv(payload);
+                        let (datums, is_nulls) = fetcher.fetch(key)?;
                         let datum = (!is_nulls[0]).then_some(datums[0]);
                         let maybe_vector = unsafe { datum.and_then(|x| opfamily.input_vector(x)) };
-                        let raw = VectOwned::<f32>::from_owned(maybe_vector.unwrap());
+                        let raw = if let OwnedVector::Vecf32(vector) = maybe_vector.unwrap() {
+                            vector
+                        } else {
+                            unreachable!()
+                        };
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
                     let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
-                            algorithm::rerank_index::<Op<VectOwned<f32>, Dot>>(
+                            algorithm::rerank_index::<Op<VectOwned<f32>, Dot>, _>(
                                 relation, vector, results,
                             )
                             .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -149,26 +165,35 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf16, DistanceKind::L2) => {
                     let vector = RandomProject::project(
-                        VectOwned::<f16>::from_owned(vector.clone()).as_borrowed(),
+                        if let OwnedVector::Vecf16(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
+                        .as_borrowed(),
                     );
-                    let results = algorithm::search::<Op<VectOwned<f16>, L2>>(
+                    let results = algorithm::default_search::<Op<VectOwned<f16>, L2>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
                         options.epsilon,
                     );
                     let fetch = move |payload| {
-                        let (ctid, _) = pointer_to_ctid(payload);
-                        let (datums, is_nulls) = fetcher.fetch(ctid)?;
+                        let (key, _) = pointer_to_kv(payload);
+                        let (datums, is_nulls) = fetcher.fetch(key)?;
                         let datum = (!is_nulls[0]).then_some(datums[0]);
                         let maybe_vector = unsafe { datum.and_then(|x| opfamily.input_vector(x)) };
-                        let raw = VectOwned::<f16>::from_owned(maybe_vector.unwrap());
+                        let raw = if let OwnedVector::Vecf16(vector) = maybe_vector.unwrap() {
+                            vector
+                        } else {
+                            unreachable!()
+                        };
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
                     let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
-                            algorithm::rerank_index::<Op<VectOwned<f16>, L2>>(
+                            algorithm::rerank_index::<Op<VectOwned<f16>, L2>, _>(
                                 relation, vector, results,
                             )
                             .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -183,26 +208,35 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf16, DistanceKind::Dot) => {
                     let vector = RandomProject::project(
-                        VectOwned::<f16>::from_owned(vector.clone()).as_borrowed(),
+                        if let OwnedVector::Vecf16(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
+                        .as_borrowed(),
                     );
-                    let results = algorithm::search::<Op<VectOwned<f16>, Dot>>(
+                    let results = algorithm::default_search::<Op<VectOwned<f16>, Dot>>(
                         relation.clone(),
                         vector.clone(),
                         options.probes,
                         options.epsilon,
                     );
                     let fetch = move |payload| {
-                        let (ctid, _) = pointer_to_ctid(payload);
-                        let (datums, is_nulls) = fetcher.fetch(ctid)?;
+                        let (key, _) = pointer_to_kv(payload);
+                        let (datums, is_nulls) = fetcher.fetch(key)?;
                         let datum = (!is_nulls[0]).then_some(datums[0]);
                         let maybe_vector = unsafe { datum.and_then(|x| opfamily.input_vector(x)) };
-                        let raw = VectOwned::<f16>::from_owned(maybe_vector.unwrap());
+                        let raw = if let OwnedVector::Vecf16(vector) = maybe_vector.unwrap() {
+                            vector
+                        } else {
+                            unreachable!()
+                        };
                         Some(RandomProject::project(raw.as_borrowed()))
                     };
                     let method = algorithm::how(relation.clone());
                     match method {
                         RerankMethod::Index => Box::new(
-                            algorithm::rerank_index::<Op<VectOwned<f16>, Dot>>(
+                            algorithm::rerank_index::<Op<VectOwned<f16>, Dot>, _>(
                                 relation, vector, results,
                             )
                             .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -226,6 +260,9 @@ impl SearchBuilder for DefaultBuilder {
         } else {
             iter
         };
-        Box::new(iter.map(move |(x, y)| (x, pointer_to_ctid(y).0, recheck)))
+        Box::new(iter.map(move |(distance, pointer)| {
+            let (key, _) = pointer_to_kv(pointer);
+            (distance, key, recheck)
+        }))
     }
 }

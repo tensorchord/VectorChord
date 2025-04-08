@@ -1,9 +1,9 @@
 use crate::operator::{FunctionalAccessor, Operator};
 use crate::tape::{self, TapeWriter};
 use crate::tuples::*;
-use crate::{Branch, DerefMut, Page, PageGuard, RelationWrite, freepages};
+use crate::{Branch, Page, RelationRead, RelationWrite, freepages};
 use simd::fast_scan::{padding_pack, unpack};
-use std::num::NonZeroU64;
+use std::num::NonZero;
 
 pub fn maintain<O: Operator>(index: impl RelationWrite, check: impl Fn()) {
     let meta_guard = index.read(0);
@@ -48,17 +48,9 @@ pub fn maintain<O: Operator>(index: impl RelationWrite, check: impl Fn()) {
         let jump_bytes = jump_guard.get_mut(1).expect("data corruption");
         let mut jump_tuple = JumpTuple::deserialize_mut(jump_bytes);
 
-        let expand = || {
-            if let Some(id) = freepages::fetch(index.clone(), freepage_first) {
-                let mut write = index.write(id, false);
-                write.clear();
-                write
-            } else {
-                index.extend(false)
-            }
-        };
+        let hooked_index = RelationHooked(index.clone(), hooked_extend(freepage_first));
 
-        let mut tape = FrozenTapeWriter::<_, _>::create(expand);
+        let mut tape = FrozenTapeWriter::create(&hooked_index, false);
 
         let mut trace = Vec::new();
 
@@ -117,7 +109,7 @@ pub fn maintain<O: Operator>(index: impl RelationWrite, check: impl Fn()) {
 
         let (frozen_tape, branches) = tape.into_inner();
 
-        let mut appendable_tape = TapeWriter::create(expand);
+        let mut appendable_tape = TapeWriter::create(&hooked_index, false);
 
         for branch in branches {
             appendable_tape.push(AppendableTuple {
@@ -141,24 +133,25 @@ pub fn maintain<O: Operator>(index: impl RelationWrite, check: impl Fn()) {
     }
 }
 
-struct FrozenTapeWriter<G, E> {
-    tape: TapeWriter<G, E, FrozenTuple>,
-    branches: Vec<Branch<NonZeroU64>>,
+struct FrozenTapeWriter<'a, R>
+where
+    R: RelationWrite + 'a,
+{
+    tape: TapeWriter<'a, R, FrozenTuple>,
+    branches: Vec<Branch<NonZero<u64>>>,
 }
 
-impl<G, E> FrozenTapeWriter<G, E>
+impl<'a, R> FrozenTapeWriter<'a, R>
 where
-    G: PageGuard + DerefMut,
-    G::Target: Page,
-    E: Fn() -> G,
+    R: RelationWrite + 'a,
 {
-    fn create(extend: E) -> Self {
+    fn create(index: &'a R, tracking_freespace: bool) -> Self {
         Self {
-            tape: TapeWriter::create(extend),
-            branches: Vec::with_capacity(32),
+            tape: TapeWriter::create(index, tracking_freespace),
+            branches: Vec::new(),
         }
     }
-    fn push(&mut self, branch: Branch<NonZeroU64>) {
+    fn push(&mut self, branch: Branch<NonZero<u64>>) {
         self.branches.push(branch);
         if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
             let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
@@ -189,7 +182,71 @@ where
             self.branches.clear();
         }
     }
-    fn into_inner(self) -> (TapeWriter<G, E, FrozenTuple>, Vec<Branch<NonZeroU64>>) {
+    fn into_inner(self) -> (TapeWriter<'a, R, FrozenTuple>, Vec<Branch<NonZero<u64>>>) {
         (self.tape, self.branches)
+    }
+}
+
+#[derive(Clone)]
+struct RelationHooked<R, E>(R, E);
+
+impl<R, E> RelationRead for RelationHooked<R, E>
+where
+    R: RelationRead,
+    E: Clone,
+{
+    type Page = R::Page;
+
+    type ReadGuard<'a>
+        = R::ReadGuard<'a>
+    where
+        Self: 'a;
+
+    fn read(&self, id: u32) -> Self::ReadGuard<'_> {
+        self.0.read(id)
+    }
+}
+
+impl<R, E> RelationWrite for RelationHooked<R, E>
+where
+    R: RelationWrite,
+    E: Clone + for<'a> Fn(&'a R, bool) -> R::WriteGuard<'a>,
+{
+    type WriteGuard<'a>
+        = R::WriteGuard<'a>
+    where
+        Self: 'a;
+
+    fn write(&self, id: u32, tracking_freespace: bool) -> Self::WriteGuard<'_> {
+        self.0.write(id, tracking_freespace)
+    }
+
+    fn extend(&self, tracking_freespace: bool) -> Self::WriteGuard<'_> {
+        (self.1)(&self.0, tracking_freespace)
+    }
+
+    fn search(&self, freespace: usize) -> Option<Self::WriteGuard<'_>> {
+        self.0.search(freespace)
+    }
+}
+
+fn hooked_extend<R>(
+    freepage_first: u32,
+) -> impl Clone + for<'a> Fn(&'a R, bool) -> R::WriteGuard<'a>
+where
+    R: RelationWrite,
+{
+    move |index, tracking_freespace| {
+        if !tracking_freespace {
+            if let Some(id) = freepages::fetch(index.clone(), freepage_first) {
+                let mut write = index.write(id, false);
+                write.clear();
+                write
+            } else {
+                index.extend(false)
+            }
+        } else {
+            index.extend(true)
+        }
     }
 }

@@ -2,7 +2,7 @@ use crate::IndexPointer;
 use crate::operator::Vector;
 use rabitq::binary::BinaryCode;
 use std::marker::PhantomData;
-use std::num::{NonZeroU8, NonZeroU64};
+use std::num::NonZero;
 use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 
 pub const ALIGN: usize = 8;
@@ -204,7 +204,7 @@ impl FreepageTupleWriter<'_> {
 #[repr(C, align(8))]
 #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
 struct VectorTupleHeader0 {
-    payload: Option<NonZeroU64>,
+    payload: Option<NonZero<u64>>,
     metadata_s: usize,
     elements_s: usize,
     elements_e: usize,
@@ -215,7 +215,7 @@ struct VectorTupleHeader0 {
 #[repr(C, align(8))]
 #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
 struct VectorTupleHeader1 {
-    payload: Option<NonZeroU64>,
+    payload: Option<NonZero<u64>>,
     pointer: IndexPointer,
     elements_s: usize,
     elements_e: usize,
@@ -224,12 +224,12 @@ struct VectorTupleHeader1 {
 #[derive(Debug, Clone, PartialEq)]
 pub enum VectorTuple<V: Vector> {
     _0 {
-        payload: Option<NonZeroU64>,
+        payload: Option<NonZero<u64>>,
         metadata: V::Metadata,
         elements: Vec<V::Element>,
     },
     _1 {
-        payload: Option<NonZeroU64>,
+        payload: Option<NonZero<u64>>,
         pointer: IndexPointer,
         elements: Vec<V::Element>,
     },
@@ -351,7 +351,7 @@ pub enum VectorTupleReader<'a, V: Vector> {
 impl<V: Vector> Copy for VectorTupleReader<'_, V> {}
 
 impl<'a, V: Vector> VectorTupleReader<'a, V> {
-    pub fn payload(self) -> Option<NonZeroU64> {
+    pub fn payload(self) -> Option<NonZero<u64>> {
         match self {
             VectorTupleReader::_0(this) => this.header.payload,
             VectorTupleReader::_1(this) => this.header.payload,
@@ -642,7 +642,7 @@ struct FrozenTupleHeader0 {
     factor_ppc: [f32; 32],
     factor_ip: [f32; 32],
     factor_err: [f32; 32],
-    payload: [Option<NonZeroU64>; 32],
+    payload: [Option<NonZero<u64>>; 32],
     elements_s: usize,
     elements_e: usize,
 }
@@ -663,7 +663,7 @@ pub enum FrozenTuple {
         factor_ppc: [f32; 32],
         factor_ip: [f32; 32],
         factor_err: [f32; 32],
-        payload: [Option<NonZeroU64>; 32],
+        payload: [Option<NonZero<u64>>; 32],
         elements: Vec<[u8; 16]>,
     },
     _1 {
@@ -815,7 +815,7 @@ impl<'a> FrozenTupleReader0<'a> {
     pub fn elements(self) -> &'a [[u8; 16]] {
         self.elements
     }
-    pub fn payload(self) -> &'a [Option<NonZeroU64>; 32] {
+    pub fn payload(self) -> &'a [Option<NonZero<u64>>; 32] {
         &self.header.payload
     }
 }
@@ -855,7 +855,7 @@ pub struct FrozenTupleWriter1<'a> {
 }
 
 impl FrozenTupleWriter0<'_> {
-    pub fn payload(&mut self) -> &mut [Option<NonZeroU64>; 32] {
+    pub fn payload(&mut self) -> &mut [Option<NonZero<u64>>; 32] {
         &mut self.header.payload
     }
 }
@@ -868,7 +868,7 @@ struct AppendableTupleHeader {
     factor_ppc: f32,
     factor_ip: f32,
     factor_err: f32,
-    payload: Option<NonZeroU64>,
+    payload: Option<NonZero<u64>>,
     elements_s: usize,
     elements_e: usize,
 }
@@ -880,7 +880,7 @@ pub struct AppendableTuple {
     pub factor_ppc: f32,
     pub factor_ip: f32,
     pub factor_err: f32,
-    pub payload: Option<NonZeroU64>,
+    pub payload: Option<NonZero<u64>>,
     pub elements: Vec<u64>,
 }
 
@@ -949,7 +949,7 @@ impl<'a> AppendableTupleReader<'a> {
             self.elements,
         )
     }
-    pub fn payload(self) -> Option<NonZeroU64> {
+    pub fn payload(self) -> Option<NonZero<u64>> {
         self.header.payload
     }
 }
@@ -962,7 +962,7 @@ pub struct AppendableTupleWriter<'a> {
 }
 
 impl AppendableTupleWriter<'_> {
-    pub fn payload(&mut self) -> &mut Option<NonZeroU64> {
+    pub fn payload(&mut self) -> &mut Option<NonZero<u64>> {
         &mut self.header.payload
     }
 }
@@ -1004,7 +1004,7 @@ const fn soundness_check() {
     Immutable,
     KnownLayout,
 )]
-pub struct ZeroU8(Option<NonZeroU8>);
+pub struct ZeroU8(Option<NonZero<u8>>);
 
 #[repr(transparent)]
 #[derive(

@@ -2,7 +2,7 @@ use crate::operator::{Accessor2, Operator, Vector};
 use crate::tape::TapeWriter;
 use crate::tuples::*;
 use crate::types::*;
-use crate::{Branch, DerefMut, IndexPointer, Page, PageGuard, RelationWrite};
+use crate::{Branch, IndexPointer, RelationWrite};
 use simd::fast_scan::{any_pack, padding_pack};
 use vector::VectorOwned;
 
@@ -12,18 +12,21 @@ pub fn build<O: Operator>(
     index: impl RelationWrite,
     structures: Vec<Structure<O::Vector>>,
 ) {
+    if vchordrq_options.residual_quantization && !O::SUPPORTS_RESIDUAL {
+        panic!("residual_quantization can be enabled only if distance type is L2");
+    }
     let dims = vector_options.dims;
-    let is_residual = vchordrq_options.residual_quantization && O::SUPPORTS_RESIDUAL;
-    let mut meta = TapeWriter::<_, _, MetaTuple>::create(|| index.extend(false));
+    let is_residual = vchordrq_options.residual_quantization;
+    let mut meta = TapeWriter::<_, MetaTuple>::create(&index, false);
     assert_eq!(meta.first(), 0);
-    let freepage = TapeWriter::<_, _, FreepageTuple>::create(|| index.extend(false));
-    let mut vectors = TapeWriter::<_, _, VectorTuple<O::Vector>>::create(|| index.extend(true));
+    let freepage = TapeWriter::<_, FreepageTuple>::create(&index, false);
+    let mut vectors = TapeWriter::<_, VectorTuple<O::Vector>>::create(&index, true);
     let mut pointer_of_means = Vec::<Vec<IndexPointer>>::new();
     for i in 0..structures.len() {
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
             let vector = structures[i].means[j].as_borrowed();
-            let (metadata, slices) = O::Vector::vector_split(vector);
+            let (slices, metadata) = O::Vector::split(vector);
             let mut chain = Ok(metadata);
             for i in (0..slices.len()).rev() {
                 chain = Err(vectors.push(match chain {
@@ -48,10 +51,9 @@ pub fn build<O: Operator>(
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
             if i == 0 {
-                let frozen_tape = TapeWriter::<_, _, FrozenTuple>::create(|| index.extend(false));
-                let appendable_tape =
-                    TapeWriter::<_, _, AppendableTuple>::create(|| index.extend(false));
-                let mut jump = TapeWriter::<_, _, JumpTuple>::create(|| index.extend(false));
+                let frozen_tape = TapeWriter::<_, FrozenTuple>::create(&index, false);
+                let appendable_tape = TapeWriter::<_, AppendableTuple>::create(&index, false);
+                let mut jump = TapeWriter::<_, JumpTuple>::create(&index, false);
                 jump.push(JumpTuple {
                     frozen_first: frozen_tape.first(),
                     appendable_first: appendable_tape.first(),
@@ -59,21 +61,17 @@ pub fn build<O: Operator>(
                 });
                 level.push(jump.first());
             } else {
-                let mut tape = H1TapeWriter::<_, _>::create(|| index.extend(false));
+                let mut tape = H1TapeWriter::create(&index, false);
                 let h2_mean = structures[i].means[j].as_borrowed();
                 let h2_children = structures[i].children[j].as_slice();
                 for child in h2_children.iter().copied() {
                     let h1_mean = structures[i - 1].means[child as usize].as_borrowed();
                     let code = if is_residual {
                         let mut residual_accessor = O::ResidualAccessor::default();
-                        residual_accessor.push(
-                            O::Vector::elements_and_metadata(h1_mean).0,
-                            O::Vector::elements_and_metadata(h2_mean).0,
-                        );
-                        let residual = residual_accessor.finish(
-                            O::Vector::elements_and_metadata(h1_mean).1,
-                            O::Vector::elements_and_metadata(h2_mean).1,
-                        );
+                        residual_accessor
+                            .push(O::Vector::unpack(h1_mean).0, O::Vector::unpack(h2_mean).0);
+                        let residual = residual_accessor
+                            .finish(O::Vector::unpack(h1_mean).1, O::Vector::unpack(h2_mean).1);
                         O::Vector::code(residual.as_borrowed())
                     } else {
                         O::Vector::code(h1_mean)
@@ -139,20 +137,21 @@ pub fn build<O: Operator>(
     });
 }
 
-pub struct H1TapeWriter<G, E> {
-    tape: TapeWriter<G, E, H1Tuple>,
+pub struct H1TapeWriter<'a, R>
+where
+    R: RelationWrite + 'a,
+{
+    tape: TapeWriter<'a, R, H1Tuple>,
     branches: Vec<Branch<u32>>,
 }
 
-impl<G, E> H1TapeWriter<G, E>
+impl<'a, R> H1TapeWriter<'a, R>
 where
-    G: PageGuard + DerefMut,
-    G::Target: Page,
-    E: Fn() -> G,
+    R: RelationWrite + 'a,
 {
-    fn create(extend: E) -> Self {
+    fn create(index: &'a R, tracking_freespace: bool) -> Self {
         Self {
-            tape: TapeWriter::create(extend),
+            tape: TapeWriter::create(index, tracking_freespace),
             branches: Vec::new(),
         }
     }
@@ -188,7 +187,7 @@ where
             self.branches.clear();
         }
     }
-    fn into_inner(self) -> (TapeWriter<G, E, H1Tuple>, Vec<Branch<u32>>) {
+    fn into_inner(self) -> (TapeWriter<'a, R, H1Tuple>, Vec<Branch<u32>>) {
         (self.tape, self.branches)
     }
 }

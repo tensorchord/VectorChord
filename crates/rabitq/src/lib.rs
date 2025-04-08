@@ -74,7 +74,7 @@ pub fn code(dims: u32, vector: &[f32]) -> Code {
     }
 }
 
-pub fn compute_lut(vector: &[f32]) -> (BlockLut, BinaryLut) {
+pub fn preprocess(vector: &[f32]) -> (BlockLut, BinaryLut) {
     use simd::Floating;
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
     let (k, b, qvector) = simd::quantize::quantize(vector, 15.0);

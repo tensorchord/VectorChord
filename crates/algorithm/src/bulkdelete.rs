@@ -1,12 +1,12 @@
 use crate::operator::{FunctionalAccessor, Operator};
 use crate::tuples::*;
 use crate::{Page, RelationWrite, tape};
-use std::num::NonZeroU64;
+use std::num::NonZero;
 
 pub fn bulkdelete<O: Operator>(
     index: impl RelationWrite,
     check: impl Fn(),
-    callback: impl Fn(NonZeroU64) -> bool,
+    callback: impl Fn(NonZero<u64>) -> bool,
 ) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");

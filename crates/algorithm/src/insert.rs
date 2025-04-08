@@ -8,10 +8,10 @@ use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::num::NonZeroU64;
+use std::num::NonZero;
 use vector::{VectorBorrowed, VectorOwned};
 
-pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vector: O::Vector) {
+pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZero<u64>, vector: O::Vector) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -25,8 +25,8 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
     let vectors_first = meta_tuple.vectors_first();
     drop(meta_guard);
 
-    let default_lut_block = if !is_residual {
-        Some(O::Vector::compute_lut_block(vector.as_borrowed()))
+    let default_block_lut = if !is_residual {
+        Some(O::Vector::block_preprocess(vector.as_borrowed()))
     } else {
         None
     };
@@ -45,7 +45,7 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
                 index.clone(),
                 mean,
                 LAccess::new(
-                    O::Vector::elements_and_metadata(vector.as_borrowed()),
+                    O::Vector::unpack(vector.as_borrowed()),
                     O::ResidualAccessor::default(),
                 ),
             );
@@ -58,23 +58,19 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
         let mut results = LinkedVec::new();
         {
             let (first, residual) = state;
-            let lut_block = if let Some(residual) = residual {
-                &O::Vector::compute_lut_block(residual.as_borrowed())
-            } else if let Some(lut_block) = default_lut_block.as_ref() {
-                lut_block
+            let block_lut = if let Some(residual) = residual {
+                &O::Vector::block_preprocess(residual.as_borrowed())
+            } else if let Some(block_lut) = default_block_lut.as_ref() {
+                block_lut
             } else {
                 unreachable!()
             };
             tape::read_h1_tape(
                 index.clone(),
                 first,
-                || {
-                    RAccess::new(
-                        (&lut_block.1, (lut_block.0, 1.9f32)),
-                        O::Distance::block_accessor(),
-                    )
-                },
-                |lowerbound, mean, first| {
+                || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
+                |(rough, err), mean, first| {
+                    let lowerbound = Distance::from_f32(rough - err * 1.9);
                     results.push((Reverse(lowerbound), AlwaysEqual(mean), AlwaysEqual(first)));
                 },
                 |_| (),
@@ -83,15 +79,17 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
         let mut heap = SelectHeap::from_vec(results.into_vec());
         let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
         {
-            while let Some((_, AlwaysEqual(mean), AlwaysEqual(first))) =
-                pop_if(&mut heap, |x| Some(x.0) > cache.peek().map(|x| x.0))
+            while let Some((Reverse(_), AlwaysEqual(mean), AlwaysEqual(first))) =
+                pop_if(&mut heap, |(d, ..)| {
+                    Some(*d) > cache.peek().map(|(d, ..)| *d)
+                })
             {
                 if is_residual {
                     let (dis_u, residual_u) = vectors::read_for_h1_tuple::<O, _>(
                         index.clone(),
                         mean,
                         LAccess::new(
-                            O::Vector::elements_and_metadata(vector.as_borrowed()),
+                            O::Vector::unpack(vector.as_borrowed()),
                             (
                                 O::DistanceAccessor::default(),
                                 O::ResidualAccessor::default(),
@@ -108,7 +106,7 @@ pub fn insert<O: Operator>(index: impl RelationWrite, payload: NonZeroU64, vecto
                         index.clone(),
                         mean,
                         LAccess::new(
-                            O::Vector::elements_and_metadata(vector.as_borrowed()),
+                            O::Vector::unpack(vector.as_borrowed()),
                             O::DistanceAccessor::default(),
                         ),
                     );
