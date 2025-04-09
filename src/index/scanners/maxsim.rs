@@ -4,7 +4,7 @@ use crate::index::am::pointer_to_kv;
 use crate::index::opclass::Opfamily;
 use algorithm::operator::Dot;
 use algorithm::types::{DistanceKind, OwnedVector, VectorKind};
-use algorithm::{RelationRead, RerankMethod};
+use algorithm::{RelationReadStream, RerankMethod};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use half::f16;
@@ -42,7 +42,7 @@ impl SearchBuilder for MaxsimBuilder {
 
     fn build<'a>(
         self,
-        relation: impl RelationRead + 'a,
+        relation: impl RelationReadStream + 'a,
         options: SearchOptions,
         _: impl SearchFetcher + 'a,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a> {

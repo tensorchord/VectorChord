@@ -70,6 +70,12 @@ pub trait RelationRead: Clone {
     fn read(&self, id: u32) -> Self::ReadGuard<'_>;
 }
 
+pub trait RelationReadStream: Clone + RelationRead {
+    fn reset_stream(&mut self);
+    fn read_iter(&self) -> <Self as RelationRead>::ReadGuard<'_>;
+    fn set_next(&self, next: u32);
+}
+
 pub trait RelationWrite: RelationRead {
     type WriteGuard<'a>: PageGuard + DerefMut<Target = Self::Page>
     where

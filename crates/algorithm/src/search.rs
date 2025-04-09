@@ -1,7 +1,7 @@
 use crate::linked_vec::LinkedVec;
 use crate::operator::*;
 use crate::tuples::*;
-use crate::{IndexPointer, Page, RelationRead, tape, vectors};
+use crate::{IndexPointer, Page, RelationRead, RelationReadStream, tape, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
@@ -17,7 +17,7 @@ type Result<T> = (
 );
 
 pub fn default_search<O: Operator>(
-    index: impl RelationRead,
+    index: impl RelationReadStream,
     vector: O::Vector,
     probes: Vec<u32>,
     epsilon: f32,

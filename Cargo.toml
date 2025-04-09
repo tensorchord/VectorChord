@@ -78,3 +78,4 @@ rust.unused_qualifications = "warn"
 codegen-units = 1
 debug = true
 lto = "fat"
+opt-level = 0

@@ -1,6 +1,6 @@
 use crate::operator::Accessor1;
 use crate::tuples::*;
-use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationWrite};
+use crate::{IndexPointer, Page, PageGuard, RelationRead, RelationReadStream, RelationWrite};
 use rabitq::binary::BinaryCode;
 use std::marker::PhantomData;
 use std::num::NonZero;
@@ -74,6 +74,123 @@ where
             pair_to_pointer((self.head.id(), i))
         } else {
             panic!("implementation: a free page cannot accommodate a single tuple")
+        }
+    }
+}
+
+pub fn read_h1_tape_stream<A, T>(
+    mut index: impl RelationReadStream,
+    first: u32,
+    accessor: impl Fn() -> A,
+    mut callback: impl FnMut(T, IndexPointer, u32),
+    mut step: impl FnMut(u32),
+) where
+    A: for<'a> Accessor1<
+            [u8; 16],
+            (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+            Output = [T; 32],
+        >,
+{
+    assert!(first != u32::MAX);
+    let mut current = first;
+    let mut x = None;
+    index.reset_stream();
+    index.set_next(current);
+    while current != u32::MAX {
+        step(current);
+        let guard = index.read_iter();
+        current = guard.get_opaque().next;
+        index.set_next(current);
+        for i in 1..=guard.len() {
+            let bytes = guard.get(i).expect("data corruption");
+            let tuple = H1Tuple::deserialize_ref(bytes);
+            match tuple {
+                H1TupleReader::_0(tuple) => {
+                    let mut x = x.take().unwrap_or_else(&accessor);
+                    x.push(tuple.elements());
+                    let values = x.finish(tuple.metadata());
+                    for (j, value) in values.into_iter().enumerate() {
+                        if j < tuple.len() as usize {
+                            callback(value, tuple.mean()[j], tuple.first()[j]);
+                        }
+                    }
+                }
+                H1TupleReader::_1(tuple) => {
+                    x.get_or_insert_with(&accessor).push(tuple.elements());
+                }
+            }
+        }
+    }
+}
+
+pub fn read_frozen_tape_stream<A, T>(
+    mut index: impl RelationReadStream,
+    first: u32,
+    accessor: impl Fn() -> A,
+    mut callback: impl FnMut(T, IndexPointer, NonZero<u64>),
+    mut step: impl FnMut(u32),
+) where
+    A: for<'a> Accessor1<
+            [u8; 16],
+            (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+            Output = [T; 32],
+        >,
+{
+    assert!(first != u32::MAX);
+    let mut current = first;
+    let mut x = None;
+    index.reset_stream();
+    index.set_next(current);
+    while current != u32::MAX {
+        step(current);
+        let guard = index.read(current);
+        current = guard.get_opaque().next;
+        index.set_next(current);
+        for i in 1..=guard.len() {
+            let bytes = guard.get(i).expect("data corruption");
+            let tuple = FrozenTuple::deserialize_ref(bytes);
+            match tuple {
+                FrozenTupleReader::_0(tuple) => {
+                    let mut x = x.take().unwrap_or_else(&accessor);
+                    x.push(tuple.elements());
+                    let values = x.finish(tuple.metadata());
+                    for (j, value) in values.into_iter().enumerate() {
+                        if let Some(payload) = tuple.payload()[j] {
+                            callback(value, tuple.mean()[j], payload);
+                        }
+                    }
+                }
+                FrozenTupleReader::_1(tuple) => {
+                    x.get_or_insert_with(&accessor).push(tuple.elements());
+                }
+            }
+        }
+    }
+}
+
+pub fn read_appendable_tape_stream<T>(
+    mut index: impl RelationReadStream,
+    first: u32,
+    mut access: impl for<'a> FnMut(BinaryCode<'a>) -> T,
+    mut callback: impl FnMut(T, IndexPointer, NonZero<u64>),
+    mut step: impl FnMut(u32),
+) {
+    assert!(first != u32::MAX);
+    let mut current = first;
+    index.reset_stream();
+    index.set_next(current);
+    while current != u32::MAX {
+        step(current);
+        let guard = index.read(current);
+        for i in 1..=guard.len() {
+            let bytes = guard.get(i).expect("data corruption");
+            current = guard.get_opaque().next;
+            index.set_next(current);
+            let tuple = AppendableTuple::deserialize_ref(bytes);
+            if let Some(payload) = tuple.payload() {
+                let value = access(tuple.code());
+                callback(value, tuple.mean(), payload);
+            }
         }
     }
 }

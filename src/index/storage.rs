@@ -1,4 +1,4 @@
-use algorithm::{Opaque, Page, PageGuard, RelationRead, RelationWrite};
+use algorithm::{Opaque, Page, PageGuard, RelationRead, RelationReadStream, RelationWrite};
 use std::mem::{MaybeUninit, offset_of};
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -231,14 +231,44 @@ impl Drop for PostgresBufferWriteGuard {
     }
 }
 
+#[cfg(not(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16")))]
+use pgrx::pg_sys::{
+    BlockNumber, ForkNumber, READ_STREAM_FULL, ReadStream, read_stream_begin_relation,
+};
 #[derive(Debug, Clone)]
 pub struct PostgresRelation {
     raw: pgrx::pg_sys::Relation,
+    #[cfg(not(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16")))]
+    stream: *mut ReadStream,
+    next: *mut pgrx::pg_sys::uint32,
 }
 
 impl PostgresRelation {
     pub unsafe fn new(raw: pgrx::pg_sys::Relation) -> Self {
-        Self { raw }
+        let next_value = Box::new(0u32);
+        let next = Box::into_raw(next_value);
+
+        Self {
+            raw,
+            #[cfg(not(any(
+                feature = "pg13",
+                feature = "pg14",
+                feature = "pg15",
+                feature = "pg16"
+            )))]
+            stream: core::ptr::null_mut(),
+            next,
+        }
+    }
+}
+
+impl Drop for PostgresRelation {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.next.is_null() {
+                drop(Box::from_raw(self.next));
+            }
+        }
     }
 }
 
@@ -264,6 +294,62 @@ impl RelationRead for PostgresRelation {
             let page = NonNull::new(BufferGetPage(buf).cast()).expect("failed to get page");
             PostgresBufferReadGuard { buf, page, id }
         }
+    }
+}
+
+impl RelationReadStream for PostgresRelation {
+    #[cfg(not(feature = "pg17"))]
+    fn reset_stream(&mut self) {}
+
+    #[cfg(not(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16")))]
+    fn reset_stream(&mut self) {
+        unsafe extern "C" fn callback_pg(
+            _stream: *mut ReadStream,
+            callback_private_data: *mut core::ffi::c_void,
+            _per_buffer_data: *mut core::ffi::c_void,
+        ) -> BlockNumber {
+            unsafe { *(callback_private_data as *mut pgrx::pg_sys::uint32) }
+        }
+
+        unsafe {
+            self.stream = read_stream_begin_relation(
+                READ_STREAM_FULL as i32,
+                core::ptr::null_mut(),
+                self.raw,
+                ForkNumber::MAIN_FORKNUM,
+                Some(callback_pg),
+                self.next as *mut core::ffi::c_void,
+                0,
+            );
+        }
+    }
+
+    fn set_next(&self, next: u32) {
+        unsafe {
+            *self.next = next;
+        }
+    }
+
+    #[cfg(not(feature = "pg17"))]
+    fn read_iter(&self) -> Self::ReadGuard<'_> {
+        let id = unsafe { *self.next };
+        self.read(id)
+    }
+
+    #[cfg(not(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16")))]
+    fn read_iter(&self) -> Self::ReadGuard<'_> {
+        assert!(
+            unsafe { *self.next == u32::MAX },
+            "callback value is not correct"
+        );
+        let id = unsafe { *self.next };
+        use pgrx::pg_sys::{BUFFER_LOCK_SHARE, BufferGetPage, LockBuffer, read_stream_next_buffer};
+        let buf = unsafe { read_stream_next_buffer(self.stream, core::ptr::null_mut()) };
+        let page = unsafe {
+            LockBuffer(buf, BUFFER_LOCK_SHARE as _);
+            NonNull::new(BufferGetPage(buf).cast()).expect("failed to get page")
+        };
+        PostgresBufferReadGuard { buf, page, id }
     }
 }
 

@@ -2,8 +2,8 @@ mod default;
 mod maxsim;
 
 use super::opclass::Opfamily;
-use algorithm::RelationRead;
 use pgrx::pg_sys::Datum;
+use algorithm::RelationReadStream;
 use std::cell::LazyCell;
 
 pub use default::DefaultBuilder;
@@ -25,7 +25,7 @@ pub trait SearchBuilder: 'static {
 
     fn build<'a>(
         self,
-        relation: impl RelationRead + 'a,
+        relation: impl RelationReadStream + 'a,
         options: SearchOptions,
         fetcher: impl SearchFetcher + 'a,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>;

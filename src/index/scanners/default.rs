@@ -4,7 +4,7 @@ use crate::index::am::pointer_to_kv;
 use crate::index::opclass::{Opfamily, Sphere};
 use algorithm::operator::{Dot, L2, Op};
 use algorithm::types::{DistanceKind, OwnedVector, VectorKind};
-use algorithm::{RelationRead, RerankMethod};
+use algorithm::{RelationReadStream, RerankMethod};
 use half::f16;
 use std::num::NonZero;
 use vector::VectorOwned;
@@ -50,7 +50,7 @@ impl SearchBuilder for DefaultBuilder {
 
     fn build<'a>(
         self,
-        relation: impl RelationRead + 'a,
+        relation: impl RelationReadStream + 'a,
         options: SearchOptions,
         mut fetcher: impl SearchFetcher + 'a,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a> {
