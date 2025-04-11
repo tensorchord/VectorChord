@@ -118,6 +118,10 @@ jobs:
       - name: Upload Artifacts
         env:
           GH_TOKEN: ${{ github.token }}
+          SEMVER: ${{ needs.semver.outputs.SEMVER }}
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
         run: |
           gh release upload --clobber $SEMVER ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
           gh release upload --clobber $SEMVER ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip
