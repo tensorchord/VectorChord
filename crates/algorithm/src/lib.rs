@@ -1,6 +1,7 @@
 mod build;
 mod bulkdelete;
 mod cache;
+mod cost;
 mod freepages;
 mod insert;
 mod linked_vec;
@@ -19,6 +20,7 @@ pub mod types;
 pub use build::build;
 pub use bulkdelete::bulkdelete;
 pub use cache::cache;
+pub use cost::cost;
 pub use insert::insert;
 pub use maintain::maintain;
 pub use prewarm::prewarm;

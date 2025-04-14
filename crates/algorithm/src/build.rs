@@ -134,6 +134,7 @@ pub fn build<O: Operator>(
             .last()
             .expect("internal error: empty structure")[0],
         freepage_first: freepage.first(),
+        cells: std::array::from_fn(|i| structures.get(i).map(|s| s.len() as _).unwrap_or_default()),
     });
 }
 

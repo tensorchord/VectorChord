@@ -8,7 +8,7 @@ use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: u64 = u64::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 5;
+const VERSION: u64 = 6;
 
 pub trait Tuple: 'static {
     fn serialize(&self) -> Vec<u8>;
@@ -40,6 +40,8 @@ struct MetaTupleHeader {
     // for meta tuple, it's pointers to next level
     root_first: u32,
     freepage_first: u32,
+    // statistics
+    cells: [u32; 8],
 }
 
 pub struct MetaTuple {
@@ -51,6 +53,7 @@ pub struct MetaTuple {
     pub root_mean: IndexPointer,
     pub root_first: u32,
     pub freepage_first: u32,
+    pub cells: [u32; 8],
 }
 
 impl Tuple for MetaTuple {
@@ -67,6 +70,7 @@ impl Tuple for MetaTuple {
             root_mean: self.root_mean,
             root_first: self.root_first,
             freepage_first: self.freepage_first,
+            cells: self.cells,
         }
         .as_bytes()
         .to_vec()
@@ -122,6 +126,9 @@ impl MetaTupleReader<'_> {
     }
     pub fn freepage_first(self) -> u32 {
         self.header.freepage_first
+    }
+    pub fn cells(self) -> [u32; 8] {
+        self.header.cells
     }
 }
 

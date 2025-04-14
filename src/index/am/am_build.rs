@@ -251,6 +251,7 @@ pub unsafe extern "C-unwind" fn ambuild(
         );
     }
     let opfamily = unsafe { opfamily(index_relation) };
+    let index = unsafe { PostgresRelation::new(index_relation) };
     let heap = Heap {
         heap_relation,
         index_relation,
@@ -258,7 +259,6 @@ pub unsafe extern "C-unwind" fn ambuild(
         opfamily,
         scan: std::ptr::null_mut(),
     };
-    let index = unsafe { PostgresRelation::new(index_relation) };
     let mut reporter = PostgresReporter {};
     let structures = match vchordrq_options.build.source.clone() {
         VchordrqBuildSourceOptions::External(external_build) => {
@@ -380,12 +380,11 @@ pub unsafe extern "C-unwind" fn ambuild(
     } else {
         let mut indtuples = 0;
         reporter.tuples_done(indtuples);
-        let relation = unsafe { PostgresRelation::new(index_relation) };
         heap.traverse(true, |(ctid, store)| {
             for (vector, extra) in store {
                 let key = ctid_to_key(ctid);
                 let payload = kv_to_pointer((key, extra));
-                crate::index::algorithm::insert(opfamily, relation.clone(), payload, vector);
+                crate::index::algorithm::insert(opfamily, index.clone(), payload, vector);
             }
             indtuples += 1;
             reporter.tuples_done(indtuples);

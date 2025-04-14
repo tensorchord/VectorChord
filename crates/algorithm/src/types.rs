@@ -47,6 +47,15 @@ pub enum VectorKind {
     Vecf16,
 }
 
+impl VectorKind {
+    pub fn element_size(self) -> u32 {
+        match self {
+            VectorKind::Vecf32 => size_of::<f32>() as _,
+            VectorKind::Vecf16 => size_of::<f16>() as _,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
 #[validate(schema(function = "Self::validate_self"))]

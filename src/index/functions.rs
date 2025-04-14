@@ -18,24 +18,24 @@ fn _vchordrq_prewarm(indexrelid: Oid, height: i32) -> String {
     if pg_class.relam() != pg_am.oid() {
         pgrx::error!("the index {:?} is not a vchordrq index", pg_class.relname());
     }
-    let index = Index::open(indexrelid);
-    let relation = unsafe { PostgresRelation::new(index.raw()) };
-    let opfamily = unsafe { crate::index::opclass::opfamily(index.raw()) };
-    crate::index::algorithm::prewarm(opfamily, relation, height, || {
+    let relation = Index::open(indexrelid, pgrx::pg_sys::AccessShareLock as _);
+    let opfamily = unsafe { crate::index::opclass::opfamily(relation.raw()) };
+    let index = unsafe { PostgresRelation::new(relation.raw()) };
+    crate::index::algorithm::prewarm(opfamily, index, height, || {
         pgrx::check_for_interrupts!();
     })
 }
 
 struct Index {
     raw: *mut pgrx::pg_sys::RelationData,
+    lockmode: pgrx::pg_sys::LOCKMODE,
 }
 
 impl Index {
-    fn open(indexrelid: Oid) -> Self {
+    fn open(indexrelid: Oid, lockmode: pgrx::pg_sys::LOCKMASK) -> Self {
         Self {
-            raw: unsafe {
-                pgrx::pg_sys::index_open(indexrelid, pgrx::pg_sys::AccessShareLock as _)
-            },
+            raw: unsafe { pgrx::pg_sys::index_open(indexrelid, lockmode) },
+            lockmode,
         }
     }
     fn raw(&self) -> *mut pgrx::pg_sys::RelationData {
@@ -46,7 +46,7 @@ impl Index {
 impl Drop for Index {
     fn drop(&mut self) {
         unsafe {
-            pgrx::pg_sys::index_close(self.raw, pgrx::pg_sys::AccessShareLock as _);
+            pgrx::pg_sys::index_close(self.raw, self.lockmode);
         }
     }
 }
