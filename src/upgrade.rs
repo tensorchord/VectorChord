@@ -11,7 +11,7 @@ macro_rules! symbol {
             #[unsafe(no_mangle)]
             #[doc(hidden)]
             #[pgrx::pg_guard]
-            extern "C" fn [<$t _wrapper>](_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> pgrx::pg_sys::Datum {
+            extern "C-unwind" fn [<$t _wrapper>](_fcinfo: pgrx::pg_sys::FunctionCallInfo) -> pgrx::pg_sys::Datum {
                 pgrx::error!(
                     "the symbol {} is removed in the extension; please run extension update scripts",
                     stringify!($t),

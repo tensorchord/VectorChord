@@ -109,12 +109,15 @@ const AM_HANDLER: pgrx::pg_sys::IndexAmRoutine = const {
 };
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amvalidate(_opclass_oid: pgrx::pg_sys::Oid) -> bool {
+pub unsafe extern "C-unwind" fn amvalidate(_opclass_oid: pgrx::pg_sys::Oid) -> bool {
     true
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amoptions(reloptions: Datum, validate: bool) -> *mut pgrx::pg_sys::bytea {
+pub unsafe extern "C-unwind" fn amoptions(
+    reloptions: Datum,
+    validate: bool,
+) -> *mut pgrx::pg_sys::bytea {
     let relopt_kind = RELOPT_KIND.get().copied().expect("init is not called");
     let rdopts = unsafe {
         pgrx::pg_sys::build_reloptions(
@@ -131,7 +134,7 @@ pub unsafe extern "C" fn amoptions(reloptions: Datum, validate: bool) -> *mut pg
 
 #[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amcostestimate(
+pub unsafe extern "C-unwind" fn amcostestimate(
     _root: *mut pgrx::pg_sys::PlannerInfo,
     path: *mut pgrx::pg_sys::IndexPath,
     _loop_count: f64,
@@ -161,7 +164,7 @@ pub unsafe extern "C" fn amcostestimate(
 #[cfg(feature = "pg13")]
 #[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn aminsert(
+pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
     values: *mut Datum,
     is_null: *mut bool,
@@ -176,7 +179,7 @@ pub unsafe extern "C" fn aminsert(
 #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16", feature = "pg17"))]
 #[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn aminsert(
+pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
     values: *mut Datum,
     is_null: *mut bool,
@@ -210,7 +213,7 @@ unsafe fn aminsertinner(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn ambulkdelete(
+pub unsafe extern "C-unwind" fn ambulkdelete(
     info: *mut pgrx::pg_sys::IndexVacuumInfo,
     stats: *mut pgrx::pg_sys::IndexBulkDeleteResult,
     callback: pgrx::pg_sys::IndexBulkDeleteCallback,
@@ -238,7 +241,7 @@ pub unsafe extern "C" fn ambulkdelete(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amvacuumcleanup(
+pub unsafe extern "C-unwind" fn amvacuumcleanup(
     info: *mut pgrx::pg_sys::IndexVacuumInfo,
     stats: *mut pgrx::pg_sys::IndexBulkDeleteResult,
 ) -> *mut pgrx::pg_sys::IndexBulkDeleteResult {
@@ -258,7 +261,7 @@ pub unsafe extern "C" fn amvacuumcleanup(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn ambeginscan(
+pub unsafe extern "C-unwind" fn ambeginscan(
     index_relation: pgrx::pg_sys::Relation,
     n_keys: std::os::raw::c_int,
     n_orderbys: std::os::raw::c_int,
@@ -277,7 +280,7 @@ pub unsafe extern "C" fn ambeginscan(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amrescan(
+pub unsafe extern "C-unwind" fn amrescan(
     scan: pgrx::pg_sys::IndexScanDesc,
     keys: pgrx::pg_sys::ScanKey,
     _n_keys: std::os::raw::c_int,
@@ -365,7 +368,7 @@ pub unsafe extern "C" fn amrescan(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amgettuple(
+pub unsafe extern "C-unwind" fn amgettuple(
     scan: pgrx::pg_sys::IndexScanDesc,
     direction: pgrx::pg_sys::ScanDirection::Type,
 ) -> bool {
@@ -394,7 +397,7 @@ pub unsafe extern "C" fn amgettuple(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn amendscan(scan: pgrx::pg_sys::IndexScanDesc) {
+pub unsafe extern "C-unwind" fn amendscan(scan: pgrx::pg_sys::IndexScanDesc) {
     let scanner = unsafe { &mut *(*scan).opaque.cast::<Scanner>() };
     scanner.scanning = LazyCell::new(Box::new(|| Box::new(std::iter::empty())));
 }

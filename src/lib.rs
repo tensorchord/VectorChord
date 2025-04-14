@@ -10,7 +10,7 @@ pgrx::extension_sql_file!("./sql/bootstrap.sql", bootstrap);
 pgrx::extension_sql_file!("./sql/finalize.sql", finalize);
 
 #[pgrx::pg_guard]
-extern "C" fn _PG_init() {
+extern "C-unwind" fn _PG_init() {
     if unsafe { pgrx::pg_sys::IsUnderPostmaster } {
         pgrx::error!("vchord must be loaded via shared_preload_libraries.");
     }

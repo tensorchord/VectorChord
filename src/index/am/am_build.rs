@@ -128,7 +128,7 @@ impl BuildPhase {
 }
 
 #[pgrx::pg_guard]
-pub extern "C" fn ambuildphasename(x: i64) -> *mut core::ffi::c_char {
+pub extern "C-unwind" fn ambuildphasename(x: i64) -> *mut core::ffi::c_char {
     if let Ok(x) = u32::try_from(x.wrapping_sub(1)) {
         if let Some(x) = BuildPhase::from_value(x) {
             x.name().as_ptr().cast_mut()
@@ -160,7 +160,7 @@ impl Heap {
             pub callback: F,
         }
         #[pgrx::pg_guard]
-        unsafe extern "C" fn call<F>(
+        unsafe extern "C-unwind" fn call<F>(
             _index_relation: pgrx::pg_sys::Relation,
             ctid: pgrx::pg_sys::ItemPointer,
             values: *mut Datum,
@@ -232,7 +232,7 @@ impl PostgresReporter {
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn ambuild(
+pub unsafe extern "C-unwind" fn ambuild(
     heap_relation: pgrx::pg_sys::Relation,
     index_relation: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
@@ -785,7 +785,7 @@ impl Drop for VchordrqLeader {
 
 #[pgrx::pg_guard]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vchordrq_parallel_build_main(
+pub unsafe extern "C-unwind" fn vchordrq_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
@@ -914,7 +914,7 @@ unsafe fn parallel_build(
 }
 
 #[pgrx::pg_guard]
-pub unsafe extern "C" fn ambuildempty(_index_relation: pgrx::pg_sys::Relation) {
+pub unsafe extern "C-unwind" fn ambuildempty(_index_relation: pgrx::pg_sys::Relation) {
     pgrx::error!("Unlogged indexes are not supported.");
 }
 

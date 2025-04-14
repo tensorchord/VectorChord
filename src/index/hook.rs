@@ -1,12 +1,12 @@
 use std::sync::atomic::AtomicPtr;
 
 #[pgrx::pg_guard]
-unsafe extern "C" fn rewrite_plan_state(
+unsafe extern "C-unwind" fn rewrite_plan_state(
     node: *mut pgrx::pg_sys::PlanState,
     context: *mut core::ffi::c_void,
 ) -> bool {
     unsafe fn dirty_check(index_relation: *mut pgrx::pg_sys::RelationData) -> Option<bool> {
-        type FnPtr = unsafe extern "C" fn(
+        type FnPtr = unsafe extern "C-unwind" fn(
             *mut pgrx::pg_sys::RelationData,
             i32,
             i32,
@@ -58,7 +58,7 @@ unsafe extern "C" fn rewrite_plan_state(
 static PREV_EXECUTOR_START: AtomicPtr<()> = AtomicPtr::new(core::ptr::null_mut());
 
 #[pgrx::pg_guard]
-unsafe extern "C" fn executor_start(
+unsafe extern "C-unwind" fn executor_start(
     query_desc: *mut pgrx::pg_sys::QueryDesc,
     eflags: ::std::os::raw::c_int,
 ) {
@@ -85,7 +85,7 @@ pub fn init() {
         use core::mem::transmute;
         use std::sync::atomic::Ordering;
         PREV_EXECUTOR_START.store(
-            transmute::<Option<unsafe extern "C" fn(*mut _, _)>, *mut ()>(
+            transmute::<Option<unsafe extern "C-unwind" fn(*mut _, _)>, *mut ()>(
                 pgrx::pg_sys::ExecutorStart_hook,
             ),
             Ordering::Relaxed,
