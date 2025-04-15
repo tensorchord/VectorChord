@@ -77,7 +77,7 @@ pub fn rerank_index<O: Operator, T>(
                 index.clone(),
                 mean,
                 pay_u,
-                LAccess::new(
+                LTryAccess::new(
                     O::Vector::unpack(vector.as_borrowed()),
                     O::DistanceAccessor::default(),
                 ),

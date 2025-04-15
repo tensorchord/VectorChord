@@ -150,6 +150,7 @@ impl<E0, E1, M0, M1, A: Accessor2<E0, E1, M0, M1>> Accessor1<E1, M1> for LAccess
     }
 
     fn finish(self, rhs: M1) -> Self::Output {
+        assert!(!self.elements.is_empty(), "goal is shorter than expected");
         self.accessor.finish(self.metadata, rhs)
     }
 }
@@ -180,7 +181,98 @@ impl<E0, E1, M0, M1, A: Accessor2<E0, E1, M0, M1>> Accessor1<E0, M0> for RAccess
     }
 
     fn finish(self, lhs: M0) -> Self::Output {
+        assert!(!self.elements.is_empty(), "goal is shorter than expected");
         self.accessor.finish(lhs, self.metadata)
+    }
+}
+
+pub trait TryAccessor1<E, M>: Sized {
+    type Output;
+    #[must_use]
+    fn push(&mut self, input: &[E]) -> Option<()>;
+    #[must_use]
+    fn finish(self, input: M) -> Option<Self::Output>;
+}
+
+impl<E, M: Copy> TryAccessor1<E, M> for () {
+    type Output = ();
+
+    fn push(&mut self, _: &[E]) -> Option<()> {
+        Some(())
+    }
+
+    fn finish(self, _: M) -> Option<Self::Output> {
+        Some(())
+    }
+}
+
+impl<E, M: Copy, A> TryAccessor1<E, M> for (A,)
+where
+    A: TryAccessor1<E, M>,
+{
+    type Output = (A::Output,);
+
+    fn push(&mut self, input: &[E]) -> Option<()> {
+        self.0.push(input)?;
+        Some(())
+    }
+
+    fn finish(self, input: M) -> Option<Self::Output> {
+        Some((self.0.finish(input)?,))
+    }
+}
+
+impl<E, M: Copy, A, B> TryAccessor1<E, M> for (A, B)
+where
+    A: TryAccessor1<E, M>,
+    B: TryAccessor1<E, M>,
+{
+    type Output = (A::Output, B::Output);
+
+    fn push(&mut self, input: &[E]) -> Option<()> {
+        self.0.push(input)?;
+        self.1.push(input)?;
+        Some(())
+    }
+
+    fn finish(self, input: M) -> Option<Self::Output> {
+        Some((self.0.finish(input)?, self.1.finish(input)?))
+    }
+}
+
+pub struct LTryAccess<'a, E, M, A> {
+    elements: &'a [E],
+    metadata: M,
+    accessor: A,
+}
+
+impl<'a, E, M, A> LTryAccess<'a, E, M, A> {
+    pub fn new((elements, metadata): (&'a [E], M), accessor: A) -> Self {
+        Self {
+            elements,
+            metadata,
+            accessor,
+        }
+    }
+}
+
+impl<E0, E1, M0, M1, A: Accessor2<E0, E1, M0, M1>> TryAccessor1<E1, M1>
+    for LTryAccess<'_, E0, M0, A>
+{
+    type Output = A::Output;
+
+    fn push(&mut self, rhs: &[E1]) -> Option<()> {
+        let (lhs, elements) = self.elements.split_at_checked(rhs.len())?;
+        self.accessor.push(lhs, rhs);
+        self.elements = elements;
+        Some(())
+    }
+
+    fn finish(self, rhs: M1) -> Option<Self::Output> {
+        if !self.elements.is_empty() {
+            return None;
+        }
+        Some(self.accessor.finish(self.metadata, rhs))
     }
 }
 
@@ -377,7 +469,8 @@ impl Vector for VectOwned<f32> {
         let vector = vector.slice();
         (
             match vector.len() {
-                0..=960 => vec![vector],
+                0 => unreachable!(),
+                1..=960 => vec![vector],
                 961..=1280 => vec![&vector[..640], &vector[640..]],
                 1281.. => vector.chunks(1920).collect(),
             },
@@ -411,7 +504,8 @@ impl Vector for VectOwned<f16> {
         let vector = vector.slice();
         (
             match vector.len() {
-                0..=1920 => vec![vector],
+                0 => unreachable!(),
+                1..=1920 => vec![vector],
                 1921..=2560 => vec![&vector[..1280], &vector[1280..]],
                 2561.. => vector.chunks(3840).collect(),
             },

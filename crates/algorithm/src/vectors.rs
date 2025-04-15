@@ -29,7 +29,7 @@ pub fn read_for_h1_tuple<
 
 pub fn read_for_h0_tuple<
     O: Operator,
-    A: Accessor1<<O::Vector as Vector>::Element, <O::Vector as Vector>::Metadata>,
+    A: TryAccessor1<<O::Vector as Vector>::Element, <O::Vector as Vector>::Metadata>,
 >(
     index: impl RelationRead,
     mean: IndexPointer,
@@ -48,10 +48,10 @@ pub fn read_for_h0_tuple<
         if tuple.payload() != Some(payload) {
             return None;
         }
-        result.push(tuple.elements());
+        result.push(tuple.elements())?;
         cursor = tuple.metadata_or_pointer();
     }
-    Some(result.finish(cursor.ok()?))
+    result.finish(cursor.ok()?)
 }
 
 pub fn append<O: Operator>(
