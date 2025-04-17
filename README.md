@@ -54,6 +54,8 @@ VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 
 [^4]: Please check our [blog post](https://blog.vectorchord.ai/vector-search-at-10000-qps-in-postgresql-with-vectorchord)  for more details, the PostgreSQL scalability is powered by [CloudNative-PG](https://github.com/cloudnative-pg/cloudnative-pg).
 
+**🏭 Production Proven**: Deployed in mission-critical environments, VectorChord ​​reliably handles 3B+ vectors​​ in production with consistent performance. Please check out [3B vectors in PostgresQL to Protect the Earth](https://blog.vectorchord.ai/3-billion-vectors-in-postgresql-to-protect-the-earth).
+
 ## Quick Start
 
 For new users, we recommend using the Docker image to get started quickly. If you do not prefer Docker, please read [installation guide](https://docs.vectorchord.ai/vectorchord/getting-started/installation.html) for other installation methods.
