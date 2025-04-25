@@ -5,6 +5,15 @@ pub struct TargetCpu {
 }
 
 pub const TARGET_CPUS: &[TargetCpu] = &[
+    // This is a temporary hack, for using AVX512FP16 without unstable features.
+    TargetCpu {
+        target_cpu: "v4fp16",
+        target_arch: "x86_64",
+        target_features: &[
+            "avx512bw", "avx512cd", "avx512dq", "avx512vl", // simd
+            "bmi1", "bmi2", "lzcnt", "movbe", "popcnt", // bit-operations
+        ],
+    },
     TargetCpu {
         target_cpu: "v4",
         target_arch: "x86_64",

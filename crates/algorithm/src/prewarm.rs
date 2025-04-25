@@ -20,7 +20,7 @@ pub fn prewarm<R: RelationRead, O: Operator>(
     drop(meta_guard);
 
     let mut message = String::new();
-    writeln!(message, "height of root: {}", height_of_root)?;
+    writeln!(message, "height of root: {height_of_root}")?;
     let prewarm_max_height = if height < 0 { 0 } else { height as u32 };
     if prewarm_max_height > height_of_root {
         return Ok(message);
@@ -59,7 +59,7 @@ pub fn prewarm<R: RelationRead, O: Operator>(
         }
         writeln!(message, "------------------------")?;
         writeln!(message, "number of nodes: {}", results.len())?;
-        writeln!(message, "number of pages: {}", counter)?;
+        writeln!(message, "number of pages: {counter}")?;
         Ok(results)
     };
     for _ in (std::cmp::max(1, prewarm_max_height)..height_of_root).rev() {
@@ -99,7 +99,7 @@ pub fn prewarm<R: RelationRead, O: Operator>(
         }
         writeln!(message, "------------------------")?;
         writeln!(message, "number of nodes: {}", results.len())?;
-        writeln!(message, "number of pages: {}", counter)?;
+        writeln!(message, "number of pages: {counter}")?;
     }
     Ok(message)
 }

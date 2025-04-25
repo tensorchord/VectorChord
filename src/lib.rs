@@ -1,6 +1,4 @@
 #![allow(unsafe_code)]
-#![feature(let_chains)]
-#![feature(abort_unwind)]
 
 mod datatype;
 mod index;

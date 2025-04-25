@@ -10,8 +10,6 @@
 #error "This file requires Clang or GCC."
 #endif
 
-#ifdef __aarch64__
-
 #include <arm_neon.h>
 #include <arm_sve.h>
 #include <stddef.h>
@@ -225,5 +223,3 @@ fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
-
-#endif

@@ -1,4 +1,3 @@
-#![feature(let_chains)]
 #![allow(clippy::type_complexity)]
 
 mod build;

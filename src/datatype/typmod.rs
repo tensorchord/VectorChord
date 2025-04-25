@@ -64,7 +64,7 @@ fn _vchord_typmod_in_65535(list: pgrx::datum::Array<&CStr>) -> i32 {
 fn _vchord_typmod_out(typmod: i32) -> CString {
     let typmod = Typmod::parse_from_i32(typmod).unwrap();
     match typmod.into_option_string() {
-        Some(s) => CString::new(format!("({})", s)).unwrap(),
+        Some(s) => CString::new(format!("({s})")).unwrap(),
         None => CString::new("()").unwrap(),
     }
 }

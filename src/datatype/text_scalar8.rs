@@ -128,10 +128,10 @@ fn _vchord_scalar8_out(vector: Scalar8Input<'_>) -> CString {
     buffer.push(')');
     buffer.push('[');
     if let Some(&x) = vector.code().first() {
-        buffer.push_str(format!("{}", x).as_str());
+        buffer.push_str(format!("{x}").as_str());
     }
     for &x in vector.code().iter().skip(1) {
-        buffer.push_str(format!(", {}", x).as_str());
+        buffer.push_str(format!(", {x}").as_str());
     }
     buffer.push(']');
     CString::new(buffer).unwrap()

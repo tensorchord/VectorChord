@@ -1535,7 +1535,7 @@ mod reduce_sum_of_d2 {
     fn reduce_sum_of_d2_v4(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         use std::arch::x86_64::*;
-        let mut n = lhs.len() as u32;
+        let mut n = lhs.len();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut d2 = _mm512_setzero_ps();
@@ -1549,7 +1549,7 @@ mod reduce_sum_of_d2 {
             d2 = _mm512_fmadd_ps(d, d, d2);
         }
         if n > 0 {
-            let mask = _bzhi_u32(0xffff, n) as u16;
+            let mask = _bzhi_u32(0xffff, n as u32) as u16;
             let x = unsafe { _mm512_maskz_loadu_ps(mask, a) };
             let y = unsafe { _mm512_maskz_loadu_ps(mask, b) };
             let d = _mm512_sub_ps(x, y);

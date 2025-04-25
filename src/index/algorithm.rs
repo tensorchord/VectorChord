@@ -40,7 +40,7 @@ impl Allocator {
         } else {
             #[cold]
             fn cold<T>(sel: &mut Allocator) -> *mut T {
-                std::panic::abort_unwind(|| {
+                abort_unwind(|| {
                     let raw = std::mem::replace(&mut sel.this, std::ptr::null_mut());
                     sel.used.push(raw.cast());
                     sel.this = sel
@@ -73,7 +73,7 @@ impl Allocator {
         } else {
             #[cold]
             fn cold<T>(sel: &mut Allocator, n: usize) -> *mut T {
-                std::panic::abort_unwind(|| {
+                abort_unwind(|| {
                     let raw = std::mem::replace(&mut sel.this, std::ptr::null_mut());
                     sel.used.push(raw.cast());
                     sel.this = sel
@@ -93,7 +93,7 @@ impl Allocator {
         }
     }
     pub fn reset(&mut self) {
-        std::panic::abort_unwind(|| {
+        abort_unwind(|| {
             self.free.extend(std::mem::take(&mut self.used));
             self.size = size_of::<Chunk>();
         });
@@ -374,4 +374,11 @@ impl RandomProject for VectBorrowed<'_, f16> {
         let input = f16::vector_to_f32(self.slice());
         VectOwned::new(f16::vector_from_f32(&project(&input)))
     }
+}
+
+// Emulate unstable library feature `abort_unwind`.
+// See https://github.com/rust-lang/rust/issues/130338.
+
+extern "C" fn abort_unwind<F: FnOnce() -> R, R>(f: F) -> R {
+    f()
 }
