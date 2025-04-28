@@ -69,6 +69,7 @@ pub fn rerank_index<
 >(
     vector: O::Vector,
     prefetcher: P,
+    mut prefilter: impl FnMut(NonZero<u64>) -> bool,
 ) -> Reranker<
     T,
     impl FnMut(NonZero<u64>, Vec<<P::R as RelationRead>::ReadGuard<'_>>, u16) -> Option<Distance>,
@@ -78,6 +79,9 @@ pub fn rerank_index<
         prefetcher,
         cache: BinaryHeap::new(),
         f: id_4::<_, P::R, _, _, _>(move |payload, list, head| {
+            if !prefilter(payload) {
+                return None;
+            }
             vectors::read_for_h0_tuple::<P::R, O, _>(
                 head,
                 list.into_iter(),

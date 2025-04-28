@@ -77,6 +77,7 @@ impl SearchBuilder for MaxsimBuilder {
             _,
             AlwaysEqual<&mut (NonZero<u64>, _, _)>,
         )| (rough, payload);
+        let fake_prefilter = |_| true;
         let iter: Box<dyn Iterator<Item = _>> = match opfamily.vector_kind() {
             VectorKind::Vecf32 => {
                 type Op = operator::Op<VectOwned<f32>, Dot>;
@@ -116,8 +117,11 @@ impl SearchBuilder for MaxsimBuilder {
                                     relation.clone(),
                                     results,
                                 );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));
@@ -125,8 +129,11 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             SearchIo::PrefetchBuffer => {
                                 let prefetcher = SimplePrefetcher::new(relation.clone(), results);
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));
@@ -134,8 +141,11 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             SearchIo::ReadStream => {
                                 let prefetcher = StreamPrefetcher::new(relation, results);
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));
@@ -187,8 +197,11 @@ impl SearchBuilder for MaxsimBuilder {
                                     relation.clone(),
                                     results,
                                 );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));
@@ -196,8 +209,11 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             SearchIo::PrefetchBuffer => {
                                 let prefetcher = SimplePrefetcher::new(relation.clone(), results);
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));
@@ -205,8 +221,11 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             SearchIo::ReadStream => {
                                 let prefetcher = StreamPrefetcher::new(relation, results);
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
+                                let mut reranker = rerank_index::<Op, _, _>(
+                                    vector.clone(),
+                                    prefetcher,
+                                    fake_prefilter,
+                                );
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
                                 let (rough_iter, accu_iter) = reranker.finish();
                                 accu_set.extend(accu_iter.map(accu_map));

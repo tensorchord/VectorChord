@@ -600,6 +600,43 @@ impl SearchFetcher for HeapFetcher {
             Some((&self.values, &self.is_nulls))
         }
     }
+
+    fn filter(&mut self, key: [u16; 3]) -> bool {
+        if !prererank_filtering() || self.hack.is_null() {
+            return true;
+        }
+        unsafe {
+            let mut ctid = key_to_ctid(key);
+            let table_am = (*self.heap_relation).rd_tableam;
+            let fetch_row_version = (*table_am)
+                .tuple_fetch_row_version
+                .expect("unsupported heap access method");
+            if !fetch_row_version(self.heap_relation, &mut ctid, self.snapshot, self.slot) {
+                return false;
+            }
+            if let Some(qual) = NonNull::new((*self.hack).ss.ps.qual) {
+                use pgrx::datum::FromDatum;
+                use pgrx::memcxt::PgMemoryContexts;
+                assert!(qual.as_ref().flags & pgrx::pg_sys::EEO_FLAG_IS_QUAL as u8 != 0);
+                let evalfunc = qual.as_ref().evalfunc.expect("no evalfunc for qual");
+                if !(*self.hack).ss.ps.ps_ExprContext.is_null() {
+                    let econtext = (*self.hack).ss.ps.ps_ExprContext;
+                    (*econtext).ecxt_scantuple = self.slot;
+                    pgrx::pg_sys::MemoryContextReset((*econtext).ecxt_per_tuple_memory);
+                    let result = PgMemoryContexts::For((*econtext).ecxt_per_tuple_memory)
+                        .switch_to(|_| {
+                            let mut is_null = true;
+                            let datum = evalfunc(qual.as_ptr(), econtext, &mut is_null);
+                            bool::from_datum(datum, is_null)
+                        });
+                    if result != Some(true) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+    }
 }
 
 struct Index {
