@@ -6,7 +6,7 @@
 <div align=center>
 
 
-[Official Site][official-site-link] · [Blog][blog-link] · [Feedback][github-issues-link] · [Contact Us][email-link]
+[Official Site][official-site-link] · [Blog][blog-link] · [Docs][docs-link] · [Feedback][github-issues-link] · [Contact Us][email-link]
 
 <!-- TODO: Add GHCR when 0.3.0 is ready -->
 
@@ -148,3 +148,4 @@ You may choose either license based on your needs. We welcome any commercial col
 [official-site-link]: https://vectorchord.ai/
 [github-issues-link]: https://github.com/tensorchord/VectorChord/issues
 [email-link]: mailto:support@tensorchord.ai
+[docs-link]: https://docs.vectorchord.ai/vectorchord/
