@@ -337,16 +337,16 @@ fn rerank_index_wrapper<'a, O: Operator>(
     results: Vec<Result<'a>>,
     io_rerank: SearchIo,
 ) -> Box<dyn Iterator<Item = (f32, NonZero<u64>)> + 'a> {
+    let prefilter = move |payload| {
+        if !prererank_filtering() {
+            return true;
+        }
+        let (key, _) = pointer_to_kv(payload);
+        fetcher.filter(key)
+    };
     match io_rerank {
         SearchIo::ReadBuffer => {
             let prefetcher = PlainPrefetcher::<_, BinaryHeap<_>>::new(relation.clone(), results);
-            let prefilter = move |payload| {
-                if !prererank_filtering() {
-                    return true;
-                }
-                let (key, _) = pointer_to_kv(payload);
-                fetcher.filter(key)
-            };
             Box::new(
                 rerank_index::<O, _, _>(vector, prefetcher, prefilter)
                     .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -354,13 +354,6 @@ fn rerank_index_wrapper<'a, O: Operator>(
         }
         SearchIo::PrefetchBuffer => {
             let prefetcher = SimplePrefetcher::new(relation.clone(), results);
-            let prefilter = move |payload| {
-                if !prererank_filtering() {
-                    return true;
-                }
-                let (key, _) = pointer_to_kv(payload);
-                fetcher.filter(key)
-            };
             Box::new(
                 rerank_index::<O, _, _>(vector, prefetcher, prefilter)
                     .map(move |(distance, payload)| (opfamily.output(distance), payload)),
@@ -368,13 +361,6 @@ fn rerank_index_wrapper<'a, O: Operator>(
         }
         SearchIo::ReadStream => {
             let prefetcher = StreamPrefetcher::new(relation, results);
-            let prefilter = move |payload| {
-                if !prererank_filtering() {
-                    return true;
-                }
-                let (key, _) = pointer_to_kv(payload);
-                fetcher.filter(key)
-            };
             Box::new(
                 rerank_index::<O, _, _>(vector, prefetcher, prefilter)
                     .map(move |(distance, payload)| (opfamily.output(distance), payload)),
