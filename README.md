@@ -101,6 +101,9 @@ lists = []
 $$);
 ```
 
+> [!NOTE]
+> The `lists` option should be no less than `4 * sqrt(vectors)`, `vectors` is the number of vectors in the table.
+
 And then perform a vector search using `SELECT ... ORDER BY ... LIMIT ...`.
 
 ```SQL
