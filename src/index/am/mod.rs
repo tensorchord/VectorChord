@@ -1,7 +1,7 @@
 pub mod am_build;
 
 use super::algorithm::BumpAlloc;
-use super::gucs::prererank_filtering;
+use super::gucs::enable_prefilter;
 use crate::index::gucs;
 use crate::index::lazy_cell::LazyCell;
 use crate::index::opclass::{Opfamily, opfamily};
@@ -556,7 +556,7 @@ impl Drop for HeapFetcher {
 }
 
 impl SearchFetcher for HeapFetcher {
-    fn fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
+    fn filter_fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
         unsafe {
             let mut ctid = key_to_ctid(key);
             let table_am = (*self.heap_relation).rd_tableam;
@@ -566,7 +566,7 @@ impl SearchFetcher for HeapFetcher {
             if !fetch_row_version(self.heap_relation, &mut ctid, self.snapshot, self.slot) {
                 return None;
             }
-            if !self.hack.is_null() && prererank_filtering() {
+            if !enable_prefilter() || self.hack.is_null() {
                 if let Some(qual) = NonNull::new((*self.hack).ss.ps.qual) {
                     use pgrx::datum::FromDatum;
                     use pgrx::memcxt::PgMemoryContexts;
@@ -601,8 +601,8 @@ impl SearchFetcher for HeapFetcher {
         }
     }
 
-    fn filter(&mut self, key: [u16; 3]) -> bool {
-        if !prererank_filtering() || self.hack.is_null() {
+    fn filter_only(&self, key: [u16; 3]) -> bool {
+        if !enable_prefilter() || self.hack.is_null() {
             return true;
         }
         unsafe {

@@ -22,7 +22,7 @@ static MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 static MAXSIM_REFINE: GucSetting<i32> = GucSetting::<i32>::new(0);
 static MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
 
-static PRERERANK_FILTERING: GucSetting<bool> = GucSetting::<bool>::new(false);
+static PREFILTER: GucSetting<bool> = GucSetting::<bool>::new(false);
 
 static IO_RERANK: GucSetting<Io> = GucSetting::<Io>::new(
     #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
@@ -89,10 +89,10 @@ pub fn init() {
         GucFlags::default(),
     );
     GucRegistry::define_bool_guc(
-        "vchordrq.prererank_filtering",
-        "`prererank_filtering` argument of vchordrq.",
-        "`prererank_filtering` argument of vchordrq.",
-        &PRERERANK_FILTERING,
+        "vchordrq.prefilter",
+        "`prefilter` argument of vchordrq.",
+        "`prefilter` argument of vchordrq.",
+        &PREFILTER,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -178,8 +178,8 @@ pub fn prewarm_dim() -> Vec<u32> {
     }
 }
 
-pub fn prererank_filtering() -> bool {
-    PRERERANK_FILTERING.get()
+pub fn enable_prefilter() -> bool {
+    PREFILTER.get()
 }
 
 pub fn io_rerank() -> SearchIo {

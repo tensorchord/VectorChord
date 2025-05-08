@@ -15,7 +15,28 @@ type Item<'b> = (
     AlwaysEqual<&'b mut (u32, u16, &'b mut [u32])>,
 );
 
-pub fn insert<
+pub fn insert_vector<R: RelationRead + RelationWrite, O: Operator>(
+    index: &R,
+    payload: NonZero<u64>,
+    vector: &O::Vector,
+) -> (Vec<u32>, u16) {
+    let meta_guard = index.read(0);
+    let meta_bytes = meta_guard.get(1).expect("data corruption");
+    let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
+    let dims = meta_tuple.dims();
+    let rerank_in_heap = meta_tuple.rerank_in_heap();
+    assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
+    let vectors_first = meta_tuple.vectors_first();
+    drop(meta_guard);
+
+    if !rerank_in_heap {
+        vectors::append::<O>(index.clone(), vectors_first, vector.as_borrowed(), payload)
+    } else {
+        (Vec::new(), 0)
+    }
+}
+
+pub fn insert_index<
     'b,
     R: RelationRead + RelationWrite,
     O: Operator,
@@ -26,31 +47,25 @@ pub fn insert<
     vector: O::Vector,
     bump: &'b impl Bump,
     mut prefetch: impl FnMut(Vec<Item<'b>>) -> P,
+    list: Vec<u32>,
+    head: u16,
 ) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dims = meta_tuple.dims();
     let is_residual = meta_tuple.is_residual();
-    let rerank_in_heap = meta_tuple.rerank_in_heap();
     let height_of_root = meta_tuple.height_of_root();
     assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
     let root_prefetch = meta_tuple.root_prefetch().to_vec();
     let root_head = meta_tuple.root_head();
     let root_first = meta_tuple.root_first();
-    let vectors_first = meta_tuple.vectors_first();
     drop(meta_guard);
 
     let default_block_lut = if !is_residual {
         Some(O::Vector::block_preprocess(vector.as_borrowed()))
     } else {
         None
-    };
-
-    let (list, head) = if !rerank_in_heap {
-        vectors::append::<O>(index.clone(), vectors_first, vector.as_borrowed(), payload)
-    } else {
-        (Vec::new(), 0)
     };
 
     type State<O> = (u32, Option<<O as Operator>::Vector>);
@@ -98,7 +113,7 @@ pub fn insert<
         let mut heap = (prefetch)(results.into_vec());
         let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
         {
-            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list)) =
+            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list, _)) =
                 heap.pop_if(|(d, _)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
                 if is_residual {

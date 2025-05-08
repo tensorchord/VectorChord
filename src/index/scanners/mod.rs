@@ -45,15 +45,15 @@ pub trait SearchBuilder: 'static {
 }
 
 pub trait SearchFetcher {
-    fn fetch(&mut self, ctid: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])>;
-    fn filter(&mut self, ctid: [u16; 3]) -> bool;
+    fn filter_fetch(&mut self, ctid: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])>;
+    fn filter_only(&self, ctid: [u16; 3]) -> bool;
 }
 
 impl<T: SearchFetcher, F: FnOnce() -> T> SearchFetcher for LazyCell<T, F> {
-    fn fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
-        LazyCell::force_mut(self).fetch(key)
+    fn filter_fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
+        LazyCell::force_mut(self).filter_fetch(key)
     }
-    fn filter(&mut self, key: [u16; 3]) -> bool {
-        LazyCell::force_mut(self).filter(key)
+    fn filter_only(&self, key: [u16; 3]) -> bool {
+        LazyCell::force(self).filter_only(key)
     }
 }

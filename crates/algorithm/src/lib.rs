@@ -27,7 +27,7 @@ pub use bulkdelete::bulkdelete;
 pub use cache::cache;
 pub use cost::cost;
 pub use fast_heap::FastHeap;
-pub use insert::insert;
+pub use insert::{insert_index, insert_vector};
 pub use maintain::maintain;
 pub use prefetcher::{PlainPrefetcher, Prefetcher, SimplePrefetcher, StreamPrefetcher};
 pub use prewarm::prewarm;
@@ -79,6 +79,10 @@ pub trait ReadStream<T> {
         &mut self,
         predicate: impl FnOnce(&T) -> bool,
     ) -> Option<(T, Vec<<Self::Relation as RelationRead>::ReadGuard<'_>>)>;
+    fn next_if_with<A>(
+        &mut self,
+        predicate: impl FnOnce(&T) -> (bool, A),
+    ) -> Option<(T, Vec<<Self::Relation as RelationRead>::ReadGuard<'_>>, A)>;
     fn into_inner(self) -> Self::Inner;
 }
 
@@ -174,6 +178,10 @@ pub trait Bump: 'static {
 pub trait Heap: IntoIterator {
     fn make(this: Vec<Self::Item>) -> Self;
     fn pop_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item>;
+    fn pop_if_with<A>(
+        &mut self,
+        predicate: impl FnOnce(&Self::Item) -> (bool, A),
+    ) -> Option<(Self::Item, A)>;
 }
 
 impl<T: Ord> Heap for BinaryHeap<T> {
@@ -183,5 +191,14 @@ impl<T: Ord> Heap for BinaryHeap<T> {
     fn pop_if(&mut self, predicate: impl FnOnce(&T) -> bool) -> Option<T> {
         let peek = self.peek()?;
         if predicate(peek) { self.pop() } else { None }
+    }
+    fn pop_if_with<A>(&mut self, predicate: impl FnOnce(&T) -> (bool, A)) -> Option<(T, A)> {
+        let peek = self.peek()?;
+        let (result, another) = predicate(peek);
+        if result {
+            self.pop().map(|peek| (peek, another))
+        } else {
+            None
+        }
     }
 }

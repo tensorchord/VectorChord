@@ -435,6 +435,22 @@ where
         }
         vec_deque_pop_front_if(&mut self.window, predicate)
     }
+    #[allow(dead_code)]
+    pub fn pop_item_if_with<A>(
+        &mut self,
+        predicate: impl FnOnce(&I::Item) -> (bool, A),
+    ) -> Option<(I::Item, A)> {
+        while self.window.is_empty()
+            && let Some(iter) = self.iter.as_mut()
+            && let Some(e) = iter.next()
+        {
+            for id in e.fetch().iter().copied() {
+                self.tail.push_back(id);
+            }
+            self.window.push_back(e);
+        }
+        vec_deque_pop_front_if_with(&mut self.window, predicate)
+    }
 }
 
 pub struct PostgresReadStream<I: Iterator> {
@@ -485,6 +501,51 @@ where
                 })
                 .collect::<Vec<_>>();
             Some((e, list))
+        } else {
+            None
+        }
+    }
+
+    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
+    fn next_if_with<A>(
+        &mut self,
+        _predicate: impl FnOnce(&I::Item) -> (bool, A),
+    ) -> Option<(
+        I::Item,
+        Vec<<Self::Relation as RelationRead>::ReadGuard<'_>>,
+        A,
+    )> {
+        panic!("read_stream is not supported on PostgreSQL versions earlier than 17.");
+    }
+
+    #[cfg(feature = "pg17")]
+    fn next_if_with<A>(
+        &mut self,
+        predicate: impl FnOnce(&I::Item) -> (bool, A),
+    ) -> Option<(
+        I::Item,
+        Vec<<Self::Relation as RelationRead>::ReadGuard<'_>>,
+        A,
+    )> {
+        if let Some((e, raw)) = unsafe { self.cache.as_mut().pop_item_if_with(predicate) } {
+            let list = e
+                .fetch()
+                .iter()
+                .map(|_| unsafe {
+                    use pgrx::pg_sys::{
+                        BUFFER_LOCK_SHARE, BufferGetPage, LockBuffer, read_stream_next_buffer,
+                    };
+                    let buf = read_stream_next_buffer(self.raw, core::ptr::null_mut());
+                    LockBuffer(buf, BUFFER_LOCK_SHARE as _);
+                    let page = NonNull::new(BufferGetPage(buf).cast()).expect("failed to get page");
+                    PostgresBufferReadGuard {
+                        buf,
+                        page,
+                        id: pgrx::pg_sys::BufferGetBlockNumber(buf),
+                    }
+                })
+                .collect::<Vec<_>>();
+            Some((e, list, raw))
         } else {
             None
         }
@@ -577,6 +638,19 @@ fn vec_deque_pop_front_if<T>(
     let first = this.front()?;
     if predicate(first) {
         this.pop_front()
+    } else {
+        None
+    }
+}
+
+fn vec_deque_pop_front_if_with<T, A>(
+    this: &mut VecDeque<T>,
+    predicate: impl FnOnce(&T) -> (bool, A),
+) -> Option<(T, A)> {
+    let first = this.front()?;
+    let (result, another) = predicate(first);
+    if result {
+        this.pop_front().map(|peek| (peek, another))
     } else {
         None
     }

@@ -96,7 +96,7 @@ pub fn default_search<'b, R: RelationRead, O: Operator, P: Prefetcher<R = R, Ite
         let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
         let vector = vector.as_borrowed();
         std::iter::from_fn(move || {
-            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list)) =
+            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list, _)) =
                 heap.pop_if(|(d, ..)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
                 if is_residual {
@@ -256,7 +256,7 @@ pub fn maxsim_search<'b, R: RelationRead, O: Operator, P: Prefetcher<R = R, Item
         let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
         let vector = vector.as_borrowed();
         std::iter::from_fn(move || {
-            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list)) =
+            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list, _)) =
                 heap.pop_if(|(d, ..)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
                 if is_residual {

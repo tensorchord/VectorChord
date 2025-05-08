@@ -27,26 +27,30 @@ pub fn how(index: impl RelationRead) -> RerankMethod {
     }
 }
 
-pub struct Reranker<T, F, P> {
+pub struct Reranker<T, F, P, O> {
     prefetcher: P,
     cache: BinaryHeap<Result>,
     f: F,
-    _phantom: PhantomData<fn(T) -> T>,
+    _phantom: PhantomData<(fn(T) -> T, O)>,
 }
 
-impl<'b, T, F, P> Iterator for Reranker<T, F, P>
+impl<'b, T, F, P, O: Operator> Iterator for Reranker<T, F, P, O>
 where
-    F: FnMut(NonZero<u64>, Vec<<P::R as RelationRead>::ReadGuard<'_>>, u16) -> Option<Distance>,
-    P: Prefetcher<Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<Extra<'b>>)>,
+    F: FnMut(
+        (NonZero<u64>, Option<O::Vector>),
+        Vec<<P::R as RelationRead>::ReadGuard<'_>>,
+        u16,
+    ) -> Option<Distance>,
+    P: Prefetcher<Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<Extra<'b>>), O = O>,
 {
     type Item = (Distance, NonZero<u64>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(((_, AlwaysEqual(&mut (payload, head, ..))), list)) = self
+        while let Some(((_, AlwaysEqual(&mut (payload, head, ..))), list, raw)) = self
             .prefetcher
             .pop_if(|((d, _), ..)| Some(*d) > self.cache.peek().map(|(d, ..)| *d))
         {
-            if let Some(distance) = (self.f)(payload, list, head) {
+            if let Some(distance) = (self.f)((payload, raw), list, head) {
                 self.cache.push((Reverse(distance), AlwaysEqual(payload)));
             };
         }
@@ -55,7 +59,7 @@ where
     }
 }
 
-impl<T, F, P> Reranker<T, F, P> {
+impl<T, F, P, O: Operator> Reranker<T, F, P, O> {
     pub fn finish(self) -> (P, impl Iterator<Item = Result>) {
         (self.prefetcher, self.cache.into_iter())
     }
@@ -69,19 +73,20 @@ pub fn rerank_index<
 >(
     vector: O::Vector,
     prefetcher: P,
-    mut prefilter: impl FnMut(NonZero<u64>) -> bool,
 ) -> Reranker<
     T,
-    impl FnMut(NonZero<u64>, Vec<<P::R as RelationRead>::ReadGuard<'_>>, u16) -> Option<Distance>,
+    impl FnMut(
+        (NonZero<u64>, Option<O::Vector>),
+        Vec<<P::R as RelationRead>::ReadGuard<'_>>,
+        u16,
+    ) -> Option<Distance>,
     P,
+    O,
 > {
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
-        f: id_4::<_, P::R, _, _, _>(move |payload, list, head| {
-            if !prefilter(payload) {
-                return None;
-            }
+        f: id_4::<_, P::R, _, _, _>(move |(payload, _), list, head| {
             vectors::read_for_h0_tuple::<P::R, O, _>(
                 head,
                 list.into_iter(),
@@ -104,18 +109,25 @@ pub fn rerank_heap<
 >(
     vector: O::Vector,
     prefetcher: P,
-    mut fetch: impl FnMut(NonZero<u64>) -> Option<O::Vector> + 'b,
 ) -> Reranker<
     T,
-    impl FnMut(NonZero<u64>, Vec<<P::R as RelationRead>::ReadGuard<'_>>, u16) -> Option<Distance>,
+    impl FnMut(
+        (NonZero<u64>, Option<O::Vector>),
+        Vec<<P::R as RelationRead>::ReadGuard<'_>>,
+        u16,
+    ) -> Option<Distance>,
     P,
+    O,
 > {
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
-        f: id_4::<_, P::R, _, _, _>(move |payload, _, _| {
+        f: id_4::<_, P::R, _, _, _>(move |(_, raw), _, _| {
             let unpack = O::Vector::unpack(vector.as_borrowed());
-            let vector = fetch(payload)?;
+            let vector: O::Vector = match raw {
+                Some(v) => v,
+                None => unreachable!(),
+            };
             let vector = O::Vector::unpack(vector.as_borrowed());
             let mut accessor = O::DistanceAccessor::default();
             accessor.push(unpack.0, vector.0);

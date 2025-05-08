@@ -295,49 +295,105 @@ pub fn insert(
 ) {
     use algorithm::{FastHeap, PlainPrefetcher};
     let bump = BumpAlloc::new();
-    let prefetch = {
-        let index = index.clone();
-        move |results| PlainPrefetcher::<_, FastHeap<_>>::new(index.clone(), results)
-    };
     match (vector, opfamily.distance_kind()) {
         (OwnedVector::Vecf32(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            algorithm::insert::<_, Op<VectOwned<f32>, L2>, _>(
+            let prefetch = {
+                let index = index.clone();
+                move |results| {
+                    PlainPrefetcher::<_, FastHeap<_>, _, Op<VectOwned<f32>, L2>>::new(
+                        index.clone(),
+                        results,
+                        |_, _| (true, None),
+                        false,
+                    )
+                }
+            };
+            let (list, head) =
+                algorithm::insert_vector::<_, Op<VectOwned<f32>, L2>>(&index, payload, &vector);
+            algorithm::insert_index::<_, Op<VectOwned<f32>, L2>, _>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 prefetch,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf32(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            algorithm::insert::<_, Op<VectOwned<f32>, Dot>, _>(
+            let prefetch = {
+                let index = index.clone();
+                move |results| {
+                    PlainPrefetcher::<_, FastHeap<_>, _, Op<VectOwned<f32>, Dot>>::new(
+                        index.clone(),
+                        results,
+                        |_, _| (true, None),
+                        false,
+                    )
+                }
+            };
+            let (list, head) =
+                algorithm::insert_vector::<_, Op<VectOwned<f32>, Dot>>(&index, payload, &vector);
+            algorithm::insert_index::<_, Op<VectOwned<f32>, Dot>, _>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 prefetch,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            algorithm::insert::<_, Op<VectOwned<f16>, L2>, _>(
+            let prefetch = {
+                let index = index.clone();
+                move |results| {
+                    PlainPrefetcher::<_, FastHeap<_>, _, Op<VectOwned<f16>, L2>>::new(
+                        index.clone(),
+                        results,
+                        |_, _| (true, None),
+                        false,
+                    )
+                }
+            };
+            let (list, head) =
+                algorithm::insert_vector::<_, Op<VectOwned<f16>, L2>>(&index, payload, &vector);
+            algorithm::insert_index::<_, Op<VectOwned<f16>, L2>, _>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 prefetch,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            algorithm::insert::<_, Op<VectOwned<f16>, Dot>, _>(
+            let prefetch = {
+                let index = index.clone();
+                move |results| {
+                    PlainPrefetcher::<_, FastHeap<_>, _, Op<VectOwned<f16>, Dot>>::new(
+                        index.clone(),
+                        results,
+                        |_, _| (true, None),
+                        false,
+                    )
+                }
+            };
+            let (list, head) =
+                algorithm::insert_vector::<_, Op<VectOwned<f16>, Dot>>(&index, payload, &vector);
+            algorithm::insert_index::<_, Op<VectOwned<f16>, Dot>, _>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 prefetch,
+                list,
+                head,
             )
         }
     }

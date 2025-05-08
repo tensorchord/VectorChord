@@ -75,6 +75,19 @@ impl<T: Ord> Heap for FastHeap<T> {
         let first = self.peek()?;
         if predicate(first) { self.pop() } else { None }
     }
+
+    fn pop_if_with<A>(
+        &mut self,
+        predicate: impl FnOnce(&Self::Item) -> (bool, A),
+    ) -> Option<(Self::Item, A)> {
+        let first = self.peek()?;
+        let (result, another) = predicate(first);
+        if result {
+            self.pop().map(|peek| (peek, another))
+        } else {
+            None
+        }
+    }
 }
 
 #[test]
