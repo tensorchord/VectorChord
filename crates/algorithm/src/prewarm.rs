@@ -1,16 +1,29 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
 use crate::closure_lifetime_binder::{id_0, id_1, id_2};
 use crate::operator::{FunctionalAccessor, Operator};
 use crate::tape::{by_directory, by_next};
 use crate::tuples::*;
 use crate::{Page, PrefetcherSequenceFamily, RelationRead, tape, vectors};
-use std::error::Error;
 use std::fmt::Write;
 
 pub fn prewarm<'r, R: RelationRead, O: Operator>(
     index: &'r R,
     height: i32,
     mut prefetch_h0_tuples: impl PrefetcherSequenceFamily<'r, R>,
-) -> Result<String, Box<dyn Error>> {
+) -> String {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -21,10 +34,10 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
     drop(meta_guard);
 
     let mut message = String::new();
-    writeln!(message, "height of root: {height_of_root}")?;
+    writeln!(message, "height of root: {height_of_root}").unwrap();
     let prewarm_max_height = if height < 0 { 0 } else { height as u32 };
     if prewarm_max_height > height_of_root {
-        return Ok(message);
+        return message;
     }
     type State = Vec<u32>;
     let mut state: State = {
@@ -34,12 +47,12 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
             vectors::read_for_h1_tuple::<R, O, _>(root_head, list, ());
             results.push(root_first);
         }
-        writeln!(message, "------------------------")?;
-        writeln!(message, "number of nodes: {}", results.len())?;
-        writeln!(message, "number of pages: {}", 1)?;
+        writeln!(message, "------------------------").unwrap();
+        writeln!(message, "number of nodes: {}", results.len()).unwrap();
+        writeln!(message, "number of pages: {}", 1).unwrap();
         results
     };
-    let mut step = |state: State| -> Result<_, Box<dyn Error>> {
+    let mut step = |state: State| {
         let mut counter = 0_usize;
         let mut results = Vec::new();
         for first in state {
@@ -53,13 +66,13 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
                 },
             );
         }
-        writeln!(message, "------------------------")?;
-        writeln!(message, "number of nodes: {}", results.len())?;
-        writeln!(message, "number of pages: {counter}")?;
-        Ok(results)
+        writeln!(message, "------------------------").unwrap();
+        writeln!(message, "number of nodes: {}", results.len()).unwrap();
+        writeln!(message, "number of pages: {counter}").unwrap();
+        results
     };
     for _ in (std::cmp::max(1, prewarm_max_height)..height_of_root).rev() {
-        state = step(state)?;
+        state = step(state);
     }
     if prewarm_max_height == 0 {
         let mut counter = 0_usize;
@@ -85,9 +98,9 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
                 }),
             );
         }
-        writeln!(message, "------------------------")?;
-        writeln!(message, "number of nodes: {}", results.len())?;
-        writeln!(message, "number of pages: {counter}")?;
+        writeln!(message, "------------------------").unwrap();
+        writeln!(message, "number of nodes: {}", results.len()).unwrap();
+        writeln!(message, "number of pages: {counter}").unwrap();
     }
-    Ok(message)
+    message
 }

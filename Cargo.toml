@@ -36,7 +36,7 @@ pgrx-catalog = "0.2.0"
 rand.workspace = true
 seq-macro = "0.3.6"
 serde.workspace = true
-toml = "0.8.20"
+toml = "0.8.22"
 validator.workspace = true
 zerocopy.workspace = true
 
@@ -60,7 +60,7 @@ paste = "1"
 rand = "0.9.1"
 serde = { version = "1", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
-zerocopy = { version = "0.8.24", features = ["derive"] }
+zerocopy = { version = "0.8.25", features = ["derive"] }
 
 [workspace.lints]
 clippy.identity_op = "allow"

@@ -1,3 +1,17 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
 use super::opclass::Opfamily;
 use crate::index::am::am_build::InternalBuild;
 use algorithm::operator::{Dot, L2, Op};
@@ -191,7 +205,7 @@ impl Bump for BumpAlloc {
 
 pub fn prewarm(opfamily: Opfamily, index: &impl RelationRead, height: i32) -> String {
     let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
-    let message = match (opfamily.vector_kind(), opfamily.distance_kind()) {
+    match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2) => {
             algorithm::prewarm::<_, Op<VectOwned<f32>, L2>>(index, height, make_h0_plain_prefetcher)
         }
@@ -212,10 +226,6 @@ pub fn prewarm(opfamily: Opfamily, index: &impl RelationRead, height: i32) -> St
                 make_h0_plain_prefetcher,
             )
         }
-    };
-    match message {
-        Ok(message) => message,
-        Err(e) => panic!("{e}"),
     }
 }
 

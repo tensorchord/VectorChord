@@ -5,6 +5,7 @@ on:
     paths:
       - ".cargo"
       - ".github/workflows/check.yml"
+      - "deny.toml"
       - "crates/**"
       - "scripts/**"
       - "src/**"
@@ -20,6 +21,7 @@ on:
     paths:
       - ".cargo"
       - ".github/workflows/check.yml"
+      - "deny.toml"
       - "crates/**"
       - "scripts/**"
       - "src/**"
@@ -41,8 +43,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  SCCACHE_GHA_ENABLED: true
-  RUSTC_WRAPPER: sccache
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
@@ -53,6 +53,8 @@ jobs:
       - name: Set up Environment
         run: |
           curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-full-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
+
+          curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.18.2/cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,7 +69,59 @@ jobs:
         uses: astral-sh/ruff-action@v1
 
       - name: Rustfmt
-        run: cargo fmt --check
+        run: cargo fmt --check -- --config-path /dev/null --config imports_granularity=Module
+
+      - name: Deny
+        run: cargo deny check
+
+      - name: License Header
+        run: |
+          HEADER=$(cat <<EOF
+          This software is licensed under a dual license model:
+
+          GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+          distribute this software under the terms of the AGPLv3.
+
+          Elastic License v2 (ELv2): You may also use, modify, and distribute this
+          software under the Elastic License v2, which has specific restrictions.
+
+          We welcome any commercial collaboration or support. For inquiries
+          regarding the licenses, please contact us at:
+          vectorchord-inquiry@tensorchord.ai
+
+          Copyright (c) 2025 TensorChord Inc.
+          EOF
+          )
+          COUNT=$(echo "$HEADER" | wc -l)
+
+          RS_HEADER=$(echo "$HEADER" | awk '{ if ($0 ~ /^$/) print "//"; else print "// " $0 }')
+          C_HEADER=$(echo "$HEADER" | awk '{ if ($0 ~ /^$/) print "//"; else print "// " $0 }')
+          PY_HEADER=$(echo "$HEADER" | awk '{ if ($0 ~ /^$/) print "#"; else print "# " $0 }')
+
+          RS_FILES=$(find . -type f -name "*.rs" -not -path "./target/*")
+          C_FILES=$(find . -type f -name "*.c" -not -path "./target/*")
+          PY_FILES=$(find . -type f -name "*.py" -not -path "./target/*")
+
+          for p in $RS_FILES; do
+            if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$RS_HEADER"); then
+              echo "license header mismatch in file $p"
+              exit 1
+            fi
+          done
+
+          for p in $C_FILES; do
+            if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$C_HEADER"); then
+              echo "license header mismatch in file $p"
+              exit 1
+            fi
+          done
+
+          for p in $PY_FILES; do
+            if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$PY_HEADER"); then
+              echo "license header mismatch in file $p"
+              exit 1
+            fi
+          done
 
       - name: SQL
         run: |
@@ -78,6 +132,10 @@ jobs:
       matrix:
         arch: ["x86_64", "aarch64"]
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: true
 
     steps:
       - name: Set up Environment
@@ -127,6 +185,10 @@ jobs:
         version: ["13", "14", "15", "16", "17"]
         arch: ["x86_64", "aarch64"]
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
+
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: true
 
     steps:
       - name: Set up Environment

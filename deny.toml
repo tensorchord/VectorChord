@@ -1,0 +1,21 @@
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+    "RUSTSEC-2021-0127", # serde_cbor is unmaintained
+    "RUSTSEC-2024-0436", # paste - no longer maintained
+]
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    # "MPL-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+]
+exceptions = [{ allow = ["Zlib"], crate = "foldhash" }]
+private = { ignore = true }
