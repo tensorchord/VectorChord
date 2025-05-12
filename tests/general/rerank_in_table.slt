@@ -1,4 +1,7 @@
 statement ok
+DROP TABLE IF EXISTS t_expr, t_column;
+
+statement ok
 SET enable_seqscan = off;
 
 statement ok
@@ -80,7 +83,7 @@ SELECT id FROM t_expr WHERE id <= 5 OR id % 2 = 1 ORDER BY ARRAY[id::real, id::r
 13
 
 statement ok
-SET vchordrq.prererank_filtering to off;
+SET vchordrq.prefilter to off;
 
 query I
 SELECT ARRAY(SELECT id FROM t_expr WHERE (id <= 5 OR id % 2 = 1) OR e >= 2000 ORDER BY ARRAY[id::real, id::real, id::real]::vector(3) <-> q LIMIT 9) FROM (VALUES ('[1.9,1.99,1.999]'::vector, 1999), ('[2.1,2.11,2.111]', 2111)) AS t(q, e);
@@ -89,7 +92,7 @@ SELECT ARRAY(SELECT id FROM t_expr WHERE (id <= 5 OR id % 2 = 1) OR e >= 2000 OR
 {2,3,1,4,5,6,7,8,9}
 
 statement ok
-SET vchordrq.prererank_filtering to on;
+SET vchordrq.prefilter to on;
 
 query I
 SELECT ARRAY(SELECT id FROM t_expr WHERE (id <= 5 OR id % 2 = 1) OR e >= 2000 ORDER BY ARRAY[id::real, id::real, id::real]::vector(3) <-> q LIMIT 9) FROM (VALUES ('[1.9,1.99,1.999]'::vector, 1999), ('[2.1,2.11,2.111]', 2111)) AS t(q, e);

@@ -1,4 +1,7 @@
 statement ok
+DROP TABLE IF EXISTS t, vector_centroid, halfvec_centroid, real_centroid, bad_type_centroid, bad_duplicate_id;
+
+statement ok
 CREATE TABLE t (val0 vector(3), val1 halfvec(3));
 
 statement ok

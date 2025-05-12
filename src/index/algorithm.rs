@@ -322,42 +322,54 @@ pub fn insert(
     match (vector, opfamily.distance_kind()) {
         (OwnedVector::Vecf32(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            algorithm::insert::<_, Op<VectOwned<f32>, L2>>(
+            let (list, head) = insert_vector::<_, Op<VectOwned<f32>, L2>>(index, payload, &vector);
+            insert_index::<_, Op<VectOwned<f32>, L2>>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 make_h1_plain_prefetcher,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf32(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            algorithm::insert::<_, Op<VectOwned<f32>, Dot>>(
+            let (list, head) = insert_vector::<_, Op<VectOwned<f32>, Dot>>(index, payload, &vector);
+            insert_index::<_, Op<VectOwned<f32>, Dot>>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 make_h1_plain_prefetcher,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            algorithm::insert::<_, Op<VectOwned<f16>, L2>>(
+            let (list, head) = insert_vector::<_, Op<VectOwned<f16>, L2>>(index, payload, &vector);
+            insert_index::<_, Op<VectOwned<f16>, L2>>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 make_h1_plain_prefetcher,
+                list,
+                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            algorithm::insert::<_, Op<VectOwned<f16>, Dot>>(
+            let (list, head) = insert_vector::<_, Op<VectOwned<f16>, Dot>>(index, payload, &vector);
+            insert_index::<_, Op<VectOwned<f16>, Dot>>(
                 index,
                 payload,
                 RandomProject::project(vector.as_borrowed()),
                 &bump,
                 make_h1_plain_prefetcher,
+                list,
+                head,
             )
         }
     }

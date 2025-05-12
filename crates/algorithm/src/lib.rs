@@ -42,7 +42,7 @@ pub use bulkdelete::bulkdelete;
 pub use cache::cache;
 pub use cost::cost;
 pub use fast_heap::FastHeap;
-pub use insert::insert;
+pub use insert::{insert_index, insert_vector};
 pub use maintain::maintain;
 pub use prefetcher::*;
 pub use prewarm::prewarm;
@@ -219,17 +219,76 @@ impl<'b, T, A, B> Fetch for (T, AlwaysEqual<&'b mut (A, B, &'b mut [u32])>) {
     }
 }
 
+pub struct Filter<S, P> {
+    pub iter: S,
+    pub predicate: P,
+}
+
+impl<S: Sequence, P: FnMut(&S::Item) -> bool> Sequence for Filter<S, P> {
+    type Item = S::Item;
+    type Inner = S::Inner;
+
+    fn peek(&mut self) -> Option<&Self::Item> {
+        self.iter.peek()
+    }
+
+    fn next(&mut self) -> Option<S::Item> {
+        loop {
+            let item = self.iter.peek()?;
+            if (self.predicate)(item) {
+                return self.iter.next();
+            } else {
+                self.iter.next();
+                continue;
+            }
+        }
+    }
+
+    fn next_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item> {
+        loop {
+            let item = self.iter.peek()?;
+            if (self.predicate)(item) {
+                return match predicate(item) {
+                    true => self.iter.next(),
+                    false => None,
+                };
+            } else {
+                self.iter.next();
+                continue;
+            }
+        }
+    }
+
+    fn into_inner(self) -> Self::Inner {
+        self.iter.into_inner()
+    }
+}
+
 pub trait Sequence {
     type Item;
     type Inner: Iterator<Item = Self::Item>;
+    fn peek(&mut self) -> Option<&Self::Item>;
     fn next(&mut self) -> Option<Self::Item>;
     fn next_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item>;
     fn into_inner(self) -> Self::Inner;
+    fn filter<P>(self, predicate: P) -> Filter<Self, P>
+    where
+        Self: Sized,
+        P: FnMut(&Self::Item) -> bool,
+    {
+        Filter {
+            iter: self,
+            predicate,
+        }
+    }
 }
 
 impl<T: Ord> Sequence for BinaryHeap<T> {
     type Item = T;
     type Inner = std::vec::IntoIter<T>;
+    fn peek(&mut self) -> Option<&T> {
+        <BinaryHeap<T>>::peek(self)
+    }
     fn next(&mut self) -> Option<T> {
         self.pop()
     }
@@ -245,6 +304,9 @@ impl<T: Ord> Sequence for BinaryHeap<T> {
 impl<I: Iterator> Sequence for Peekable<I> {
     type Item = I::Item;
     type Inner = Peekable<I>;
+    fn peek(&mut self) -> Option<&I::Item> {
+        Peekable::peek(self)
+    }
     fn next(&mut self) -> Option<I::Item> {
         Iterator::next(self)
     }
@@ -254,4 +316,19 @@ impl<I: Iterator> Sequence for Peekable<I> {
     fn into_inner(self) -> Self::Inner {
         self
     }
+}
+
+pub fn seq_filter<T, F>(
+    heap: impl Sequence<Item = T>,
+    prefilter: bool,
+    filter: F,
+) -> impl Sequence<Item = T>
+where
+    F: Fn(&T) -> bool,
+    T: Ord,
+{
+    heap.filter(move |t| match prefilter {
+        true => filter(t),
+        false => true,
+    })
 }

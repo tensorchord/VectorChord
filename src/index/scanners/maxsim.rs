@@ -15,6 +15,7 @@
 use super::{SearchBuilder, SearchFetcher, SearchOptions};
 use crate::index::algorithm::{RandomProject, *};
 use crate::index::am::pointer_to_kv;
+use crate::index::gucs::prefilter;
 use crate::index::opclass::Opfamily;
 use crate::index::scanners::Io;
 use algorithm::operator::Dot;
@@ -60,7 +61,7 @@ impl SearchBuilder for MaxsimBuilder {
         self,
         index: &'a R,
         options: SearchOptions,
-        _fetcher: impl SearchFetcher + 'a,
+        fetcher: impl SearchFetcher + 'a,
         bump: &'a impl Bump,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>
     where
@@ -104,191 +105,203 @@ impl SearchBuilder for MaxsimBuilder {
         let iter: Box<dyn Iterator<Item = _>> = match opfamily.vector_kind() {
             VectorKind::Vecf32 => {
                 type Op = operator::Op<VectOwned<f32>, Dot>;
-                let vectors = vectors
+                let original_vectors = vectors
                     .into_iter()
                     .map(|vector| {
-                        RandomProject::project(
-                            if let OwnedVector::Vecf32(vector) = vector {
-                                vector
-                            } else {
-                                unreachable!()
-                            }
-                            .as_borrowed(),
-                        )
+                        if let OwnedVector::Vecf32(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
                     })
                     .collect::<Vec<_>>();
-                Box::new(vectors.into_iter().map(|vector| {
-                    let (results, estimation_by_threshold) = match options.io_search {
-                        Io::Plain => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_plain_prefetcher.clone(),
-                        ),
-                        Io::Simple => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_simple_prefetcher.clone(),
-                        ),
-                        Io::Stream => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_stream_prefetcher.clone(),
-                        ),
-                    };
-                    let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
-                    if maxsim_refine != 0 && !results.is_empty() {
-                        match options.io_rerank {
-                            Io::Plain => {
-                                let prefetcher =
-                                    PlainPrefetcher::<_, BinaryHeap<_>>::new(index, results.into());
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
+                let vectors = original_vectors
+                    .clone()
+                    .into_iter()
+                    .map(|vector| RandomProject::project(vector.as_borrowed()));
+                Box::new(vectors.into_iter().zip(original_vectors).map(
+                    |(vector, original_vector)| {
+                        let (results, estimation_by_threshold) = match options.io_search {
+                            Io::Plain => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_plain_prefetcher.clone(),
+                            ),
+                            Io::Simple => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_simple_prefetcher.clone(),
+                            ),
+                            Io::Stream => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_stream_prefetcher.clone(),
+                            ),
+                        };
+                        let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
+                        if maxsim_refine != 0 && !results.is_empty() {
+                            let seq = seq_filter(BinaryHeap::from(results), prefilter(), |key| {
+                                let (key, _) = pointer_to_kv(key.1.0.0);
+                                fetcher.filter(key)
+                            });
+                            match options.io_rerank {
+                                Io::Plain => {
+                                    let prefetcher = PlainPrefetcher::<_, _>::new(index, seq);
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                Io::Simple => {
+                                    let prefetcher = SimplePrefetcher::<'a, R, _>::new(index, seq);
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                Io::Stream => {
+                                    let prefetcher =
+                                        StreamPrefetcher::<_, _>::new(index, seq, Hints::default());
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
                             }
-                            Io::Simple => {
-                                let prefetcher = SimplePrefetcher::<'a, R, BinaryHeap<_>>::new(
-                                    index,
-                                    results.into(),
-                                );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
-                            }
-                            Io::Stream => {
-                                let prefetcher = StreamPrefetcher::<_, BinaryHeap<_>>::new(
-                                    index,
-                                    results.into(),
-                                    Hints::default(),
-                                );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
-                            }
+                        } else {
+                            let rough_iter = results.into_iter();
+                            rough_set.extend(rough_iter.map(rough_map));
                         }
-                    } else {
-                        let rough_iter = results.into_iter();
-                        rough_set.extend(rough_iter.map(rough_map));
-                    }
-                    (accu_set, rough_set, estimation_by_threshold)
-                }))
+                        (accu_set, rough_set, estimation_by_threshold)
+                    },
+                ))
             }
             VectorKind::Vecf16 => {
                 type Op = operator::Op<VectOwned<f16>, Dot>;
-                let vectors = vectors
+                let original_vectors = vectors
                     .into_iter()
                     .map(|vector| {
-                        RandomProject::project(
-                            if let OwnedVector::Vecf16(vector) = vector {
-                                vector
-                            } else {
-                                unreachable!()
-                            }
-                            .as_borrowed(),
-                        )
+                        if let OwnedVector::Vecf16(vector) = vector {
+                            vector
+                        } else {
+                            unreachable!()
+                        }
                     })
                     .collect::<Vec<_>>();
-                Box::new(vectors.into_iter().map(|vector| {
-                    let (results, estimation_by_threshold) = match options.io_search {
-                        Io::Plain => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_plain_prefetcher.clone(),
-                        ),
-                        Io::Simple => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_simple_prefetcher.clone(),
-                        ),
-                        Io::Stream => maxsim_search::<_, Op>(
-                            index,
-                            vector.clone(),
-                            options.probes.clone(),
-                            options.epsilon,
-                            maxsim_threshold,
-                            bump,
-                            make_h1_plain_prefetcher.clone(),
-                            make_h0_stream_prefetcher.clone(),
-                        ),
-                    };
-                    let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
-                    if maxsim_refine != 0 && !results.is_empty() {
-                        match options.io_rerank {
-                            Io::Plain => {
-                                let prefetcher =
-                                    PlainPrefetcher::<_, BinaryHeap<_>>::new(index, results.into());
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
+                let vectors = original_vectors
+                    .clone()
+                    .into_iter()
+                    .map(|vector| RandomProject::project(vector.as_borrowed()));
+                Box::new(vectors.into_iter().zip(original_vectors).map(
+                    |(vector, original_vector)| {
+                        let (results, estimation_by_threshold) = match options.io_search {
+                            Io::Plain => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_plain_prefetcher.clone(),
+                            ),
+                            Io::Simple => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_simple_prefetcher.clone(),
+                            ),
+                            Io::Stream => maxsim_search::<_, Op>(
+                                index,
+                                vector.clone(),
+                                options.probes.clone(),
+                                options.epsilon,
+                                maxsim_threshold,
+                                bump,
+                                make_h1_plain_prefetcher.clone(),
+                                make_h0_stream_prefetcher.clone(),
+                            ),
+                        };
+                        let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
+                        if maxsim_refine != 0 && !results.is_empty() {
+                            let seq = seq_filter(BinaryHeap::from(results), prefilter(), |key| {
+                                let (key, _) = pointer_to_kv(key.1.0.0);
+                                fetcher.filter(key)
+                            });
+                            match options.io_rerank {
+                                Io::Plain => {
+                                    let prefetcher = PlainPrefetcher::<_, _>::new(index, seq);
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                Io::Simple => {
+                                    let prefetcher = SimplePrefetcher::<'a, R, _>::new(index, seq);
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                Io::Stream => {
+                                    let prefetcher =
+                                        StreamPrefetcher::<_, _>::new(index, seq, Hints::default());
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
                             }
-                            Io::Simple => {
-                                let prefetcher = SimplePrefetcher::<'a, R, BinaryHeap<_>>::new(
-                                    index,
-                                    results.into(),
-                                );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
-                            }
-                            Io::Stream => {
-                                let prefetcher = StreamPrefetcher::<_, BinaryHeap<_>>::new(
-                                    index,
-                                    results.into(),
-                                    Hints::default(),
-                                );
-                                let mut reranker =
-                                    rerank_index::<Op, _, _>(vector.clone(), prefetcher);
-                                accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
-                                let (rough_iter, accu_iter) = reranker.finish();
-                                accu_set.extend(accu_iter.map(accu_map));
-                                rough_set.extend(rough_iter.into_iter().map(rough_map));
-                            }
+                        } else {
+                            let rough_iter = results.into_iter();
+                            rough_set.extend(rough_iter.map(rough_map));
                         }
-                    } else {
-                        let rough_iter = results.into_iter();
-                        rough_set.extend(rough_iter.map(rough_map));
-                    }
-                    (accu_set, rough_set, estimation_by_threshold)
-                }))
+                        (accu_set, rough_set, estimation_by_threshold)
+                    },
+                ))
             }
         };
         let mut updates = Vec::new();

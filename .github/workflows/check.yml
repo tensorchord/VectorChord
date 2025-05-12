@@ -235,7 +235,21 @@ jobs:
         run: |
           sudo systemctl start postgresql
           psql -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
-          sqllogictest --db $USER --user $USER './tests/**/*.slt'
+          sqllogictest --db $USER --user $USER './tests/general/*.slt'
+
+      - name: Sqllogictest(PostgrSQL 17 features)
+        if: matrix.version == '17'
+        run: |
+          sudo systemctl start postgresql
+          psql -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
+          sqllogictest --db $USER --user $USER './tests/pg17/*.slt'
+
+      - name: Sqllogictest(PostgrSQL 16 features)
+        if: matrix.version == '16'
+        run: |
+          sudo systemctl start postgresql
+          psql -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
+          sqllogictest --db $USER --user $USER './tests/pg16/*.slt'
 
       - name: Package
         env:

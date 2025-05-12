@@ -30,37 +30,55 @@ type Item<'b> = (
     AlwaysEqual<&'b mut (u32, u16, &'b mut [u32])>,
 );
 
-pub fn insert<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
+pub fn insert_vector<R: RelationRead + RelationWrite, O: Operator>(
+    index: &R,
+    payload: NonZero<u64>,
+    vector: &O::Vector,
+) -> (Vec<u32>, u16) {
+    // `insert_vector` returns a tuple `(list, head)` which will be used in `insert_index` later:
+    // - `list`: Represents the list of elements to be inserted into the index.
+    // - `head`: Represents the head of the list, used as a starting point for insertion.
+    let meta_guard = index.read(0);
+    let meta_bytes = meta_guard.get(1).expect("data corruption");
+    let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
+    let dims = meta_tuple.dims();
+    let rerank_in_heap = meta_tuple.rerank_in_heap();
+    assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
+    let vectors_first = meta_tuple.vectors_first();
+    drop(meta_guard);
+
+    if !rerank_in_heap {
+        vectors::append::<O>(index, vectors_first, vector.as_borrowed(), payload)
+    } else {
+        (Vec::new(), 0)
+    }
+}
+
+pub fn insert_index<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
     index: &'r R,
     payload: NonZero<u64>,
     vector: O::Vector,
     bump: &'b impl Bump,
     mut prefetch_h1_vectors: impl PrefetcherHeapFamily<'r, R>,
+    list: Vec<u32>,
+    head: u16,
 ) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dims = meta_tuple.dims();
     let is_residual = meta_tuple.is_residual();
-    let rerank_in_heap = meta_tuple.rerank_in_heap();
     let height_of_root = meta_tuple.height_of_root();
     assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
     let root_prefetch = meta_tuple.root_prefetch().to_vec();
     let root_head = meta_tuple.root_head();
     let root_first = meta_tuple.root_first();
-    let vectors_first = meta_tuple.vectors_first();
     drop(meta_guard);
 
     let default_block_lut = if !is_residual {
         Some(O::Vector::block_preprocess(vector.as_borrowed()))
     } else {
         None
-    };
-
-    let (list, head) = if !rerank_in_heap {
-        vectors::append::<O>(index, vectors_first, vector.as_borrowed(), payload)
-    } else {
-        (Vec::new(), 0)
     };
 
     type State<O> = (u32, Option<<O as Operator>::Vector>);
