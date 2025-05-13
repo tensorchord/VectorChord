@@ -1,6 +1,3 @@
-statement ok
-DROP TABLE IF EXISTS id_789, id_456, id_123, t;
-
 # partition table
 statement ok
 CREATE TABLE t (val vector(3), category_id int) PARTITION BY LIST(category_id);

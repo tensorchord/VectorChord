@@ -61,7 +61,7 @@ impl SearchBuilder for MaxsimBuilder {
         self,
         index: &'a R,
         options: SearchOptions,
-        fetcher: impl SearchFetcher + 'a,
+        mut fetcher: impl SearchFetcher + 'a,
         bump: &'a impl Bump,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>
     where
@@ -155,12 +155,11 @@ impl SearchBuilder for MaxsimBuilder {
                         };
                         let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
                         if maxsim_refine != 0 && !results.is_empty() {
-                            let seq = seq_filter(BinaryHeap::from(results), prefilter(), |key| {
-                                let (key, _) = pointer_to_kv(key.1.0.0);
-                                fetcher.filter(key)
-                            });
-                            match options.io_rerank {
-                                Io::Plain => {
+                            match (options.io_rerank, prefilter()) {
+                                (Io::Plain, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher = PlainPrefetcher::<_, _>::new(index, seq);
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
@@ -171,7 +170,24 @@ impl SearchBuilder for MaxsimBuilder {
                                     accu_set.extend(accu_iter.map(accu_map));
                                     rough_set.extend(rough_iter.into_iter().map(rough_map));
                                 }
-                                Io::Simple => {
+                                (Io::Plain, false) => {
+                                    let prefetcher = PlainPrefetcher::<_, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                    );
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Simple, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher = SimplePrefetcher::<'a, R, _>::new(index, seq);
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
@@ -182,9 +198,41 @@ impl SearchBuilder for MaxsimBuilder {
                                     accu_set.extend(accu_iter.map(accu_map));
                                     rough_set.extend(rough_iter.into_iter().map(rough_map));
                                 }
-                                Io::Stream => {
+                                (Io::Simple, false) => {
+                                    let prefetcher = SimplePrefetcher::<'a, R, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                    );
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Stream, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher =
                                         StreamPrefetcher::<_, _>::new(index, seq, Hints::default());
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Stream, false) => {
+                                    let prefetcher = StreamPrefetcher::<_, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                        Hints::default(),
+                                    );
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
                                         prefetcher,
@@ -255,12 +303,11 @@ impl SearchBuilder for MaxsimBuilder {
                         };
                         let (mut accu_set, mut rough_set) = (Vec::new(), Vec::new());
                         if maxsim_refine != 0 && !results.is_empty() {
-                            let seq = seq_filter(BinaryHeap::from(results), prefilter(), |key| {
-                                let (key, _) = pointer_to_kv(key.1.0.0);
-                                fetcher.filter(key)
-                            });
-                            match options.io_rerank {
-                                Io::Plain => {
+                            match (options.io_rerank, prefilter()) {
+                                (Io::Plain, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher = PlainPrefetcher::<_, _>::new(index, seq);
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
@@ -271,7 +318,24 @@ impl SearchBuilder for MaxsimBuilder {
                                     accu_set.extend(accu_iter.map(accu_map));
                                     rough_set.extend(rough_iter.into_iter().map(rough_map));
                                 }
-                                Io::Simple => {
+                                (Io::Plain, false) => {
+                                    let prefetcher = PlainPrefetcher::<_, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                    );
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Simple, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher = SimplePrefetcher::<'a, R, _>::new(index, seq);
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
@@ -282,9 +346,41 @@ impl SearchBuilder for MaxsimBuilder {
                                     accu_set.extend(accu_iter.map(accu_map));
                                     rough_set.extend(rough_iter.into_iter().map(rough_map));
                                 }
-                                Io::Stream => {
+                                (Io::Simple, false) => {
+                                    let prefetcher = SimplePrefetcher::<'a, R, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                    );
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Stream, true) => {
+                                    let seq = seq_filter(BinaryHeap::from(results), |key| {
+                                        fetcher.filter(pointer_to_kv(key.1.0.0).0)
+                                    });
                                     let prefetcher =
                                         StreamPrefetcher::<_, _>::new(index, seq, Hints::default());
+                                    let mut reranker = rerank_index::<Op, _, _>(
+                                        original_vector.clone(),
+                                        prefetcher,
+                                    );
+                                    accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
+                                    let (rough_iter, accu_iter) = reranker.finish();
+                                    accu_set.extend(accu_iter.map(accu_map));
+                                    rough_set.extend(rough_iter.into_iter().map(rough_map));
+                                }
+                                (Io::Stream, false) => {
+                                    let prefetcher = StreamPrefetcher::<_, _>::new(
+                                        index,
+                                        BinaryHeap::from(results),
+                                        Hints::default(),
+                                    );
                                     let mut reranker = rerank_index::<Op, _, _>(
                                         original_vector.clone(),
                                         prefetcher,

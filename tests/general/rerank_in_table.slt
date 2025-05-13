@@ -1,7 +1,4 @@
 statement ok
-DROP TABLE IF EXISTS t_expr, t_column;
-
-statement ok
 SET enable_seqscan = off;
 
 statement ok

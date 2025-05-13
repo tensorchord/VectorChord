@@ -221,7 +221,7 @@ impl<'b, T, A, B> Fetch for (T, AlwaysEqual<&'b mut (A, B, &'b mut [u32])>) {
 
 pub struct Filter<S, P> {
     pub iter: S,
-    pub predicate: P,
+    pub filter: P,
 }
 
 impl<S: Sequence, P: FnMut(&S::Item) -> bool> Sequence for Filter<S, P> {
@@ -229,29 +229,21 @@ impl<S: Sequence, P: FnMut(&S::Item) -> bool> Sequence for Filter<S, P> {
     type Inner = S::Inner;
 
     fn peek(&mut self) -> Option<&Self::Item> {
-        self.iter.peek()
-    }
-
-    fn next(&mut self) -> Option<S::Item> {
         loop {
             let item = self.iter.peek()?;
-            if (self.predicate)(item) {
-                return self.iter.next();
+            if (self.filter)(item) {
+                return self.iter.peek();
             } else {
                 self.iter.next();
                 continue;
             }
         }
     }
-
-    fn next_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<S::Item> {
         loop {
             let item = self.iter.peek()?;
-            if (self.predicate)(item) {
-                return match predicate(item) {
-                    true => self.iter.next(),
-                    false => None,
-                };
+            if (self.filter)(item) {
+                return self.iter.next();
             } else {
                 self.iter.next();
                 continue;
@@ -269,18 +261,11 @@ pub trait Sequence {
     type Inner: Iterator<Item = Self::Item>;
     fn peek(&mut self) -> Option<&Self::Item>;
     fn next(&mut self) -> Option<Self::Item>;
-    fn next_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item>;
-    fn into_inner(self) -> Self::Inner;
-    fn filter<P>(self, predicate: P) -> Filter<Self, P>
-    where
-        Self: Sized,
-        P: FnMut(&Self::Item) -> bool,
-    {
-        Filter {
-            iter: self,
-            predicate,
-        }
+    fn next_if(&mut self, predicate: impl FnOnce(&Self::Item) -> bool) -> Option<Self::Item> {
+        let peek = self.peek()?;
+        if predicate(peek) { self.next() } else { None }
     }
+    fn into_inner(self) -> Self::Inner;
 }
 
 impl<T: Ord> Sequence for BinaryHeap<T> {
@@ -291,10 +276,6 @@ impl<T: Ord> Sequence for BinaryHeap<T> {
     }
     fn next(&mut self) -> Option<T> {
         self.pop()
-    }
-    fn next_if(&mut self, predicate: impl FnOnce(&T) -> bool) -> Option<T> {
-        let peek = self.peek()?;
-        if predicate(peek) { self.pop() } else { None }
     }
     fn into_inner(self) -> Self::Inner {
         self.into_vec().into_iter()
@@ -310,25 +291,15 @@ impl<I: Iterator> Sequence for Peekable<I> {
     fn next(&mut self) -> Option<I::Item> {
         Iterator::next(self)
     }
-    fn next_if(&mut self, predicate: impl FnOnce(&I::Item) -> bool) -> Option<I::Item> {
-        Peekable::next_if(self, predicate)
-    }
     fn into_inner(self) -> Self::Inner {
         self
     }
 }
 
-pub fn seq_filter<T, F>(
-    heap: impl Sequence<Item = T>,
-    prefilter: bool,
-    filter: F,
-) -> impl Sequence<Item = T>
+pub fn seq_filter<T, F>(heap: impl Sequence<Item = T>, filter: F) -> impl Sequence<Item = T>
 where
-    F: Fn(&T) -> bool,
+    F: FnMut(&T) -> bool,
     T: Ord,
 {
-    heap.filter(move |t| match prefilter {
-        true => filter(t),
-        false => true,
-    })
+    Filter { iter: heap, filter }
 }
