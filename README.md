@@ -63,6 +63,7 @@ For new users, we recommend using the Docker image to get started quickly. If yo
 ```bash
 docker run \
   --name vectorchord-demo \
+  --privileged \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
   -d ghcr.io/tensorchord/vchord-postgres:pg17-v0.3.0
