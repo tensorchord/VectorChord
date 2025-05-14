@@ -107,9 +107,9 @@ $$);
 | vectors Range | List Calculation Formula       | Example Result   |
 | ------------- | ------------------------------ | ---------------- |
 | <128k         | list = 1                       | 1                |
-| ≥128k and <2M | list = (2 * vectors) / 1000    | [256, 4000]      |
-| ≥2M and <100M | list ∈ [4√vectors, 8√vectors]  | \[4000, 80000]   |
-| ≥100M         | list ∈ [8√vectors, 16√vectors] | \[80000, 160000] |
+| ≥128k and <2M | list = (2 * vectors) / 1000    | 256-4000      |
+| ≥2M and <100M | list ∈ [4√vectors, 8√vectors]  | 4000-80000   |
+| ≥100M         | list ∈ [8√vectors, 16√vectors] | 80000-160000 |
 
 And then perform a vector search using `SELECT ... ORDER BY ... LIMIT ...`.
 
