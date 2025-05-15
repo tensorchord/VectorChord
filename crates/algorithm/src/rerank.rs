@@ -56,11 +56,11 @@ where
     type Item = (Distance, NonZero<u64>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(((_, AlwaysEqual(&mut (payload, head, ..))), list)) = self
+        while let Some(((_, AlwaysEqual(&mut (payload, head, ..))), prefetch)) = self
             .prefetcher
             .next_if(|((d, _), ..)| Some(*d) > self.cache.peek().map(|(d, ..)| *d))
         {
-            if let Some(distance) = (self.f)(payload, list, head) {
+            if let Some(distance) = (self.f)(payload, prefetch, head) {
                 self.cache.push((Reverse(distance), AlwaysEqual(payload)));
             };
         }
@@ -92,10 +92,10 @@ pub fn rerank_index<
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
-        f: id_4::<_, P::R, _, _, _>(move |payload, list, head| {
+        f: id_4::<_, P::R, _, _, _>(move |payload, prefetch, head| {
             vectors::read_for_h0_tuple::<P::R, O, _>(
+                prefetch.into_iter(),
                 head,
-                list.into_iter(),
                 payload,
                 LTryAccess::new(
                     O::Vector::unpack(vector.as_borrowed()),

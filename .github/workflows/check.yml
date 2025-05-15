@@ -52,6 +52,8 @@ jobs:
     steps:
       - name: Set up Environment
         run: |
+          rustup set profile
+
           curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-full-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
 
           curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.18.2/cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
@@ -140,6 +142,7 @@ jobs:
     steps:
       - name: Set up Environment
         run: |
+          rustup set profile
           sudo apt-get update
 
           if [ "$(uname -m)" == "x86_64" ]; then
@@ -193,6 +196,7 @@ jobs:
     steps:
       - name: Set up Environment
         run: |
+          rustup set profile
           sudo apt-get update
 
           sudo apt-get remove -y '^postgres.*' '^libpq.*'

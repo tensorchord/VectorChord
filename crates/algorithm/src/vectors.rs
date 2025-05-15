@@ -24,14 +24,14 @@ pub fn read_for_h1_tuple<
     O: Operator,
     A: Accessor1<<O::Vector as Vector>::Element, <O::Vector as Vector>::Metadata>,
 >(
+    mut prefetch: impl Iterator<Item = R::ReadGuard<'a>>,
     head: u16,
-    mut list: impl Iterator<Item = R::ReadGuard<'a>>,
     accessor: A,
 ) -> A::Output {
     let mut cursor = Err(head);
     let mut result = accessor;
     while let Err(head) = cursor {
-        let guard = list.next().expect("data corruption");
+        let guard = prefetch.next().expect("data corruption");
         let bytes = guard.get(head).expect("data corruption");
         let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
         if tuple.payload().is_some() {
@@ -40,7 +40,7 @@ pub fn read_for_h1_tuple<
         result.push(tuple.elements());
         cursor = tuple.metadata_or_head();
     }
-    if list.next().is_some() {
+    if prefetch.next().is_some() {
         panic!("data corruption");
     }
     result.finish(cursor.expect("data corruption"))
@@ -52,15 +52,15 @@ pub fn read_for_h0_tuple<
     O: Operator,
     A: TryAccessor1<<O::Vector as Vector>::Element, <O::Vector as Vector>::Metadata>,
 >(
+    mut prefetch: impl Iterator<Item = R::ReadGuard<'a>>,
     head: u16,
-    mut list: impl Iterator<Item = R::ReadGuard<'a>>,
     payload: NonZero<u64>,
     accessor: A,
 ) -> Option<A::Output> {
     let mut cursor = Err(head);
     let mut result = accessor;
     while let Err(head) = cursor {
-        let guard = list.next()?;
+        let guard = prefetch.next()?;
         let bytes = guard.get(head)?;
         let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
         if tuple.payload().is_none() {
@@ -72,7 +72,7 @@ pub fn read_for_h0_tuple<
         result.push(tuple.elements())?;
         cursor = tuple.metadata_or_head();
     }
-    if list.next().is_some() {
+    if prefetch.next().is_some() {
         return None;
     }
     result.finish(cursor.ok()?)

@@ -16,22 +16,19 @@ use crate::closure_lifetime_binder::{id_0, id_1, id_2};
 use crate::operator::{FunctionalAccessor, Operator};
 use crate::tape::{by_directory, by_next};
 use crate::tuples::*;
-use crate::{Page, PrefetcherSequenceFamily, RelationRead, tape, vectors};
+use crate::{Bump, Page, PrefetcherSequenceFamily, RelationRead, tape, vectors};
 use std::fmt::Write;
 
-pub fn prewarm<'r, R: RelationRead, O: Operator>(
+pub fn prewarm<'r, 'b: 'r, R: RelationRead, O: Operator>(
     index: &'r R,
     height: i32,
+    bump: &'b impl Bump,
     mut prefetch_h0_tuples: impl PrefetcherSequenceFamily<'r, R>,
 ) -> String {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let height_of_root = meta_tuple.height_of_root();
-    let root_prefetch = meta_tuple.root_prefetch().to_vec();
-    let root_head = meta_tuple.root_head();
-    let root_first = meta_tuple.root_first();
-    drop(meta_guard);
 
     let mut message = String::new();
     writeln!(message, "height of root: {height_of_root}").unwrap();
@@ -39,19 +36,23 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
     if prewarm_max_height > height_of_root {
         return message;
     }
+
     type State = Vec<u32>;
     let mut state: State = {
         let mut results = Vec::new();
-        {
-            let list = root_prefetch.into_iter().map(|id| index.read(id));
-            vectors::read_for_h1_tuple::<R, O, _>(root_head, list, ());
-            results.push(root_first);
-        }
+        let prefetch = bump.alloc_slice(meta_tuple.centroid_prefetch());
+        let head = meta_tuple.centroid_head();
+        let first = meta_tuple.first();
+        vectors::read_for_h1_tuple::<R, O, _>(prefetch.iter().map(|&id| index.read(id)), head, ());
+        results.push(first);
         writeln!(message, "------------------------").unwrap();
         writeln!(message, "number of nodes: {}", results.len()).unwrap();
         writeln!(message, "number of pages: {}", 1).unwrap();
         results
     };
+
+    drop(meta_guard);
+
     let mut step = |state: State| {
         let mut counter = 0_usize;
         let mut results = Vec::new();
@@ -60,8 +61,11 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
                 by_next(index, first).inspect(|_| counter += 1),
                 || FunctionalAccessor::new((), id_0(|_, _| ()), id_1(|_, _| [(); 32])),
                 |(), head, first, prefetch| {
-                    let list = prefetch.iter().map(|&id| index.read(id));
-                    vectors::read_for_h1_tuple::<R, O, _>(head, list, ());
+                    vectors::read_for_h1_tuple::<R, O, _>(
+                        prefetch.iter().map(|&id| index.read(id)),
+                        head,
+                        (),
+                    );
                     results.push(first);
                 },
             );
@@ -71,9 +75,11 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
         writeln!(message, "number of pages: {counter}").unwrap();
         results
     };
+
     for _ in (std::cmp::max(1, prewarm_max_height)..height_of_root).rev() {
         state = step(state);
     }
+
     if prewarm_max_height == 0 {
         let mut counter = 0_usize;
         let mut results = Vec::new();
@@ -92,7 +98,7 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
             );
             tape::read_appendable_tape::<R, _>(
                 by_next(index, jump_tuple.appendable_first()).inspect(|_| counter += 1),
-                |_| (),
+                |_, _| (),
                 id_2(|_, _, _, _| {
                     results.push(());
                 }),
@@ -102,5 +108,6 @@ pub fn prewarm<'r, R: RelationRead, O: Operator>(
         writeln!(message, "number of nodes: {}", results.len()).unwrap();
         writeln!(message, "number of pages: {counter}").unwrap();
     }
+
     message
 }

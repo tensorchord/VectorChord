@@ -259,11 +259,6 @@ pub unsafe extern "C-unwind" fn ambuild(
     if let Err(errors) = Validate::validate(&vchordrq_options) {
         pgrx::error!("error while validating options: {}", errors);
     }
-    if vector_options.d != DistanceKind::L2 && vchordrq_options.index.residual_quantization {
-        pgrx::error!(
-            "error while validating options: residual_quantization can be enabled only if distance type is L2"
-        );
-    }
     let opfamily = unsafe { opfamily(index_relation) };
     let index = unsafe { PostgresRelation::new(index_relation) };
     let heap = Heap {
@@ -981,7 +976,7 @@ fn make_internal_build(
     let mut result = Vec::<Structure<Vec<f32>>>::new();
     for w in internal_build.lists.iter().rev().copied().chain(once(1)) {
         let input = if let Some(structure) = result.last() {
-            &structure.means
+            &structure.centroids
         } else {
             &samples
         };
@@ -1002,7 +997,7 @@ fn make_internal_build(
                 "clustering: starting, using {num_threads} threads, clustering {num_points} vectors of {num_dims} dimension into {num_lists} clusters, in {num_iterations} iterations"
             );
         }
-        let means = k_means::k_means(
+        let centroids = k_means::k_means(
             num_threads,
             |i| {
                 pgrx::check_for_interrupts!();
@@ -1035,18 +1030,24 @@ fn make_internal_build(
             pgrx::info!("clustering: finished");
         }
         if let Some(structure) = result.last() {
-            let mut children = vec![Vec::new(); means.len()];
+            let mut children = vec![Vec::new(); centroids.len()];
             for i in 0..structure.len() as u32 {
-                let target = k_means::k_means_lookup(&structure.means[i as usize], &means);
+                let target = k_means::k_means_lookup(&structure.centroids[i as usize], &centroids);
                 children[target].push(i);
             }
-            let (means, children) = std::iter::zip(means, children)
+            let (centroids, children) = std::iter::zip(centroids, children)
                 .filter(|(_, x)| !x.is_empty())
                 .unzip::<_, _, Vec<_>, Vec<_>>();
-            result.push(Structure { means, children });
+            result.push(Structure {
+                centroids,
+                children,
+            });
         } else {
-            let children = vec![Vec::new(); means.len()];
-            result.push(Structure { means, children });
+            let children = vec![Vec::new(); centroids.len()];
+            result.push(Structure {
+                centroids,
+                children,
+            });
         }
     }
     result
@@ -1107,11 +1108,11 @@ fn make_external_build(
         let n = parents.len();
         let mut result = Vec::new();
         result.push(Structure {
-            means: vectors.values().cloned().collect::<Vec<_>>(),
+            centroids: vectors.values().cloned().collect::<Vec<_>>(),
             children: vec![Vec::new(); n],
         });
         result.push(Structure {
-            means: vec![{
+            centroids: vec![{
                 // compute the vector on root, without normalizing it
                 let mut sum = vec![0.0f32; vector_options.dims as _];
                 for vector in vectors.values() {
@@ -1212,8 +1213,11 @@ fn make_external_build(
     }
     let mut result = Vec::new();
     for height in 1..=heights[&root] {
-        let (means, children) = extract(height, &labels, &vectors, &children);
-        result.push(Structure { means, children });
+        let (centroids, children) = extract(height, &labels, &vectors, &children);
+        result.push(Structure {
+            centroids,
+            children,
+        });
     }
     result
 }

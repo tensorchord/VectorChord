@@ -25,43 +25,37 @@ use std::collections::BinaryHeap;
 use std::num::NonZero;
 use vector::{VectorBorrowed, VectorOwned};
 
-type Item<'b> = (
-    Reverse<Distance>,
-    AlwaysEqual<&'b mut (u32, u16, &'b mut [u32])>,
-);
+type Extra<'b> = &'b mut (u32, u16, &'b mut [u32]);
 
 pub fn insert_vector<R: RelationRead + RelationWrite, O: Operator>(
     index: &R,
     payload: NonZero<u64>,
-    vector: &O::Vector,
+    vector: <O::Vector as VectorOwned>::Borrowed<'_>,
 ) -> (Vec<u32>, u16) {
-    // `insert_vector` returns a tuple `(list, head)` which will be used in `insert_index` later:
-    // - `list`: Represents the list of elements to be inserted into the index.
-    // - `head`: Represents the head of the list, used as a starting point for insertion.
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dims = meta_tuple.dims();
     let rerank_in_heap = meta_tuple.rerank_in_heap();
-    assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
+    assert_eq!(dims, vector.dims(), "unmatched dimensions");
     let vectors_first = meta_tuple.vectors_first();
+
     drop(meta_guard);
 
     if !rerank_in_heap {
-        vectors::append::<O>(index, vectors_first, vector.as_borrowed(), payload)
+        vectors::append::<O>(index, vectors_first, vector, payload)
     } else {
         (Vec::new(), 0)
     }
 }
 
-pub fn insert_index<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
+pub fn insert<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
     index: &'r R,
     payload: NonZero<u64>,
-    vector: O::Vector,
+    vector: <O::Vector as VectorOwned>::Borrowed<'_>,
+    key: (Vec<u32>, u16),
     bump: &'b impl Bump,
     mut prefetch_h1_vectors: impl PrefetcherHeapFamily<'r, R>,
-    list: Vec<u32>,
-    head: u16,
 ) {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
@@ -69,51 +63,42 @@ pub fn insert_index<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
     let dims = meta_tuple.dims();
     let is_residual = meta_tuple.is_residual();
     let height_of_root = meta_tuple.height_of_root();
-    assert_eq!(dims, vector.as_borrowed().dims(), "unmatched dimensions");
-    let root_prefetch = meta_tuple.root_prefetch().to_vec();
-    let root_head = meta_tuple.root_head();
-    let root_first = meta_tuple.root_first();
-    drop(meta_guard);
+    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    let epsilon = 1.9;
 
-    let default_block_lut = if !is_residual {
-        Some(O::Vector::block_preprocess(vector.as_borrowed()))
+    type State = (Reverse<Distance>, AlwaysEqual<u32>);
+    let mut state: State = if !is_residual {
+        let first = meta_tuple.first();
+        // it's safe to leave it a fake value
+        (Reverse(Distance::ZERO), AlwaysEqual(first))
     } else {
-        None
+        let prefetch = bump.alloc_slice(meta_tuple.centroid_prefetch());
+        let head = meta_tuple.centroid_head();
+        let first = meta_tuple.first();
+        let distance = vectors::read_for_h1_tuple::<R, O, _>(
+            prefetch.iter().map(|&id| index.read(id)),
+            head,
+            LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+        );
+        (Reverse(distance), AlwaysEqual(first))
     };
 
-    type State<O> = (u32, Option<<O as Operator>::Vector>);
-    let mut state: State<O> = {
-        if is_residual {
-            let list = root_prefetch.into_iter().map(|id| index.read(id));
-            let residual = vectors::read_for_h1_tuple::<R, O, _>(
-                root_head,
-                list,
-                LAccess::new(
-                    O::Vector::unpack(vector.as_borrowed()),
-                    O::ResidualAccessor::default(),
-                ),
-            );
-            (root_first, Some(residual))
-        } else {
-            (root_first, None)
-        }
-    };
-    let mut step = |state: State<O>| {
-        let mut results = LinkedVec::<Item<'b>>::new();
+    drop(meta_guard);
+    let lut = (O::Vector::block_preprocess(vector),);
+
+    let mut step = |state: State| {
+        let mut results = LinkedVec::<(Reverse<Distance>, AlwaysEqual<Extra<'b>>)>::new();
         {
-            let (first, residual) = state;
-            let block_lut = if let Some(residual) = residual {
-                &O::Vector::block_preprocess(residual.as_borrowed())
-            } else if let Some(block_lut) = default_block_lut.as_ref() {
-                block_lut
-            } else {
-                unreachable!()
+            let (Reverse(dis_f), AlwaysEqual(first)) = state;
+            let process = |value, code, delta, mut lut: (_, _, _, _)| {
+                lut.0 = std::hint::select_unpredictable(!is_residual, lut.0, dis_f.to_f32());
+                O::process(value, code, delta, lut)
             };
             tape::read_h1_tape::<R, _, _>(
                 by_next(index, first),
-                || RAccess::new((&block_lut.1, block_lut.0), O::BlockAccessor::default()),
+                || RAccess::new((&lut.0.1, lut.0.0), O::block_access(process)),
                 |(rough, err), head, first, prefetch| {
-                    let lowerbound = Distance::from_f32(rough - err * 1.9);
+                    let lowerbound = Distance::from_f32(rough - err * epsilon);
                     results.push((
                         Reverse(lowerbound),
                         AlwaysEqual(bump.alloc((first, head, bump.alloc_slice(prefetch)))),
@@ -122,70 +107,59 @@ pub fn insert_index<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
             );
         }
         let mut heap = prefetch_h1_vectors.prefetch(results.into_vec());
-        let mut cache = BinaryHeap::<(Reverse<Distance>, _, _)>::new();
+        let mut cache = BinaryHeap::<(_, _)>::new();
         {
-            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), list)) =
+            while let Some(((Reverse(_), AlwaysEqual(&mut (first, head, ..))), prefetch)) =
                 heap.next_if(|(d, _)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
-                if is_residual {
-                    let (distance, residual) = vectors::read_for_h1_tuple::<R, O, _>(
-                        head,
-                        list.into_iter(),
-                        LAccess::new(
-                            O::Vector::unpack(vector.as_borrowed()),
-                            (
-                                O::DistanceAccessor::default(),
-                                O::ResidualAccessor::default(),
-                            ),
-                        ),
-                    );
-                    cache.push((
-                        Reverse(distance),
-                        AlwaysEqual(first),
-                        AlwaysEqual(Some(residual)),
-                    ));
-                } else {
-                    let distance = vectors::read_for_h1_tuple::<R, O, _>(
-                        head,
-                        list.into_iter(),
-                        LAccess::new(
-                            O::Vector::unpack(vector.as_borrowed()),
-                            O::DistanceAccessor::default(),
-                        ),
-                    );
-                    cache.push((Reverse(distance), AlwaysEqual(first), AlwaysEqual(None)));
-                }
+                let distance = vectors::read_for_h1_tuple::<R, O, _>(
+                    prefetch.into_iter(),
+                    head,
+                    LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                );
+                cache.push((Reverse(distance), AlwaysEqual(first)));
             }
-            let (_, AlwaysEqual(first), AlwaysEqual(mean)) = cache
-                .pop()
-                .expect("invariant is violated: tree is not height-balanced");
-            (first, mean)
+            cache.pop()
         }
+        .expect("invariant is violated: tree is not height-balanced")
     };
+
     for _ in (1..height_of_root).rev() {
         state = step(state);
     }
 
-    let (first, residual) = state;
-    let code = if let Some(residual) = residual {
-        O::Vector::code(residual.as_borrowed())
-    } else {
-        O::Vector::code(vector.as_borrowed())
-    };
-    let bytes = AppendableTuple::serialize(&AppendableTuple {
-        head,
-        dis_u_2: code.dis_u_2,
-        factor_ppc: code.factor_ppc,
-        factor_ip: code.factor_ip,
-        factor_err: code.factor_err,
-        payload: Some(payload),
-        prefetch: list,
-        elements: rabitq::pack_to_u64(&code.signs),
-    });
+    let (_, AlwaysEqual(first)) = state;
 
     let jump_guard = index.read(first);
     let jump_bytes = jump_guard.get(1).expect("data corruption");
     let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
 
-    tape::append(index, jump_tuple.appendable_first(), &bytes, false);
+    let (code, delta) = O::build(
+        vector,
+        is_residual.then(|| {
+            vectors::read_for_h1_tuple::<R, O, _>(
+                jump_tuple
+                    .centroid_prefetch()
+                    .iter()
+                    .map(|&id| index.read(id)),
+                jump_tuple.centroid_head(),
+                FunctionalAccessor::new(Vec::new(), Vec::extend_from_slice, O::Vector::pack),
+            )
+        }),
+    );
+
+    let (prefetch, head) = key;
+    let serialized = AppendableTuple::serialize(&AppendableTuple {
+        dis_u_2: code.dis_u_2,
+        factor_cnt: code.factor_cnt,
+        factor_ip: code.factor_ip,
+        factor_err: code.factor_err,
+        delta,
+        payload: Some(payload),
+        prefetch,
+        head,
+        elements: rabitq::pack_to_u64(&code.signs),
+    });
+
+    tape::append(index, jump_tuple.appendable_first(), &serialized, false);
 }

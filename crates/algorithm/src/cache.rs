@@ -24,10 +24,12 @@ pub fn cache<R: RelationRead>(index: &R) -> Vec<u32> {
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let height_of_root = meta_tuple.height_of_root();
-    let root_first = meta_tuple.root_first();
-    drop(meta_guard);
+
     type State = Vec<u32>;
-    let mut state: State = vec![root_first];
+    let mut state: State = vec![meta_tuple.first()];
+
+    drop(meta_guard);
+
     let mut step = |state: State| {
         let mut results = Vec::new();
         for first in state {
@@ -41,11 +43,14 @@ pub fn cache<R: RelationRead>(index: &R) -> Vec<u32> {
         }
         results
     };
+
     for _ in (1..height_of_root).rev() {
         state = step(state);
     }
+
     for first in state {
         trace.push(first);
     }
+
     trace
 }

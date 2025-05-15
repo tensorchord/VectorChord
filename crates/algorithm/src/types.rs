@@ -96,7 +96,7 @@ impl VectorOptions {
 }
 
 pub struct Structure<V> {
-    pub means: Vec<V>,
+    pub centroids: Vec<V>,
     pub children: Vec<Vec<u32>>,
 }
 

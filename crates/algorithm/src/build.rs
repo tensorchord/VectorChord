@@ -12,13 +12,13 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::operator::{Accessor2, Operator, Vector};
+use crate::operator::{Operator, Vector};
 use crate::tape::TapeWriter;
 use crate::tape_writer::H1TapeWriter;
 use crate::tuples::*;
 use crate::types::*;
 use crate::{Branch, RelationWrite};
-use vector::VectorOwned;
+use vector::{VectorBorrowed, VectorOwned};
 
 pub fn build<R: RelationWrite, O: Operator>(
     vector_options: VectorOptions,
@@ -26,20 +26,17 @@ pub fn build<R: RelationWrite, O: Operator>(
     index: &R,
     structures: Vec<Structure<O::Vector>>,
 ) {
-    if vchordrq_options.residual_quantization && !O::SUPPORTS_RESIDUAL {
-        panic!("residual_quantization can be enabled only if distance type is L2");
-    }
     let dims = vector_options.dims;
     let is_residual = vchordrq_options.residual_quantization;
     let mut meta = TapeWriter::<_, MetaTuple>::create(index, false);
     assert_eq!(meta.first(), 0);
     let freepage = TapeWriter::<_, FreepageTuple>::create(index, false);
     let mut vectors = TapeWriter::<_, VectorTuple<O::Vector>>::create(index, true);
-    let mut pointer_of_means = Vec::<Vec<(Vec<u32>, u16)>>::new();
+    let mut pointer_of_centroids = Vec::<Vec<(Vec<u32>, u16)>>::new();
     for i in 0..structures.len() {
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
-            let vector = structures[i].means[j].as_borrowed();
+            let vector = structures[i].centroids[j].as_borrowed();
             let (slices, metadata) = O::Vector::split(vector);
             let mut chain = Ok(metadata);
             let mut prefetch = Vec::new();
@@ -65,7 +62,7 @@ pub fn build<R: RelationWrite, O: Operator>(
                 chain.expect_err("internal error: 0-dimensional vector"),
             ));
         }
-        pointer_of_means.push(level);
+        pointer_of_centroids.push(level);
     }
     let mut pointer_of_firsts = Vec::<Vec<u32>>::new();
     for i in 0..structures.len() {
@@ -78,33 +75,22 @@ pub fn build<R: RelationWrite, O: Operator>(
                 jump.push(JumpTuple {
                     directory_first: directory_tape.first(),
                     appendable_first: appendable_tape.first(),
+                    centroid_prefetch: pointer_of_centroids[i][j].0.clone(),
+                    centroid_head: pointer_of_centroids[i][j].1,
                     tuples: 0,
                 });
                 level.push(jump.first());
             } else {
                 let mut tape = H1TapeWriter::create(index, O::Vector::count(dims as _), false);
-                let h2_mean = structures[i].means[j].as_borrowed();
-                let h2_children = structures[i].children[j].as_slice();
-                for child in h2_children.iter().copied() {
-                    let h1_mean = structures[i - 1].means[child as usize].as_borrowed();
-                    let code = if is_residual {
-                        let mut residual_accessor = O::ResidualAccessor::default();
-                        residual_accessor
-                            .push(O::Vector::unpack(h1_mean).0, O::Vector::unpack(h2_mean).0);
-                        let residual = residual_accessor
-                            .finish(O::Vector::unpack(h1_mean).1, O::Vector::unpack(h2_mean).1);
-                        O::Vector::code(residual.as_borrowed())
-                    } else {
-                        O::Vector::code(h1_mean)
-                    };
+                let centroid = structures[i].centroids[j].as_borrowed();
+                for child in structures[i].children[j].iter().copied() {
+                    let vector = structures[i - 1].centroids[child as usize].as_borrowed();
+                    let (code, delta) = O::build(vector, is_residual.then_some(centroid.own()));
                     tape.push(Branch {
-                        head: pointer_of_means[i - 1][child as usize].1,
-                        dis_u_2: code.dis_u_2,
-                        factor_ppc: code.factor_ppc,
-                        factor_ip: code.factor_ip,
-                        factor_err: code.factor_err,
-                        signs: code.signs,
-                        prefetch: pointer_of_means[i - 1][child as usize].0.clone(),
+                        code,
+                        delta,
+                        prefetch: pointer_of_centroids[i - 1][child as usize].0.clone(),
+                        head: pointer_of_centroids[i - 1][child as usize].1,
                         extra: pointer_of_firsts[i - 1][child as usize],
                     });
                 }
@@ -121,16 +107,16 @@ pub fn build<R: RelationWrite, O: Operator>(
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,
         vectors_first: vectors.first(),
-        root_prefetch: pointer_of_means
+        centroid_prefetch: pointer_of_centroids
             .last()
             .expect("internal error: empty structure")[0]
             .0
             .clone(),
-        root_head: pointer_of_means
+        centroid_head: pointer_of_centroids
             .last()
             .expect("internal error: empty structure")[0]
             .1,
-        root_first: pointer_of_firsts
+        first: pointer_of_firsts
             .last()
             .expect("internal error: empty structure")[0],
         freepage_first: freepage.first(),

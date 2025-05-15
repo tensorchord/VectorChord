@@ -17,7 +17,7 @@ mod maxsim;
 
 use super::opclass::Opfamily;
 use crate::index::lazy_cell::LazyCell;
-use algorithm::{Bump, RelationPrefetch, RelationRead, RelationReadStream};
+use algorithm::{Bump, RelationPrefetch, RelationRead, RelationReadStream, Sequence};
 use pgrx::pg_sys::Datum;
 
 pub use default::DefaultBuilder;
@@ -43,6 +43,7 @@ pub struct SearchOptions {
     pub maxsim_threshold: u32,
     pub io_search: Io,
     pub io_rerank: Io,
+    pub prefilter: bool,
 }
 
 pub trait SearchBuilder: 'static {
@@ -54,23 +55,73 @@ pub trait SearchBuilder: 'static {
         self,
         relation: &'a R,
         options: SearchOptions,
-        fetcher: impl SearchFetcher + 'a,
+        fetcher: impl Fetcher + 'a,
         bump: &'a impl Bump,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream;
 }
 
-pub trait SearchFetcher {
-    fn fetch(&mut self, ctid: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])>;
-    fn filter(&mut self, key: [u16; 3]) -> bool;
+pub trait Fetcher {
+    type Tuple<'a>: Tuple
+    where
+        Self: 'a;
+
+    fn fetch(&mut self, key: [u16; 3]) -> Option<Self::Tuple<'_>>;
 }
 
-impl<T: SearchFetcher, F: FnOnce() -> T> SearchFetcher for LazyCell<T, F> {
-    fn fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
+pub trait Tuple {
+    fn build(&mut self) -> (&[Datum; 32], &[bool; 32]);
+    fn filter(&mut self) -> bool;
+}
+
+impl<T: Fetcher, F: FnOnce() -> T> Fetcher for LazyCell<T, F> {
+    type Tuple<'a>
+        = T::Tuple<'a>
+    where
+        Self: 'a;
+
+    fn fetch(&mut self, key: [u16; 3]) -> Option<Self::Tuple<'_>> {
         LazyCell::force_mut(self).fetch(key)
     }
-    fn filter(&mut self, key: [u16; 3]) -> bool {
-        LazyCell::force_mut(self).filter(key)
+}
+
+pub struct Filter<S, P> {
+    sequence: S,
+    predicate: P,
+}
+
+impl<S, P> Sequence for Filter<S, P>
+where
+    S: Sequence,
+    P: FnMut(&S::Item) -> bool,
+{
+    type Item = S::Item;
+
+    type Inner = S::Inner;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !(self.predicate)(self.sequence.peek()?) {
+            let _ = self.sequence.next();
+        }
+        self.sequence.next()
+    }
+
+    fn peek(&mut self) -> Option<&Self::Item> {
+        while !(self.predicate)(self.sequence.peek()?) {
+            let _ = self.sequence.next();
+        }
+        self.sequence.peek()
+    }
+
+    fn into_inner(self) -> Self::Inner {
+        self.sequence.into_inner()
+    }
+}
+
+pub fn filter<S, P>(sequence: S, predicate: P) -> Filter<S, P> {
+    Filter {
+        sequence,
+        predicate,
     }
 }

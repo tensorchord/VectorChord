@@ -187,23 +187,30 @@ pub fn maxsim_threshold() -> u32 {
 }
 
 pub fn prewarm_dim() -> Vec<u32> {
-    if let Some(prewarm_dim) = PREWARM_DIM.get() {
-        if let Ok(prewarm_dim) = prewarm_dim.to_str() {
+    match PREWARM_DIM.get() {
+        None => Vec::new(),
+        Some(probes) => {
             let mut result = Vec::new();
-            for dim in prewarm_dim.split(',') {
-                if let Ok(dim) = dim.trim().parse::<u32>() {
-                    result.push(dim);
-                } else {
-                    pgrx::warning!("{dim:?} is not a valid integer");
+            let mut current = None;
+            for &c in probes.to_bytes() {
+                match c {
+                    b' ' => continue,
+                    b',' => result.push(current.take().expect("empty prewarm_dim")),
+                    b'0'..=b'9' => {
+                        if let Some(x) = current.as_mut() {
+                            *x = *x * 10 + (c - b'0') as u32;
+                        } else {
+                            current = Some((c - b'0') as u32);
+                        }
+                    }
+                    c => pgrx::error!("unknown character in prewarm_dim: ASCII = {c}"),
                 }
             }
+            if let Some(current) = current {
+                result.push(current);
+            }
             result
-        } else {
-            pgrx::warning!("vchordrq.prewarm_dim is not a valid UTF-8 string");
-            Vec::new()
         }
-    } else {
-        Vec::new()
     }
 }
 
