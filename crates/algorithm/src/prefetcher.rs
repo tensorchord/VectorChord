@@ -25,7 +25,9 @@ where
 {
     type R: RelationRead + 'r;
 
+    #[must_use]
     fn next(&mut self) -> Option<(Self::Item, Vec<<Self::R as RelationRead>::ReadGuard<'r>>)>;
+    #[must_use]
     fn next_if(
         &mut self,
         predicate: impl FnOnce(&Self::Item) -> bool,
@@ -68,7 +70,10 @@ where
         &mut self,
         predicate: impl FnOnce(&Self::Item) -> bool,
     ) -> Option<(S::Item, Vec<R::ReadGuard<'r>>)> {
-        let e = self.sequence.next_if(predicate)?;
+        if !predicate(self.sequence.peek()?) {
+            return None;
+        }
+        let e = self.sequence.next()?;
         let list = e.fetch().iter().map(|&id| self.relation.read(id)).collect();
         Some((e, list))
     }

@@ -13,7 +13,10 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use simd::Floating;
+use std::ops::Add;
 
+const BITS: usize = 6;
+pub const STEP: usize = 65535_usize / ((1_usize << (2 + BITS)) - 1);
 pub type BlockLut = ((f32, f32, f32, f32), Vec<[u8; 16]>);
 pub type BlockCode<'a> = (
     &'a [f32; 32],
@@ -25,61 +28,57 @@ pub type BlockCode<'a> = (
 
 pub fn preprocess(vector: &[f32]) -> BlockLut {
     let dis_v_2 = f32::reduce_sum_of_x2(vector);
-    let (k, b, qvector) = simd::quantize::quantize(vector, 15.0);
-    let qvector_sum = if vector.len() <= 4369 {
+    let (k, b, qvector) = simd::quantize::quantize(vector, ((1 << BITS) - 1) as f32);
+    let qvector_sum = if vector.len() <= (65535_usize / ((1 << BITS) - 1)) {
         simd::u8::reduce_sum_of_x_as_u16(&qvector) as f32
     } else {
         simd::u8::reduce_sum_of_x_as_u32(&qvector) as f32
     };
-    ((dis_v_2, b, k, qvector_sum), compress(qvector))
+    ((dis_v_2, b, k, qvector_sum), compress(&qvector))
 }
 
 pub fn process_l2(
     lut: &BlockLut,
-    (dis_u_2, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
+    (dis_u_2, factor_cnt, factor_ip, factor_err, t): BlockCode<'_>,
 ) -> [(f32, f32); 32] {
+    use std::iter::zip;
     let &((dis_v_2, b, k, qvector_sum), ref s) = lut;
-    let r = simd::fast_scan::fast_scan(t, s);
+    let mut sum = [0_u32; 32];
+    for (t, s) in zip(t.chunks(STEP), s.chunks(STEP)) {
+        let delta = simd::fast_scan::scan(t, s);
+        simd::fast_scan::accu(&mut sum, &delta);
+    }
     std::array::from_fn(|i| {
-        let rough = dis_u_2[i]
-            + dis_v_2
-            + b * factor_ppc[i]
-            + ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
-        let err = factor_err[i] * dis_v_2.sqrt();
+        let e = k * ((2.0 * sum[i] as f32) - qvector_sum) + b * factor_cnt[i];
+        let rough = dis_u_2[i] + dis_v_2 - 2.0 * e * factor_ip[i];
+        let err = 2.0 * factor_err[i] * dis_v_2.sqrt();
         (rough, err)
     })
 }
 
 pub fn process_dot(
     lut: &BlockLut,
-    (_, factor_ppc, factor_ip, factor_err, t): BlockCode<'_>,
+    (_, factor_cnt, factor_ip, factor_err, t): BlockCode<'_>,
 ) -> [(f32, f32); 32] {
+    use std::iter::zip;
     let &((dis_v_2, b, k, qvector_sum), ref s) = lut;
-    let r = simd::fast_scan::fast_scan(t, s);
+    let mut sum = [0_u32; 32];
+    for (t, s) in zip(t.chunks(STEP), s.chunks(STEP)) {
+        let delta = simd::fast_scan::scan(t, s);
+        simd::fast_scan::accu(&mut sum, &delta);
+    }
     std::array::from_fn(|i| {
-        let rough =
-            0.5 * b * factor_ppc[i] + 0.5 * ((2.0 * r[i] as f32) - qvector_sum) * factor_ip[i] * k;
-        let err = 0.5 * factor_err[i] * dis_v_2.sqrt();
+        let e = k * ((2.0 * sum[i] as f32) - qvector_sum) + b * factor_cnt[i];
+        let rough = -e * factor_ip[i];
+        let err = factor_err[i] * dis_v_2.sqrt();
         (rough, err)
     })
 }
 
-pub(crate) fn compress(mut vector: Vec<u8>) -> Vec<[u8; 16]> {
-    let n = vector.len().div_ceil(4);
-    vector.resize(n * 4, 0);
-    let mut result = vec![[0u8; 16]; n];
-    for i in 0..n {
-        #[allow(unsafe_code)]
-        unsafe {
-            // this hint is used to skip bound checks
-            std::hint::assert_unchecked(4 * i + 3 < vector.len());
-        }
-        let t_0 = vector[4 * i + 0];
-        let t_1 = vector[4 * i + 1];
-        let t_2 = vector[4 * i + 2];
-        let t_3 = vector[4 * i + 3];
-        result[i] = [
-            0,
+pub(crate) fn compress<T: Copy + Default + Add<T, Output = T>>(vector: &[T]) -> Vec<[T; 16]> {
+    let f = |[t_0, t_1, t_2, t_3]: [T; 4]| {
+        [
+            T::default(),
             t_0,
             t_1,
             t_1 + t_0,
@@ -95,7 +94,15 @@ pub(crate) fn compress(mut vector: Vec<u8>) -> Vec<[u8; 16]> {
             t_3 + t_2 + t_0,
             t_3 + t_2 + t_1,
             t_3 + t_2 + t_1 + t_0,
-        ];
+        ]
+    };
+
+    let (arrays, reminder) = vector.as_chunks::<4>();
+    let mut result = arrays.iter().copied().map(f).collect::<Vec<_>>();
+    if !reminder.is_empty() {
+        let mut array = [T::default(); 4];
+        array[..reminder.len()].copy_from_slice(reminder);
+        result.push(f(array));
     }
     result
 }

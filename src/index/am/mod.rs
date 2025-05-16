@@ -408,6 +408,7 @@ pub unsafe extern "C-unwind" fn amrescan(
             maxsim_threshold: gucs::maxsim_threshold(),
             io_search: gucs::io_search(),
             io_rerank: gucs::io_rerank(),
+            prefilter: gucs::prefilter(),
         };
         let fetcher = {
             let hack = scanner.hack;
@@ -569,8 +570,10 @@ impl Drop for HeapFetcher {
     }
 }
 
-impl SearchFetcher for HeapFetcher {
-    fn fetch(&mut self, key: [u16; 3]) -> Option<(&[Datum; 32], &[bool; 32])> {
+impl Fetcher for HeapFetcher {
+    type Tuple<'a> = HeapTuple<'a>;
+
+    fn fetch(&mut self, key: [u16; 3]) -> Option<Self::Tuple<'_>> {
         unsafe {
             let mut ctid = key_to_ctid(key);
             let table_am = (*self.heap_relation).rd_tableam;
@@ -580,49 +583,54 @@ impl SearchFetcher for HeapFetcher {
             if !fetch_row_version(self.heap_relation, &mut ctid, self.snapshot, self.slot) {
                 return None;
             }
-            (*self.econtext).ecxt_scantuple = self.slot;
-            pgrx::pg_sys::MemoryContextReset((*self.econtext).ecxt_per_tuple_memory);
+            Some(HeapTuple { this: self })
+        }
+    }
+}
+
+pub struct HeapTuple<'a> {
+    this: &'a mut HeapFetcher,
+}
+
+impl Tuple for HeapTuple<'_> {
+    fn build(&mut self) -> (&[Datum; 32], &[bool; 32]) {
+        unsafe {
+            let this = &mut self.this;
+            (*this.econtext).ecxt_scantuple = this.slot;
+            pgrx::pg_sys::MemoryContextReset((*this.econtext).ecxt_per_tuple_memory);
             pgrx::pg_sys::FormIndexDatum(
-                self.index_info,
-                self.slot,
-                self.estate,
-                self.values.as_mut_ptr(),
-                self.is_nulls.as_mut_ptr(),
+                this.index_info,
+                this.slot,
+                this.estate,
+                this.values.as_mut_ptr(),
+                this.is_nulls.as_mut_ptr(),
             );
-            Some((&self.values, &self.is_nulls))
+            (&this.values, &this.is_nulls)
         }
     }
 
-    fn filter(&mut self, key: [u16; 3]) -> bool {
-        if self.hack.is_null() {
-            return true;
-        }
+    fn filter(&mut self) -> bool {
         unsafe {
-            let mut ctid = key_to_ctid(key);
-            let table_am = (*self.heap_relation).rd_tableam;
-            let fetch_row_version = (*table_am)
-                .tuple_fetch_row_version
-                .expect("unsupported heap access method");
-            if !fetch_row_version(self.heap_relation, &mut ctid, self.snapshot, self.slot) {
-                return false;
-            }
-            if let Some(qual) = NonNull::new((*self.hack).ss.ps.qual) {
-                use pgrx::datum::FromDatum;
-                use pgrx::memcxt::PgMemoryContexts;
-                assert!(qual.as_ref().flags & pgrx::pg_sys::EEO_FLAG_IS_QUAL as u8 != 0);
-                let evalfunc = qual.as_ref().evalfunc.expect("no evalfunc for qual");
-                if !(*self.hack).ss.ps.ps_ExprContext.is_null() {
-                    let econtext = (*self.hack).ss.ps.ps_ExprContext;
-                    (*econtext).ecxt_scantuple = self.slot;
-                    pgrx::pg_sys::MemoryContextReset((*econtext).ecxt_per_tuple_memory);
-                    let result = PgMemoryContexts::For((*econtext).ecxt_per_tuple_memory)
-                        .switch_to(|_| {
-                            let mut is_null = true;
-                            let datum = evalfunc(qual.as_ptr(), econtext, &mut is_null);
-                            bool::from_datum(datum, is_null)
-                        });
-                    if result != Some(true) {
-                        return false;
+            let this = &mut self.this;
+            if !this.hack.is_null() {
+                if let Some(qual) = NonNull::new((*this.hack).ss.ps.qual) {
+                    use pgrx::datum::FromDatum;
+                    use pgrx::memcxt::PgMemoryContexts;
+                    assert!(qual.as_ref().flags & pgrx::pg_sys::EEO_FLAG_IS_QUAL as u8 != 0);
+                    let evalfunc = qual.as_ref().evalfunc.expect("no evalfunc for qual");
+                    if !(*this.hack).ss.ps.ps_ExprContext.is_null() {
+                        let econtext = (*this.hack).ss.ps.ps_ExprContext;
+                        (*econtext).ecxt_scantuple = this.slot;
+                        pgrx::pg_sys::MemoryContextReset((*econtext).ecxt_per_tuple_memory);
+                        let result = PgMemoryContexts::For((*econtext).ecxt_per_tuple_memory)
+                            .switch_to(|_| {
+                                let mut is_null = true;
+                                let datum = evalfunc(qual.as_ptr(), econtext, &mut is_null);
+                                bool::from_datum(datum, is_null)
+                            });
+                        if result != Some(true) {
+                            return false;
+                        }
                     }
                 }
             }

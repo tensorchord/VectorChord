@@ -213,7 +213,10 @@ pub fn read_h1_tape<'r, R, A, T>(
     R: RelationRead + 'r,
     A: for<'a> Accessor1<
             [u8; 16],
-            (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+            (
+                (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+                &'a [f32; 32],
+            ),
             Output = [T; 32],
         >,
 {
@@ -226,7 +229,7 @@ pub fn read_h1_tape<'r, R, A, T>(
                 H1TupleReader::_0(tuple) => {
                     let mut x = x.take().unwrap_or_else(&accessor);
                     x.push(tuple.elements());
-                    let values = x.finish(tuple.metadata());
+                    let values = x.finish((tuple.code(), tuple.delta()));
                     let prefetch: [_; 32] = fix_0(tuple.prefetch());
                     for (j, value) in values.into_iter().enumerate() {
                         if j < tuple.len() as usize {
@@ -250,7 +253,10 @@ pub fn read_frozen_tape<'r, R, A, T>(
     R: RelationRead + 'r,
     A: for<'a> Accessor1<
             [u8; 16],
-            (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+            (
+                (&'a [f32; 32], &'a [f32; 32], &'a [f32; 32], &'a [f32; 32]),
+                &'a [f32; 32],
+            ),
             Output = [T; 32],
         >,
 {
@@ -263,11 +269,11 @@ pub fn read_frozen_tape<'r, R, A, T>(
                 FrozenTupleReader::_0(tuple) => {
                     let mut x = x.take().unwrap_or_else(&accessor);
                     x.push(tuple.elements());
-                    let values = x.finish(tuple.metadata());
+                    let values = x.finish((tuple.code(), tuple.delta()));
                     let prefetch: [_; 32] = fix_0(tuple.prefetch());
                     for (j, value) in values.into_iter().enumerate() {
                         if let Some(payload) = tuple.payload()[j] {
-                            callback(value, tuple.mean()[j], payload, fix_1(prefetch[j]));
+                            callback(value, tuple.head()[j], payload, fix_1(prefetch[j]));
                         }
                     }
                 }
@@ -281,7 +287,7 @@ pub fn read_frozen_tape<'r, R, A, T>(
 
 pub fn read_appendable_tape<'r, R, T>(
     iter: impl Iterator<Item = R::ReadGuard<'r>>,
-    mut access: impl for<'a> FnMut(BinaryCode<'a>) -> T,
+    mut access: impl for<'a> FnMut(BinaryCode<'a>, f32) -> T,
     mut callback: impl for<'a> FnMut(T, u16, NonZero<u64>, &'a [u32]),
 ) where
     R: RelationRead + 'r,
@@ -291,7 +297,7 @@ pub fn read_appendable_tape<'r, R, T>(
             let bytes = guard.get(i).expect("data corruption");
             let tuple = AppendableTuple::deserialize_ref(bytes);
             if let Some(payload) = tuple.payload() {
-                let value = access(tuple.code());
+                let value = access(tuple.code(), tuple.delta());
                 callback(value, tuple.head(), payload, tuple.prefetch());
             }
         }

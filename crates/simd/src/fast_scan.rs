@@ -467,6 +467,20 @@ mod scan {
 }
 
 #[inline(always)]
-pub fn fast_scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
     scan::scan(code, lut)
+}
+
+mod accu {
+    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {
+        for i in 0..32 {
+            sum[i] += delta[i] as u32;
+        }
+    }
+}
+
+#[inline(always)]
+pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {
+    accu::accu(sum, delta);
 }

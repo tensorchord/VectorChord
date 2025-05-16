@@ -123,30 +123,17 @@ fn rabitq_index(
     samples: &[Vec<f32>],
     centroids: &[Vec<f32>],
 ) -> Vec<usize> {
-    struct Branch {
-        dis_u_2: f32,
-        factor_ppc: f32,
-        factor_ip: f32,
-        factor_err: f32,
-        signs: Vec<bool>,
-    }
     let branches = {
         let mut branches = Vec::new();
         for centroid in centroids {
             let code = rabitq::code(dims as _, centroid);
-            branches.push(Branch {
-                dis_u_2: code.dis_u_2,
-                factor_ppc: code.factor_ppc,
-                factor_ip: code.factor_ip,
-                factor_err: code.factor_err,
-                signs: code.signs,
-            });
+            branches.push(code);
         }
         branches
     };
     struct Block {
         dis_u_2: [f32; 32],
-        factor_ppc: [f32; 32],
+        factor_cnt: [f32; 32],
         factor_ip: [f32; 32],
         factor_err: [f32; 32],
         elements: Vec<[u8; 16]>,
@@ -155,7 +142,7 @@ fn rabitq_index(
         fn code(&self) -> BlockCode<'_> {
             (
                 &self.dis_u_2,
-                &self.factor_ppc,
+                &self.factor_cnt,
                 &self.factor_ip,
                 &self.factor_err,
                 &self.elements,
@@ -166,7 +153,7 @@ fn rabitq_index(
     for chunk in branches.chunks(32) {
         blocks.push(Block {
             dis_u_2: any_pack(chunk.iter().map(|x| x.dis_u_2)),
-            factor_ppc: any_pack(chunk.iter().map(|x| x.factor_ppc)),
+            factor_cnt: any_pack(chunk.iter().map(|x| x.factor_cnt)),
             factor_ip: any_pack(chunk.iter().map(|x| x.factor_ip)),
             factor_err: any_pack(chunk.iter().map(|x| x.factor_err)),
             elements: padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs))),

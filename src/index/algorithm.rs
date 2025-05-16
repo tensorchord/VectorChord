@@ -16,7 +16,11 @@ use super::opclass::Opfamily;
 use crate::index::am::am_build::InternalBuild;
 use algorithm::operator::{Dot, L2, Op};
 use algorithm::types::*;
-use algorithm::*;
+use algorithm::{
+    Bump, FastHeap, Fetch, Hints, PlainPrefetcher, PrefetcherHeapFamily, PrefetcherSequenceFamily,
+    RelationPrefetch, RelationRead, RelationReadStream, RelationWrite, Sequence, SimplePrefetcher,
+    StreamPrefetcher,
+};
 use half::f16;
 use std::cell::UnsafeCell;
 use std::collections::BinaryHeap;
@@ -204,25 +208,34 @@ impl Bump for BumpAlloc {
 }
 
 pub fn prewarm(opfamily: Opfamily, index: &impl RelationRead, height: i32) -> String {
+    let bump = BumpAlloc::new();
     let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
     match (opfamily.vector_kind(), opfamily.distance_kind()) {
-        (VectorKind::Vecf32, DistanceKind::L2) => {
-            algorithm::prewarm::<_, Op<VectOwned<f32>, L2>>(index, height, make_h0_plain_prefetcher)
-        }
+        (VectorKind::Vecf32, DistanceKind::L2) => algorithm::prewarm::<_, Op<VectOwned<f32>, L2>>(
+            index,
+            height,
+            &bump,
+            make_h0_plain_prefetcher,
+        ),
         (VectorKind::Vecf32, DistanceKind::Dot) => {
             algorithm::prewarm::<_, Op<VectOwned<f32>, Dot>>(
                 index,
                 height,
+                &bump,
                 make_h0_plain_prefetcher,
             )
         }
-        (VectorKind::Vecf16, DistanceKind::L2) => {
-            algorithm::prewarm::<_, Op<VectOwned<f16>, L2>>(index, height, make_h0_plain_prefetcher)
-        }
+        (VectorKind::Vecf16, DistanceKind::L2) => algorithm::prewarm::<_, Op<VectOwned<f16>, L2>>(
+            index,
+            height,
+            &bump,
+            make_h0_plain_prefetcher,
+        ),
         (VectorKind::Vecf16, DistanceKind::Dot) => {
             algorithm::prewarm::<_, Op<VectOwned<f16>, Dot>>(
                 index,
                 height,
+                &bump,
                 make_h0_plain_prefetcher,
             )
         }
@@ -237,16 +250,20 @@ pub fn bulkdelete(
 ) {
     match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2) => {
-            algorithm::bulkdelete::<_, Op<VectOwned<f32>, L2>>(index, check, callback)
+            algorithm::bulkdelete::<_, Op<VectOwned<f32>, L2>>(index, &check, &callback);
+            algorithm::bulkdelete_vectors::<_, Op<VectOwned<f32>, L2>>(index, &check, &callback);
         }
         (VectorKind::Vecf32, DistanceKind::Dot) => {
-            algorithm::bulkdelete::<_, Op<VectOwned<f32>, Dot>>(index, check, callback)
+            algorithm::bulkdelete::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
+            algorithm::bulkdelete_vectors::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
         }
         (VectorKind::Vecf16, DistanceKind::L2) => {
-            algorithm::bulkdelete::<_, Op<VectOwned<f16>, L2>>(index, check, callback)
+            algorithm::bulkdelete::<_, Op<VectOwned<f16>, L2>>(index, &check, &callback);
+            algorithm::bulkdelete_vectors::<_, Op<VectOwned<f16>, L2>>(index, &check, &callback);
         }
         (VectorKind::Vecf16, DistanceKind::Dot) => {
-            algorithm::bulkdelete::<_, Op<VectOwned<f16>, Dot>>(index, check, callback)
+            algorithm::bulkdelete::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
+            algorithm::bulkdelete_vectors::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
         }
     }
 }
@@ -322,54 +339,70 @@ pub fn insert(
     match (vector, opfamily.distance_kind()) {
         (OwnedVector::Vecf32(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            let (list, head) = insert_vector::<_, Op<VectOwned<f32>, L2>>(index, payload, &vector);
-            insert_index::<_, Op<VectOwned<f32>, L2>>(
+            let projected = RandomProject::project(vector.as_borrowed());
+            let key = algorithm::insert_vector::<_, Op<VectOwned<f32>, L2>>(
                 index,
                 payload,
-                RandomProject::project(vector.as_borrowed()),
+                vector.as_borrowed(),
+            );
+            algorithm::insert::<_, Op<VectOwned<f32>, L2>>(
+                index,
+                payload,
+                projected.as_borrowed(),
+                key,
                 &bump,
                 make_h1_plain_prefetcher,
-                list,
-                head,
             )
         }
         (OwnedVector::Vecf32(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf32);
-            let (list, head) = insert_vector::<_, Op<VectOwned<f32>, Dot>>(index, payload, &vector);
-            insert_index::<_, Op<VectOwned<f32>, Dot>>(
+            let projected = RandomProject::project(vector.as_borrowed());
+            let key = algorithm::insert_vector::<_, Op<VectOwned<f32>, Dot>>(
                 index,
                 payload,
-                RandomProject::project(vector.as_borrowed()),
+                vector.as_borrowed(),
+            );
+            algorithm::insert::<_, Op<VectOwned<f32>, Dot>>(
+                index,
+                payload,
+                projected.as_borrowed(),
+                key,
                 &bump,
                 make_h1_plain_prefetcher,
-                list,
-                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::L2) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            let (list, head) = insert_vector::<_, Op<VectOwned<f16>, L2>>(index, payload, &vector);
-            insert_index::<_, Op<VectOwned<f16>, L2>>(
+            let projected = RandomProject::project(vector.as_borrowed());
+            let key = algorithm::insert_vector::<_, Op<VectOwned<f16>, L2>>(
                 index,
                 payload,
-                RandomProject::project(vector.as_borrowed()),
+                vector.as_borrowed(),
+            );
+            algorithm::insert::<_, Op<VectOwned<f16>, L2>>(
+                index,
+                payload,
+                projected.as_borrowed(),
+                key,
                 &bump,
                 make_h1_plain_prefetcher,
-                list,
-                head,
             )
         }
         (OwnedVector::Vecf16(vector), DistanceKind::Dot) => {
             assert!(opfamily.vector_kind() == VectorKind::Vecf16);
-            let (list, head) = insert_vector::<_, Op<VectOwned<f16>, Dot>>(index, payload, &vector);
-            insert_index::<_, Op<VectOwned<f16>, Dot>>(
+            let projected = RandomProject::project(vector.as_borrowed());
+            let key = algorithm::insert_vector::<_, Op<VectOwned<f16>, Dot>>(
                 index,
                 payload,
-                RandomProject::project(vector.as_borrowed()),
+                vector.as_borrowed(),
+            );
+            algorithm::insert::<_, Op<VectOwned<f16>, Dot>>(
+                index,
+                payload,
+                projected.as_borrowed(),
+                key,
                 &bump,
                 make_h1_plain_prefetcher,
-                list,
-                head,
             )
         }
     }
@@ -377,10 +410,15 @@ pub fn insert(
 
 fn map_structures<T, U>(x: Vec<Structure<T>>, f: impl Fn(T) -> U + Copy) -> Vec<Structure<U>> {
     x.into_iter()
-        .map(|Structure { means, children }| Structure {
-            means: means.into_iter().map(f).collect(),
-            children,
-        })
+        .map(
+            |Structure {
+                 centroids,
+                 children,
+             }| Structure {
+                centroids: centroids.into_iter().map(f).collect(),
+                children,
+            },
+        )
         .collect()
 }
 

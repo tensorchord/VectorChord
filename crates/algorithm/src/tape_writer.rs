@@ -81,18 +81,19 @@ where
     pub fn push(&mut self, branch: Branch<u32>) {
         self.branches.push(branch);
         if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
-            let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
+            let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.code.signs)));
             loop {
                 let freespace = self.tape.freespace();
                 if H1Tuple::estimate_size_0(self.prefetch, remain.len()) <= freespace as usize {
                     self.tape.tape_put(H1Tuple::_0 {
-                        head: chunk.each_ref().map(|x| x.head),
-                        dis_u_2: chunk.each_ref().map(|x| x.dis_u_2),
-                        factor_ppc: chunk.each_ref().map(|x| x.factor_ppc),
-                        factor_ip: chunk.each_ref().map(|x| x.factor_ip),
-                        factor_err: chunk.each_ref().map(|x| x.factor_err),
-                        first: chunk.each_ref().map(|x| x.extra),
+                        dis_u_2: chunk.each_ref().map(|x| x.code.dis_u_2),
+                        factor_cnt: chunk.each_ref().map(|x| x.code.factor_cnt),
+                        factor_ip: chunk.each_ref().map(|x| x.code.factor_ip),
+                        factor_err: chunk.each_ref().map(|x| x.code.factor_err),
+                        delta: chunk.each_ref().map(|x| x.delta),
                         prefetch: fix(chunk.each_ref().map(|x| x.prefetch.as_slice())),
+                        head: chunk.each_ref().map(|x| x.head),
+                        first: chunk.each_ref().map(|x| x.extra),
                         len: chunk.len() as _,
                         elements: remain,
                     });
@@ -118,18 +119,19 @@ where
         if chunk.is_empty() {
             return;
         }
-        let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
+        let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.code.signs)));
         loop {
             let freespace = tape.freespace();
             if H1Tuple::estimate_size_0(prefetch, remain.len()) <= freespace as usize {
                 tape.tape_put(H1Tuple::_0 {
-                    head: any_pack(chunk.iter().map(|x| x.head)),
-                    dis_u_2: any_pack(chunk.iter().map(|x| x.dis_u_2)),
-                    factor_ppc: any_pack(chunk.iter().map(|x| x.factor_ppc)),
-                    factor_ip: any_pack(chunk.iter().map(|x| x.factor_ip)),
-                    factor_err: any_pack(chunk.iter().map(|x| x.factor_err)),
-                    first: any_pack(chunk.iter().map(|x| x.extra)),
+                    dis_u_2: any_pack(chunk.iter().map(|x| x.code.dis_u_2)),
+                    factor_cnt: any_pack(chunk.iter().map(|x| x.code.factor_cnt)),
+                    factor_ip: any_pack(chunk.iter().map(|x| x.code.factor_ip)),
+                    factor_err: any_pack(chunk.iter().map(|x| x.code.factor_err)),
+                    delta: any_pack(chunk.iter().map(|x| x.delta)),
                     prefetch: fix(chunk.iter().map(|x| x.prefetch.as_slice())),
+                    head: any_pack(chunk.iter().map(|x| x.head)),
+                    first: any_pack(chunk.iter().map(|x| x.extra)),
                     len: chunk.len() as _,
                     elements: remain,
                 });
@@ -171,18 +173,19 @@ where
     pub fn push(&mut self, branch: Branch<NonZero<u64>>) {
         self.branches.push(branch);
         if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
-            let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.signs)));
+            let mut remain = padding_pack(chunk.iter().map(|x| rabitq::pack_to_u4(&x.code.signs)));
             loop {
                 let freespace = self.tape.freespace();
                 if FrozenTuple::estimate_size_0(self.prefetch, remain.len()) <= freespace as usize {
                     self.tape.tape_put(FrozenTuple::_0 {
-                        head: chunk.each_ref().map(|x| x.head),
-                        dis_u_2: chunk.each_ref().map(|x| x.dis_u_2),
-                        factor_ppc: chunk.each_ref().map(|x| x.factor_ppc),
-                        factor_ip: chunk.each_ref().map(|x| x.factor_ip),
-                        factor_err: chunk.each_ref().map(|x| x.factor_err),
-                        payload: chunk.each_ref().map(|x| Some(x.extra)),
+                        dis_u_2: chunk.each_ref().map(|x| x.code.dis_u_2),
+                        factor_cnt: chunk.each_ref().map(|x| x.code.factor_cnt),
+                        factor_ip: chunk.each_ref().map(|x| x.code.factor_ip),
+                        factor_err: chunk.each_ref().map(|x| x.code.factor_err),
+                        delta: chunk.each_ref().map(|x| x.delta),
                         prefetch: fix(chunk.each_ref().map(|x| x.prefetch.as_slice())),
+                        head: chunk.each_ref().map(|x| x.head),
+                        payload: chunk.each_ref().map(|x| Some(x.extra)),
                         elements: remain,
                     });
                     break;
