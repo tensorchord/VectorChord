@@ -51,22 +51,30 @@ pub fn rotate(vector: &[f32]) -> Vec<f32> {
     simd::rotate::flip(&BITS_0, &mut result);
     simd::fht::fht(&mut result[l]);
     f32::vector_mul_scalar_inplace(&mut result[l], scale);
-    kacs_walk(&mut result);
+    if n != (1_usize << base) {
+        kacs_walk(&mut result);
+    }
 
     simd::rotate::flip(&BITS_1, &mut result);
     simd::fht::fht(&mut result[r]);
     f32::vector_mul_scalar_inplace(&mut result[r], scale);
-    kacs_walk(&mut result);
+    if n != (1_usize << base) {
+        kacs_walk(&mut result);
+    }
 
     simd::rotate::flip(&BITS_2, &mut result);
     simd::fht::fht(&mut result[l]);
     f32::vector_mul_scalar_inplace(&mut result[l], scale);
-    kacs_walk(&mut result);
+    if n != (1_usize << base) {
+        kacs_walk(&mut result);
+    }
 
     simd::rotate::flip(&BITS_3, &mut result);
     simd::fht::fht(&mut result[r]);
     f32::vector_mul_scalar_inplace(&mut result[r], scale);
-    kacs_walk(&mut result);
+    if n != (1_usize << base) {
+        kacs_walk(&mut result);
+    }
 
     result
 }
