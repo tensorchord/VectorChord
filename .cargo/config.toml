@@ -1,2 +1,5 @@
 [env]
 CC = "clang"
+
+[target.'cfg(target_os="macos")']
+rustflags = ["-Clink-arg=-Wl,-undefined,dynamic_lookup"]
