@@ -85,7 +85,7 @@ __attribute__((target("+sve"))) float
 fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t xy = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
-    svbool_t mask = svwhilelt_b16(i, n);
+    svbool_t mask = svwhilelt_b16((int64_t)i, (int64_t)n);
     svfloat16_t x = svld1_f16(mask, a + i);
     svfloat16_t y = svld1_f16(mask, b + i);
     xy = svmla_f16_x(mask, xy, x, y);
@@ -154,7 +154,7 @@ __attribute__((target("+sve"))) float
 fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t d2 = svdup_f16(0.0);
   for (size_t i = 0; i < n; i += svcnth()) {
-    svbool_t mask = svwhilelt_b16(i, n);
+    svbool_t mask = svwhilelt_b16((int64_t)i, (int64_t)n);
     svfloat16_t x = svld1_f16(mask, a + i);
     svfloat16_t y = svld1_f16(mask, b + i);
     svfloat16_t d = svsub_f16_x(mask, x, y);
@@ -167,7 +167,7 @@ __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, this + i);
     sum = svadd_f32_x(mask, sum, x);
   }
@@ -178,7 +178,7 @@ __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, this + i);
     sum = svadd_f32_x(mask, sum, svabs_f32_x(mask, x));
   }
@@ -189,7 +189,7 @@ __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, this + i);
     sum = svmla_f32_x(mask, sum, x, x);
   }
@@ -202,7 +202,7 @@ fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
   svfloat32_t min = svdup_f32(1.0 / 0.0);
   svfloat32_t max = svdup_f32(-1.0 / 0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, this + i);
     min = svmin_f32_x(mask, min, x);
     max = svmax_f32_x(mask, max, x);
@@ -216,7 +216,7 @@ fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, lhs + i);
     svfloat32_t y = svld1_f32(mask, rhs + i);
     sum = svmla_f32_x(mask, sum, x, y);
@@ -229,7 +229,7 @@ fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
   for (size_t i = 0; i < n; i += svcntw()) {
-    svbool_t mask = svwhilelt_b32(i, n);
+    svbool_t mask = svwhilelt_b32((int64_t)i, (int64_t)n);
     svfloat32_t x = svld1_f32(mask, lhs + i);
     svfloat32_t y = svld1_f32(mask, rhs + i);
     svfloat32_t d = svsub_f32_x(mask, x, y);
