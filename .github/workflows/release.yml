@@ -231,3 +231,9 @@ jobs:
 
       - name: Bundle the Release
         run: make dist
+      
+      - name: Release on PGXN
+        env:
+          PGXN_USERNAME: ${{ secrets.PGXN_USERNAME }}
+          PGXN_PASSWORD: ${{ secrets.PGXN_PASSWORD }}
+        run: pgxn-release
