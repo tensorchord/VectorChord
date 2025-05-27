@@ -1,0 +1,49 @@
+{
+    "name": "vchord",
+    "abstract": "Scalable, fast, and disk-friendly vector search in Postgres, the successor of pgvecto.rs",
+    "description": "Supports L2 distance, inner product, cosine distance and maxsim",
+    "version": "@DISTVERSION@",
+    "maintainer": [
+        "TensorChord support@tensorchord.ai",
+        "usamoi usamoi@tensorchord.ai"
+    ],
+    "license": "agpl_3",
+    "prereqs": {
+        "runtime": {
+            "requires": {
+                "PostgreSQL": "13.0.0"
+            }
+        }
+    },
+    "provides": {
+        "vector": {
+            "file": "sql/install/vchord--@DISTVERSION@.sql",
+            "docfile": "README.md",
+            "version": "@DISTVERSION@",
+            "abstract": "Scalable, fast, and disk-friendly vector search in Postgres, the successor of pgvecto.rs"
+        }
+    },
+    "resources": {
+        "homepage": "https://github.com/tensorchord/VectorChord",
+        "bugtracker": {
+            "web": "https://github.com/tensorchord/VectorChord/issues"
+        },
+        "repository": {
+            "url": "https://github.com/tensorchord/VectorChord.git",
+            "web": "https://github.com/tensorchord/VectorChord",
+            "type": "git"
+        }
+    },
+    "generated_by": "TensorChord",
+    "meta-spec": {
+        "version": "1.0.0",
+        "url": "http://pgxn.org/meta/spec.txt"
+    },
+    "tags": [
+        "vector search",
+        "vectors",
+        "datatype",
+        "nearest neighbor search",
+        "approximate nearest neighbors"
+    ]
+}
