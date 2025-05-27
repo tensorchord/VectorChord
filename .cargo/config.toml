@@ -1,2 +1,5 @@
+[alias]
+make = "run -p make --"
+
 [env]
 CC = "clang"

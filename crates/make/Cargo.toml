@@ -1,0 +1,12 @@
+[package]
+name = "make"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.38", features = ["derive"] }
+which = "7.0.3"
+tempfile = "3.20.0"
+object = { version = "0.36.7", features = ["all"] }

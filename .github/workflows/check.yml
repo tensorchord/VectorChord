@@ -177,6 +177,7 @@ jobs:
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-server-dev-${{ matrix.version }}
+          echo PGRX_PG_CONFIG_PATH=pg_config >> $GITHUB_ENV
 
           sudo apt-get install -y postgresql-${{ matrix.version }} postgresql-${{ matrix.version }}-pgvector
           echo "local all all trust" | sudo tee /etc/postgresql/${{ matrix.version }}/main/pg_hba.conf
@@ -186,9 +187,6 @@ jobs:
           sudo -iu postgres createdb -O $USER $USER
           sudo -iu postgres psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord.so"'
           sudo systemctl stop postgresql
-
-          curl -fsSL https://github.com/tensorchord/pgrx/releases/download/v0.14.1/cargo-pgrx-v0.14.1-$(uname -m)-unknown-linux-gnu.tar.gz | tar -xOzf - ./cargo-pgrx | install -m 755 /dev/stdin /usr/local/bin/cargo-pgrx
-          cargo pgrx init --pg${{ matrix.version }}=$(which pg_config)
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
@@ -202,7 +200,9 @@ jobs:
         run: cargo clippy -p vchord --features pg${{ matrix.version }} -- --no-deps
 
       - name: Install
-        run: cargo pgrx install -p vchord --features pg${{ matrix.version }} --release --sudo
+        run: |
+          cargo make package -o ./build/raw
+          cargo make install --sudo -i ./build/raw
 
       - name: Service
         run: |
@@ -223,28 +223,12 @@ jobs:
           ARCH: ${{ matrix.arch }}
           PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
         run: |
-          cat $(pg_config --sharedir)/extension/vchord--0.0.0.sql | expand -t 4 > ./sql/install/vchord--$SEMVER.sql
-
-          mkdir -p ./build/zip
-          cp -a ./sql/upgrade/. ./build/zip/
-          cp ./sql/install/vchord--$SEMVER.sql ./build/zip/vchord--$SEMVER.sql
-          cp ./vchord.control ./build/zip/vchord.control
-          cp ./target/release/libvchord.so ./build/zip/vchord.so
-          zip ./build/postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip -j ./build/zip/*
+          (cd ./build/raw && zip -r ../postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip .)
 
           mkdir -p ./build/deb
           mkdir -p ./build/deb/DEBIAN
-          mkdir -p ./build/deb/usr/share/postgresql/$VERSION/extension/
-          mkdir -p ./build/deb/usr/lib/postgresql/$VERSION/lib/
-          for file in $(ls ./build/zip/*.sql | xargs -n 1 basename); do
-              cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
-          done
-          for file in $(ls ./build/zip/*.control | xargs -n 1 basename); do
-              cp ./build/zip/$file ./build/deb/usr/share/postgresql/$VERSION/extension/$file
-          done
-          for file in $(ls ./build/zip/*.so | xargs -n 1 basename); do
-              cp ./build/zip/$file ./build/deb/usr/lib/postgresql/$VERSION/lib/$file
-          done
+          mkdir -p ./build/deb$(pg_config --pkglibdir) && cp -r ./build/raw/pkglibdir/. ./build/deb$(pg_config --pkglibdir)
+          mkdir -p ./build/deb$(pg_config --sharedir) && cp -r ./build/raw/sharedir/. ./build/deb$(pg_config --sharedir)
           echo "Package: postgresql-${VERSION}-vchord
           Version: ${SEMVER}-1
           Section: database
@@ -255,10 +239,8 @@ jobs:
           Homepage: https://vectorchord.ai/
           License: AGPL-3 or Elastic-2" \
           > ./build/deb/DEBIAN/control
-          (cd ./build/deb && md5sum usr/share/postgresql/$VERSION/extension/* usr/lib/postgresql/$VERSION/lib/*) > ./build/deb/DEBIAN/md5sums
+          (cd ./build/deb && find usr -type f -print0 | xargs -0 md5sum) > ./build/deb/DEBIAN/md5sums
           dpkg-deb --root-owner-group -Zxz --build ./build/deb/ ./build/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb
-
-          ls ./build
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -292,6 +274,8 @@ jobs:
         run: |
           rustup set profile
 
+          echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
+
           HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install postgresql@${{ matrix.version }}
           HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install pgvector
           brew services start postgresql@${{ matrix.version }}
@@ -304,8 +288,7 @@ jobs:
             $(brew --prefix postgresql@${{ matrix.version }})/bin/psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord.so"'
           fi
           brew services stop postgresql@${{ matrix.version }}
-
-          curl -fsSL https://github.com/tensorchord/pgrx/releases/download/v0.14.1/cargo-pgrx-v0.14.1-${{ matrix.arch }}-apple-darwin.tar.gz | tar -xOzf - ./cargo-pgrx | tee /usr/local/bin/cargo-pgrx > /dev/null && chmod 755 /usr/local/bin/cargo-pgrx
+          echo PGRX_PG_CONFIG_PATH=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config >> $GITHUB_ENV
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-${{ matrix.arch }}-apple-darwin.tar.gz | tar -xOzf - ./sqllogictest | tee /usr/local/bin/sqllogictest > /dev/null && chmod 755 /usr/local/bin/sqllogictest
 
@@ -317,11 +300,12 @@ jobs:
 
       - name: Clippy
         run: |
-          env CC=$(brew --prefix llvm@18)/bin/clang PGRX_PG_CONFIG_PATH=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config cargo clippy -p vchord --features pg${{ matrix.version }} -- --no-deps
+          cargo clippy -p vchord --features pg${{ matrix.version }} -- --no-deps
 
       - name: Install
         run: |
-          env CC=$(brew --prefix llvm@18)/bin/clang PGRX_PG_CONFIG_PATH=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config cargo pgrx install -p vchord --features pg${{ matrix.version }} --release --sudo --pg-config=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config
+          cargo make package -o ./build/raw
+          cargo make install --sudo -i ./build/raw
 
       - name: Service
         run: |
@@ -336,3 +320,21 @@ jobs:
       - name: Sqllogictest (PostgreSQL 17)
         if: matrix.version == '17'
         run: sqllogictest --db $USER --user $USER './tests/pg17/*.slt'
+
+      - name: Package
+        env:
+          SEMVER: "0.0.0"
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          cargo make package -o ./build/raw
+          (cd ./build/raw && zip -r ../postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-apple-darwin.zip .)
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-psql_macos-${{ matrix.version }}-${{ matrix.arch }}
+          path: |
+            ./build/postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin.zip
+          compression-level: 9
+          retention-days: 14

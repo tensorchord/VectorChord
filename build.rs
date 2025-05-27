@@ -12,12 +12,31 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use std::env::var;
+use std::collections::HashMap;
+use std::env::{var, var_os};
 use std::error::Error;
+use std::process::Command;
 
 fn main() -> Result<(), Box<dyn Error>> {
     if var("CARGO_CFG_TARGET_OS")? == "macos" {
-        println!("cargo::rustc-link-arg-cdylib=-Wl,-undefined,dynamic_lookup");
+        if let Some(path) = var_os("PGRX_PG_CONFIG_PATH") {
+            let map = {
+                let command_output = Command::new(&path).output()?;
+                let command_stdout = String::from_utf8(command_output.stdout)?;
+                let mut map = HashMap::new();
+                for line in command_stdout.lines() {
+                    if let Some((key, value)) = line.split_once(" = ") {
+                        map.insert(key.to_string(), value.to_string());
+                        eprintln!("Config `{key}`: {value}");
+                    }
+                }
+                map
+            };
+            let bindir = &map["BINDIR"];
+            println!("cargo::rustc-link-arg-cdylib=-Wl,-bundle,-bundle_loader,{bindir}/postgres",);
+        } else {
+            println!("cargo::rustc-link-arg-cdylib=-Wl,-undefined,dynamic_lookup");
+        }
     }
     Ok(())
 }
