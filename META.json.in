@@ -1,7 +1,7 @@
 {
     "name": "vchord",
-    "abstract": "Scalable, fast, and disk-friendly vector search in Postgres, the successor of pgvecto.rs",
-    "description": "Supports L2 distance, inner product, cosine distance and maxsim",
+    "abstract": "Scalable, fast, and disk-friendly vector search in Postgres",
+    "description": "VectorChord (vchord) is a PostgreSQL extension designed for scalable, high-performance, and disk-efficient vector similarity search, it supports L2 distance, inner product, cosine distance and maxsim",
     "version": "@DISTVERSION@",
     "maintainer": [
         "TensorChord support@tensorchord.ai",
@@ -20,7 +20,7 @@
             "file": "src/lib.rs",
             "docfile": "README.md",
             "version": "@DISTVERSION@",
-            "abstract": "Scalable, fast, and disk-friendly vector search in Postgres, the successor of pgvecto.rs"
+            "abstract": "Scalable, fast, and disk-friendly vector search in Postgres"
         }
     },
     "resources": {

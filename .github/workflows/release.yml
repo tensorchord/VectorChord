@@ -219,21 +219,4 @@ jobs:
             --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-amd64 \
             --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-arm64
           docker manifest push ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
-
-  publish-pgxn:
-    name: Publish vchord to PGXN
-    runs-on: ubuntu-latest
-    container: pgxn/pgxn-tools
-
-    steps:
-      - name: Checkout Git Repository
-        uses: actions/checkout@v4
-
-      - name: Bundle the Release
-        run: make dist
-      
-      - name: Release on PGXN
-        env:
-          PGXN_USERNAME: ${{ secrets.PGXN_USERNAME }}
-          PGXN_PASSWORD: ${{ secrets.PGXN_PASSWORD }}
-        run: pgxn-release
+  

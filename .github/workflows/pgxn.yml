@@ -1,0 +1,122 @@
+# workflows/pgxn.yml
+#
+# Publish vchord (PGXN)
+# Build and publish the vchord extension to the PostgreSQL Extension Network (PGXN). This
+# workflow is gets triggered on a new release creation or manually via the GitHub UI. 
+
+name: Publish vchord to PGXN
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "tag name (semver without v-prefix)"
+        type: string
+
+jobs:
+  semver:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      # Step 1: Checkout the repository so vchord.control is available
+      - name: Checkout Git Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Determine and Validate Semver
+      - name: Determine and Validate Semver
+        id: semver
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            let tag = "";
+
+            // Attempt to get tag from workflow inputs (manual dispatch)
+            const inputTag = "${{ github.event.inputs.tag }}";
+            if (inputTag) {
+              tag = inputTag;
+              console.log(`Tag from workflow input: ${tag}`);
+            }
+
+            // If not found, attempt to get tag from release event
+            if (!tag) {
+              const releaseTag = "${{ github.event.release.tag_name }}";
+              if (releaseTag) {
+                tag = releaseTag;
+                console.log(`Tag from release event: ${tag}`);
+              }
+            }
+            
+            // If tag is still not found, try to read from vchord.control
+            if (!tag) {
+              console.log('Tag not found from event. Attempting to read from vchord.control.');
+              try {
+                // GITHUB_WORKSPACE is the directory where the repo is checked out
+                const controlFilePath = path.join(process.env.GITHUB_WORKSPACE, 'vchord.control');
+                if (fs.existsSync(controlFilePath)) {
+                  const controlFileContent = fs.readFileSync(controlFilePath, 'utf8');
+                  const versionRegex = /^\s*default_version\s*=\s*'([^']*)'/m;
+                  const match = controlFileContent.match(versionRegex);
+                  if (match && match[1]) {
+                    tag = match[1];
+                    console.log(`Tag extracted from vchord.control: ${tag}`);
+                  } else {
+                    core.setFailed('default_version not found in vchord.control or format is incorrect.');
+                    return; 
+                  }
+                } else {
+                  core.setFailed('vchord.control file not found in the repository workspace. Ensure it is checked in at the root.');
+                  return;
+                }
+              } catch (error) {
+                core.setFailed(`Error reading or parsing vchord.control: ${error.message}`);
+                return;
+              }
+            }
+
+            if (!tag) {
+              core.setFailed('Failed to determine tag from any source (input, release, or vchord.control).');
+              return;
+            }
+
+            console.log(`Final Tag for semver validation: ${tag}`);
+            const r = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+            if (!r.test(tag)) {
+              core.setFailed(`Tag "${tag}" is not a valid semver.`);
+            } else {
+              core.setOutput('SEMVER', tag);
+              console.log(`Successfully set SEMVER output to: ${tag}`);
+            }
+
+    outputs:
+      SEMVER: ${{ steps.semver.outputs.SEMVER }}
+
+  publish:
+    name: Publish to PGXN
+    runs-on: ubuntu-latest
+    container: pgxn/pgxn-tools
+    needs: ["semver"]
+    env:
+        DISTNAME: vchord
+        DISTVERSION: ${{ needs.semver.outputs.SEMVER }}
+
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v4
+
+      - name: Bundle the Release
+        run: |
+            # Create a PGXN-compatible zip file.
+            sed -e "s/@DISTVERSION@/${DISTVERSION}/g" META.json.in > META.json
+            mkdir -p dist
+            git archive --format zip --prefix ${DISTNAME}-${DISTVERSION}/ --add-file META.json -o dist/${DISTNAME}-${DISTVERSION}.zip HEAD
+            echo "Release bundle created: dist/${DISTNAME}-${DISTVERSION}.zip"
+
+      - name: Release on PGXN
+        env:
+          PGXN_USERNAME: ${{ secrets.PGXN_USERNAME }}
+          PGXN_PASSWORD: ${{ secrets.PGXN_PASSWORD }}
+        run: pgxn-release

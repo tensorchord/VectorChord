@@ -1,5 +1,4 @@
 /target
-/dist/
 **/*.rs.bk
 .vscode
 .ignore
