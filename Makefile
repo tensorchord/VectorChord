@@ -1,14 +1,16 @@
 PG_CONFIG ?= $(shell which pg_config)
 
-all: package
-
-# Install vchord into the PostgreSQL cluster identified by pg_config.
-.PHONY: install
-install:
-	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" cargo make install -i ./build/raw
-
-# Build vchord for the PostgreSQL cluster identified by pg_config.
+.PHONY: make package install
 .DEFAULT_GOAL: package
-package:
-	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" cargo make package -o ./build/raw
 
+all: build-make package
+
+build-make:
+	cargo build -p make
+	cp ./target/debug/make ./build/make
+
+package:
+	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" ./build/make package -o ./build/raw
+
+install:
+	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" ./build/make install -i ./build/raw
