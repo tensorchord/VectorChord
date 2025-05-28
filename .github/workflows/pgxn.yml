@@ -40,7 +40,6 @@ jobs:
   publish:
     name: Publish to PGXN
     runs-on: ubuntu-latest
-    container: pgxn/pgxn-tools
     needs: ["semver"]
     env:
         DISTNAME: vchord
@@ -54,11 +53,23 @@ jobs:
         run: |
             # Create a PGXN-compatible zip file.
             sed -e "s/@DISTVERSION@/${DISTVERSION}/g" META.json.in > META.json
-            git archive --format zip --prefix ${DISTNAME}-${DISTVERSION}/ --add-file META.json -o ${DISTNAME}-${DISTVERSION}.zip HEAD
-            echo "Release bundle created: dist/${DISTNAME}-${DISTVERSION}.zip"
+            # Create the build directory
+            mkdir -p ./build
+            # Output the archive to ./build/ and use DISTNAME--DISTVERSION.zip
+            git archive --format zip --prefix "${DISTNAME}-${DISTVERSION}/" --add-file META.json -o "./build/${DISTNAME}--${DISTVERSION}.zip" HEAD
+            echo "Release bundle created: ./build/${DISTNAME}--${DISTVERSION}.zip"
 
       - name: Release on PGXN
         env:
           PGXN_USERNAME: ${{ secrets.PGXN_USERNAME }}
           PGXN_PASSWORD: ${{ secrets.PGXN_PASSWORD }}
-        run: pgxn-release
+        run: |
+          # DISTNAME and DISTVERSION are available from the job's env context
+          ARCHIVE_PATH="./build/${DISTNAME}--${DISTVERSION}.zip"
+          echo "Uploading ${ARCHIVE_PATH} to PGXN..."
+          curl --fail -sS \
+            --user "${PGXN_USERNAME}:${PGXN_PASSWORD}" \
+            -F "submit=Release It!" \
+            -F "archive=@${ARCHIVE_PATH}" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            https://manager.pgxn.org/upload

@@ -6,6 +6,7 @@ PG_CONFIG ?= $(shell which pg_config)
 all: build-make package
 
 build-make:
+	mkdir -p ./build
 	cargo build -p make
 	cp ./target/debug/make ./build/make
 
