@@ -17,7 +17,7 @@
     },
     "provides": {
         "vchord": {
-            "file": "build.rs",
+            "file": "src/lib.rs",
             "docfile": "README.md",
             "version": "@DISTVERSION@",
             "abstract": "Scalable, fast, and disk-friendly vector search in Postgres, the successor of pgvecto.rs"
