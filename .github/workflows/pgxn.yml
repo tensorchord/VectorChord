@@ -54,8 +54,7 @@ jobs:
         run: |
             # Create a PGXN-compatible zip file.
             sed -e "s/@DISTVERSION@/${DISTVERSION}/g" META.json.in > META.json
-            mkdir -p dist
-            git archive --format zip --prefix ${DISTNAME}-${DISTVERSION}/ --add-file META.json -o dist/${DISTNAME}-${DISTVERSION}.zip HEAD
+            git archive --format zip --prefix ${DISTNAME}-${DISTVERSION}/ --add-file META.json -o ${DISTNAME}-${DISTVERSION}.zip HEAD
             echo "Release bundle created: dist/${DISTNAME}-${DISTVERSION}.zip"
 
       - name: Release on PGXN
