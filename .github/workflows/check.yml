@@ -201,8 +201,8 @@ jobs:
 
       - name: Install
         run: |
-          cargo make package -o ./build/raw
-          cargo make install --sudo -i ./build/raw
+          cargo make build -o ./build/raw
+          sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
         run: |
@@ -304,8 +304,8 @@ jobs:
 
       - name: Install
         run: |
-          cargo make package -o ./build/raw
-          cargo make install --sudo -i ./build/raw
+          cargo make build -o ./build/raw
+          sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
         run: |
@@ -327,7 +327,6 @@ jobs:
           VERSION: ${{ matrix.version }}
           ARCH: ${{ matrix.arch }}
         run: |
-          cargo make package -o ./build/raw
           (cd ./build/raw && zip -r ../postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-apple-darwin.zip .)
 
       - name: Upload Artifacts
