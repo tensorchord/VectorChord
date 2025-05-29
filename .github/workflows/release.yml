@@ -85,7 +85,8 @@ jobs:
           ARCH: ${{ matrix.arch }}
           PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
         run: |
-          cargo make package -o ./build/raw
+          cargo make build -o ./build/raw
+
           (cd ./build/raw && zip -r ../postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip .)
 
           mkdir -p ./build/deb
@@ -219,4 +220,28 @@ jobs:
             --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-amd64 \
             --amend ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}-arm64
           docker manifest push ghcr.io/tensorchord/vchord-postgres:pg${{ matrix.version }}-v${{ env.SEMVER }}
-  
+
+  pgxn:
+    runs-on: "ubuntu-latest"
+    needs: ["semver", "build"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload
+        env:
+          SEMVER: ${{ needs.semver.outputs.SEMVER }}
+          PGXN_PASSWORD: ${{ secrets.PGXN_PASSWORD }}
+        run: |
+          mkdir -p ./build
+
+          sed -e "s/@DISTVERSION@/${SEMVER}/g" META.json.in > META.json
+          git archive --format zip --prefix "vchord-${SEMVER}/" --add-file META.json -o "./build/vchord--${SEMVER}.zip" HEAD
+
+          curl --fail -sS \
+            --user "tensorchord:${PGXN_PASSWORD}" \
+            -F "submit=Release It!" \
+            -F "archive=@./build/vchord--${SEMVER}.zip" \
+            -H "X-Requested-With: XMLHttpRequest" \
+            https://manager.pgxn.org/upload

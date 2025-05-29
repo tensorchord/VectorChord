@@ -31,22 +31,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Package(PackageArgs),
-    Install(InstallArgs),
+    Build(BuildArgs),
 }
 
 #[derive(Args)]
-struct PackageArgs {
+struct BuildArgs {
     #[arg(short, long)]
     output: String,
-}
-
-#[derive(Args)]
-struct InstallArgs {
-    #[arg(short, long)]
-    input: Option<String>,
-    #[arg(long, default_value = "false")]
-    sudo: bool,
 }
 
 fn main() -> Result<()> {
@@ -203,31 +194,9 @@ fn main() -> Result<()> {
         let command_stdout = String::from_utf8(command_output.stdout)?.replace("\t", "    ");
         Ok(command_stdout)
     };
-    let uilts_install = |sudo: bool, permission: &str, src: &str, dst: &str| {
-        let mut command;
-        if sudo {
-            command = Command::new("sudo");
-            command.arg("install");
-        } else {
-            command = Command::new("install");
-        };
+    let uilts_install = |permission: &str, src: &str, dst: &str| {
+        let mut command = Command::new("install");
         command.args(["-m", permission, src, dst]);
-        let debug = format!("{command:?}");
-        let status = command.spawn()?.wait()?;
-        if !status.success() {
-            bail!("Command execution failed: {debug}");
-        }
-        Ok(())
-    };
-    let uilts_cp = |sudo: bool, args: &[&str]| {
-        let mut command;
-        if sudo {
-            command = Command::new("sudo");
-            command.arg("cp");
-        } else {
-            command = Command::new("cp");
-        };
-        command.args(args);
         let debug = format!("{command:?}");
         let status = command.spawn()?.wait()?;
         if !status.success() {
@@ -240,15 +209,13 @@ fn main() -> Result<()> {
     } else {
         DLL_SUFFIX
     };
-    let install = |sudo, pkglibdir, sharedir_extension| -> Result<()> {
+    let install = |pkglibdir, sharedir_extension| -> Result<()> {
         uilts_install(
-            sudo,
             "755",
             &format!("./target/release/{DLL_PREFIX}vchord{DLL_SUFFIX}"),
             &format!("{pkglibdir}/vchord{dll_suffix}"),
         )?;
         uilts_install(
-            sudo,
             "644",
             "./vchord.control",
             &format!("{sharedir_extension}/vchord.control"),
@@ -258,14 +225,12 @@ fn main() -> Result<()> {
                 let path = maybe_entry?.path();
                 let name = path.file_name().context("broken assets")?;
                 uilts_install(
-                    sudo,
                     "644",
                     &format!("{}", path.display()),
                     &format!("{sharedir_extension}/{}", name.display()),
                 )?;
             }
             uilts_install(
-                sudo,
                 "644",
                 &format!("./sql/install/vchord--{version}.sql"),
                 &format!("{sharedir_extension}/vchord--{version}.sql"),
@@ -276,7 +241,6 @@ fn main() -> Result<()> {
             file.write_all(contents.as_bytes())?;
             let path = file.into_temp_path();
             uilts_install(
-                sudo,
                 "644",
                 &format!("{}", path.display()),
                 &format!("{sharedir_extension}/vchord--0.0.0.sql"),
@@ -285,7 +249,7 @@ fn main() -> Result<()> {
         Ok(())
     };
     match cli.command {
-        Commands::Package(PackageArgs { output }) => {
+        Commands::Build(BuildArgs { output }) => {
             build()?;
             let pkglibdir = format!("{output}/pkglibdir");
             let sharedir = format!("{output}/sharedir");
@@ -297,25 +261,7 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(&pkglibdir)?;
             std::fs::create_dir_all(&sharedir)?;
             std::fs::create_dir_all(&sharedir_extension)?;
-            install(false, pkglibdir, sharedir_extension)?;
-        }
-        Commands::Install(InstallArgs { sudo, input }) => {
-            if let Some(input) = input {
-                uilts_cp(
-                    sudo,
-                    &["-r", &format!("{input}/pkglibdir/."), &map["PKGLIBDIR"]],
-                )?;
-                uilts_cp(
-                    sudo,
-                    &["-r", &format!("{input}/sharedir/."), &map["SHAREDIR"]],
-                )?;
-            } else {
-                build()?;
-                let pkglibdir = map["PKGLIBDIR"].clone();
-                let sharedir = map["SHAREDIR"].clone();
-                let sharedir_extension = format!("{sharedir}/extension");
-                install(sudo, pkglibdir, sharedir_extension)?;
-            }
+            install(pkglibdir, sharedir_extension)?;
         }
     }
     Ok(())

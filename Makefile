@@ -1,17 +1,17 @@
-PG_CONFIG ?= $(shell which pg_config)
+PG_CONFIG ?= pg_config
 
-.PHONY: make package install
-.DEFAULT_GOAL: package
+.PHONY: all build install uninstall
 
-all: build-make package
+all: build
 
-build-make:
-	mkdir -p ./build
-	cargo build -p make
-	cp ./target/debug/make ./build/make
-
-package:
-	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" ./build/make package -o ./build/raw
+build:
+	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" cargo make build -o ./build/raw
 
 install:
-	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" ./build/make install -i ./build/raw
+	cp -r ./build/raw/pkglibdir/. $(shell $(PG_CONFIG) --pkglibdir)
+	cp -r ./build/raw/sharedir/. $(shell $(PG_CONFIG) --sharedir)
+
+uninstall:
+	rm -f $(shell find $(shell $(PG_CONFIG) --pkglibdir) -type f -name 'vchord.*')
+	rm -f $(shell find $(shell $(PG_CONFIG) --sharedir)/extension -type f -name 'vchord.*')
+	rm -f $(shell find $(shell $(PG_CONFIG) --sharedir)/extension -type f -name 'vchord--*.sql')
