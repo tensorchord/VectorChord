@@ -8,14 +8,16 @@
 
 [Official Site][official-site-link] · [Blog][blog-link] · [Docs][docs-link] · [Feedback][github-issues-link] · [Contact Us][email-link]
 
-<!-- TODO: Add GHCR when 0.3.0 is ready -->
 
 [![][github-release-shield]][github-release-link]
 [![][docker-release-shield]][docker-release-link]
 [![][docker-pulls-shield]][docker-pulls-link]
+[![][ghcr-release-shield]][ghcr-release-link]
+[![][github-downloads-shield]][github-downloads-link]
 [![][discord-shield]][discord-link]
 [![][X-shield]][X-link]
 [![][cloud-shield]][cloud-link]
+[![][deepwiki-shield]][deepwiki-link]
 [![][license-1-shield]][license-1-link]
 [![][license-2-shield]][license-2-link]
 </div>
@@ -65,7 +67,7 @@ docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d ghcr.io/tensorchord/vchord-postgres:pg17-v0.3.0
+  -d ghcr.io/tensorchord/vchord-postgres:pg17-v0.4.2
 ```
 > [!NOTE]
 > In addition to the base image with the VectorChord extension, we provide an all-in-one image, `tensorchord/vchord-suite:pg17-latest`. This comprehensive image includes all official TensorChord extensions, including `VectorChord`, `VectorChord-bm25` and `pg_tokenizer.rs` . Developers should select an image tag that is compatible with their extension's version, as indicated in [the support matrix](https://github.com/tensorchord/VectorChord-images?tab=readme-ov-file#support-matrix).
@@ -101,16 +103,6 @@ lists = []
 $$);
 ```
 
-> [!NOTE]
-> The `lists` option should be configured based on the number of vectors. Below is a table to assist with your selection.
-
-| vectors Range | List Calculation Formula       | Example Result   |
-| ------------- | ------------------------------ | ---------------- |
-| <128k         | list = 1                       | 1                |
-| ≥128k and <2M | list = (2 * vectors) / 1000    | 256-4000      |
-| ≥2M and <100M | list ∈ [4√vectors, 8√vectors]  | 4000-80000   |
-| ≥100M         | list ∈ [8√vectors, 16√vectors] | 80000-160000 |
-
 And then perform a vector search using `SELECT ... ORDER BY ... LIMIT ...`.
 
 ```SQL
@@ -123,6 +115,19 @@ For more usage, please read:
 * [Indexing](https://docs.vectorchord.ai/vectorchord/usage/indexing.html)
 * [Performance Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
 * [Advanced Features](https://docs.vectorchord.ai/vectorchord/usage/advanced-features.html)
+
+> [!NOTE]
+> The partition parameter, `lists`, should be configured based on the number of rows. The following table provides guidance for this selection. When searching, remember to set [`vchordrq.probes`](https://docs.vectorchord.ai/vectorchord/usage/search.html#vchordrq-probes) based on the value of lists.
+
+
+
+| Number of Rows $N$                     | Recommended Number of Partitions $L$ | Example `lists` |
+| -------------------------------------- | ------------------------------------ | --------------- |
+| $N \in [0, 10^5)$                      | N/A                                  | `[]`            |
+| $N \in [10^5, 2 \times 10^6)$          | $L = \frac{N}{500}$                  | `[2000]`        |
+| $N \in [2 \times 10^6, 5 \times 10^7)$ | $L \in [4 \sqrt{N}, 8 \sqrt{N}]$     | `[10000]`       |
+| $N \in [5 \times 10^7, \infty)$        | $L \in [8 \sqrt{N}, 16\sqrt{N}]$     | `[80000]`       |
+
 
 ## License
 
@@ -141,19 +146,26 @@ You may choose either license based on your needs. We welcome any commercial col
 [license-2-shield]: https://img.shields.io/badge/License-ELv2-green?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjZmZmZmZmIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xMi43NSAyLjc1YS43NS43NSAwIDAwLTEuNSAwVjQuNUg5LjI3NmExLjc1IDEuNzUgMCAwMC0uOTg1LjMwM0w2LjU5NiA1Ljk1N0EuMjUuMjUgMCAwMTYuNDU1IDZIMi4zNTNhLjc1Ljc1IDAgMTAwIDEuNUgzLjkzTC41NjMgMTUuMThhLjc2Mi43NjIgMCAwMC4yMS44OGMuMDguMDY0LjE2MS4xMjUuMzA5LjIyMS4xODYuMTIxLjQ1Mi4yNzguNzkyLjQzMy42OC4zMTEgMS42NjIuNjIgMi44NzYuNjJhNi45MTkgNi45MTkgMCAwMDIuODc2LS42MmMuMzQtLjE1NS42MDYtLjMxMi43OTItLjQzMy4xNS0uMDk3LjIzLS4xNTguMzEtLjIyM2EuNzUuNzUgMCAwMC4yMDktLjg3OEw1LjU2OSA3LjVoLjg4NmMuMzUxIDAgLjY5NC0uMTA2Ljk4NC0uMzAzbDEuNjk2LTEuMTU0QS4yNS4yNSAwIDAxOS4yNzUgNmgxLjk3NXYxNC41SDYuNzYzYS43NS43NSAwIDAwMCAxLjVoMTAuNDc0YS43NS43NSAwIDAwMC0xLjVIMTIuNzVWNmgxLjk3NGMuMDUgMCAuMS4wMTUuMTQuMDQzbDEuNjk3IDEuMTU0Yy4yOS4xOTcuNjMzLjMwMy45ODQuMzAzaC44ODZsLTMuMzY4IDcuNjhhLjc1Ljc1IDAgMDAuMjMuODk2Yy4wMTIuMDA5IDAgMCAuMDAyIDBhMy4xNTQgMy4xNTQgMCAwMC4zMS4yMDZjLjE4NS4xMTIuNDUuMjU2Ljc5LjRhNy4zNDMgNy4zNDMgMCAwMDIuODU1LjU2OCA3LjM0MyA3LjM0MyAwIDAwMi44NTYtLjU2OWMuMzM4LS4xNDMuNjA0LS4yODcuNzktLjM5OWEzLjUgMy41IDAgMDAuMzEtLjIwNi43NS43NSAwIDAwLjIzLS44OTZMMjAuMDcgNy41aDEuNTc4YS43NS43NSAwIDAwMC0xLjVoLTQuMTAyYS4yNS4yNSAwIDAxLS4xNC0uMDQzbC0xLjY5Ny0xLjE1NGExLjc1IDEuNzUgMCAwMC0uOTg0LS4zMDNIMTIuNzVWMi43NXpNMi4xOTMgMTUuMTk4YTUuNDE4IDUuNDE4IDAgMDAyLjU1Ny42MzUgNS40MTggNS40MTggMCAwMDIuNTU3LS42MzVMNC43NSA5LjM2OGwtMi41NTcgNS44M3ptMTQuNTEtLjAyNGMuMDgyLjA0LjE3NC4wODMuMjc1LjEyNi41My4yMjMgMS4zMDUuNDUgMi4yNzIuNDVhNS44NDYgNS44NDYgMCAwMDIuNTQ3LS41NzZMMTkuMjUgOS4zNjdsLTIuNTQ3IDUuODA3eiI+PC9wYXRoPjwvc3ZnPgo=
 
 [docker-release-link]: https://hub.docker.com/r/tensorchord/vchord-postgres
-[docker-release-shield]: https://img.shields.io/docker/v/tensorchord/vchord-postgres?color=369eff&label=docker&labelColor=black&logo=docker&logoColor=white&style=flat&sort=semver
+[docker-release-shield]: https://img.shields.io/docker/v/tensorchord/vchord-postgres?color=369eff&label=docker&labelColor=black&logo=docker&logoColor=white&style=flat
 [github-release-link]: https://github.com/tensorchord/VectorChord/releases
 [github-release-shield]: https://img.shields.io/github/v/release/tensorchord/VectorChord?color=369eff&labelColor=black&logo=github&style=flat
+[ghcr-release-link]: https://github.com/orgs/tensorchord/packages/container/package/vchord-postgres
+<!-- GHCR badge is not supported by shields.io yet, use docker badge instead -->
+[ghcr-release-shield]: https://img.shields.io/docker/v/tensorchord/vchord-postgres?color=369eff&label=GHCR&labelColor=black&logo=github&logoColor=white&style=flat
 [docker-pulls-link]: https://hub.docker.com/r/tensorchord/vchord-postgres
 [docker-pulls-shield]: https://img.shields.io/docker/pulls/tensorchord/vchord-postgres?color=45cc11&labelColor=black&style=flat&sort=semver
 [previous-docker-pulls-link]: https://hub.docker.com/r/tensorchord/pgvecto-rs
 [previous-docker-pulls-shield]: https://img.shields.io/docker/pulls/tensorchord/pgvecto-rs?color=45cc11&labelColor=black&style=flat&sort=semver
+[github-downloads-link]: https://github.com/tensorchord/VectorChord/releases
+[github-downloads-shield]: https://img.shields.io/github/downloads/tensorchord/VectorChord/total?color=45cc11&labelColor=black&style=flat&sort=semver
 [discord-link]: https://discord.gg/KqswhpVgdU
 [discord-shield]: https://img.shields.io/discord/974584200327991326?&logoColor=white&color=5865F2&style=flat&logo=discord&cacheSeconds=60
-[X-link]: https://twitter.com/TensorChord
-[X-shield]: https://img.shields.io/twitter/follow/tensorchord?style=flat&logo=X&cacheSeconds=60
+[X-link]: https://x.com/TensorChord
+[X-shield]: https://img.shields.io/badge/follow-%40tensorchord-1DA1F2?logo=x&style=flat&logoColor=white&color=1da1f2
 [cloud-link]: https://cloud.vectorchord.ai/
 [cloud-shield]: https://img.shields.io/badge/VectorChord_Cloud-Try_For_Free-F2B263.svg?labelColor=DAFDBA&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMzMiIGhlaWdodD0iMTMyIiBmaWxsPSJub25lIj48cGF0aCBmaWxsPSIjRTZEQjNEIiBkPSJNNDguNCAzNy41YzAtMSAwLTEuNS0uMi0xLjhhMSAxIDAgMCAwLS44LS40Yy0uMyAwLS43LjMtMS42IDFMMjcuNiA1MC4xYy0xLjIuOC0xLjcgMS4zLTIuMiAxLjhhNSA1IDAgMCAwLS44IDEuNmMtLjIuNy0uMiAxLjQtLjIgMi45djM3LjNjMCAxLjIgMCAxLjguMyAyIC4yLjMuNS41LjguNC40IDAgLjgtLjQgMS42LTEuM2wxOS0xOC42IDEuNS0xLjhjLjMtLjQuNS0xIC42LTEuNC4yLS42LjItMS4yLjItMi40VjM3LjVaTTM1LjIgMTA1LjNjLS44LjgtMS4yIDEuMy0xLjIgMS42IDAgLjQgMCAuNy4zLjkuMy4yLjkuMiAyIC4yaDM3YzEuMyAwIDIgMCAyLjUtLjJhNSA1IDAgMCAwIDEuNS0uNmMuNi0uNCAxLS45IDEuOS0xLjhMOTYuNiA4NmMuNy0uOSAxLjEtMS4zIDEuMS0xLjZhMSAxIDAgMCAwLS4zLS44Yy0uMy0uMy0uOS0uMy0yLS4zaC0zNWMtMS4yIDAtMS44IDAtMi40LjJhNSA1IDAgMCAwLTEuNC42Yy0uNS4zLTEgLjctMS44IDEuNmwtMTkuNiAxOS42Wk05Ni4zIDcwLjFjMSAwIDEuNCAwIDEuNy0uMi40LS4xLjYtLjQuOC0uN2wuMS0xLjdWMzUuM2wtLjEtMS44Yy0uMi0uMy0uNC0uNS0uOC0uNy0uMy0uMi0uOC0uMi0xLjctLjJINjQuMWMtMSAwLTEuNCAwLTEuNy4yLS40LjItLjYuNC0uOC43bC0uMSAxLjh2MzIuMmwuMSAxLjdjLjIuMy40LjYuOC43LjMuMi44LjIgMS43LjJoMzIuMloiLz48cGF0aCBmaWxsPSIjMTAxNTA5IiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik00My4yIDIxLjVjLTEuMyAwLTIgMC0yLjMtLjMtLjMtLjMtLjUtLjYtLjUtMSAwLS41LjQtMSAxLjEtMi4xTDUzLjEgMi4zYy42LS44LjktMS4yIDEuMi0xLjNoMWMuNC4xLjcuNSAxLjIgMS4zbDExLjYgMTUuOGMuOCAxIDEuMiAxLjYgMS4yIDIgMCAuNS0uMi44LS41IDEtLjQuNC0xIC40LTIuNC40SDU5Yy0uMy4yLS41LjQtLjYuNy0uMi4zLS4yLjYtLjIgMS40VjY4YzAgMS45IDAgMi44LjQgMy41LjMuNi44IDEuMSAxLjQgMS41LjcuMyAxLjcuMyAzLjUuM2g0NGwxLjMtLjFjLjMtLjEuNS0uMy42LS42bC4xLTEuNFY2NWMwLTEuMyAwLTIgLjMtMi4zLjItLjMuNi0uNSAxLS41czEgLjMgMiAxTDEzMCA3NWMuOC42IDEuMy45IDEuNCAxLjJ2MWMtLjEuNC0uNi43LTEuNCAxLjNsLTE3LjMgMTEuN2MtMSAuOC0xLjYgMS4xLTIgMS4xLS40IDAtLjgtLjItMS0uNS0uMy0uNC0uMy0xLS4zLTIuM1Y4MmwtLjEtMS40Yy0uMS0uMi0uMy0uNC0uNi0uNS0uMy0uMi0uNi0uMi0xLjQtLjJINjAuNWMtMS42IDAtMi40IDAtMy4xLjItLjcuMi0xLjMuNC0yIC44bC0yLjMgMi0yOC42IDI4LjNjLS41LjUtLjguOC0uOSAxLjF2LjhjLjEuMy40LjYuOSAxLjFsMy43IDMuN2MuOCAxIDEuMyAxLjMgMS4zIDEuOCAwIC40IDAgLjctLjMgMS0uMy4zLS45LjUtMiAuOGwtMjAgNC43Yy0xLjEuMi0xLjcuMy0yIC4yLS40LS4xLS43LS40LS44LS44LS4xLS4zIDAtMSAuMy0ybDUtMTkuOWMuMy0xLjEuNC0xLjcuOC0yIC4zLS4zLjctLjQgMS0uMy41IDAgLjkuNSAxLjggMS40bDMuNiAzLjcgMSAuOWguOWMuMy0uMS42LS40IDEtLjlsMjguNi0yOC4yYzEuMi0xLjEgMS43LTEuNyAyLjEtMi4zLjQtLjYuNy0xLjMuOC0yIC4yLS43LjItMS41LjItMy4yVjIzLjZsLS4xLTEuNGMtLjEtLjMtLjMtLjUtLjYtLjZsLTEuNC0uMWgtNi4yWiIgY2xpcC1ydWxlPSJldmVub2RkIi8+PC9zdmc+
+[deepwiki-link]: https://deepwiki.com/tensorchord/VectorChord
+[deepwiki-shield]: https://deepwiki.com/badge.svg
 [blog-link]: https://blog.vectorchord.ai/
 [official-site-link]: https://vectorchord.ai/
 [github-issues-link]: https://github.com/tensorchord/VectorChord/issues
