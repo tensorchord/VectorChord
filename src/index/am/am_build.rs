@@ -374,7 +374,7 @@ pub unsafe extern "C-unwind" fn ambuild(
                 pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordrqshared).mutex);
                 pgrx::pg_sys::ConditionVariableSleep(
                     &raw mut (*leader.vchordrqshared).workersdonecv,
-                    pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN,
+                    pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN as _,
                 );
             }
             reporter.tuples_done((*leader.vchordrqshared).indtuples);

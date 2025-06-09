@@ -12,10 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![cfg_attr(target_arch = "x86_64", feature(avx512_target_feature))]
-#![cfg_attr(target_arch = "x86_64", feature(stdarch_x86_avx512))]
-#![feature(slice_as_chunks)]
-#![feature(select_unpredictable)]
 #![allow(unsafe_code)]
 
 mod aligned;
@@ -84,20 +80,6 @@ mod internal {
     #[cfg(target_arch = "riscv64")]
     #[allow(unused_imports)]
     pub use is_riscv64_cpu_detected;
-
-    #[cfg(target_arch = "x86_64")]
-    pub fn is_v4fp16_detected() -> bool {
-        std::arch::is_x86_feature_detected!("avx512fp16")
-            && std::arch::is_x86_feature_detected!("avx512bw")
-            && std::arch::is_x86_feature_detected!("avx512cd")
-            && std::arch::is_x86_feature_detected!("avx512dq")
-            && std::arch::is_x86_feature_detected!("avx512vl")
-            && std::arch::is_x86_feature_detected!("bmi1")
-            && std::arch::is_x86_feature_detected!("bmi2")
-            && std::arch::is_x86_feature_detected!("lzcnt")
-            && std::arch::is_x86_feature_detected!("movbe")
-            && std::arch::is_x86_feature_detected!("popcnt")
-    }
 
     #[cfg(target_arch = "x86_64")]
     pub fn is_v4_detected() -> bool {

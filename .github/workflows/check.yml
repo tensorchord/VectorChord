@@ -22,6 +22,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
+          rustup default nightly-2025-06-08
 
           curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-full-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
 
@@ -112,6 +113,8 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
+          rustup default nightly-2025-06-08
+
           sudo apt-get update
 
           if [ "$(uname -m)" == "x86_64" ]; then
@@ -152,6 +155,11 @@ jobs:
           fi
 
   psql:
+    if: |
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, 'job: -psql')) ||
+      (github.event_name == 'pull_request' && !contains(github.event.pull_request.body, 'job: -psql')) ||
+      github.event_name == 'workflow_dispatch'
+
     strategy:
       matrix:
         version: ["13", "14", "15", "16", "17"]
@@ -166,6 +174,8 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
+          rustup default nightly-2025-06-08
+
           sudo apt-get update
 
           sudo apt-get remove -y '^postgres.*' '^libpq.*'
@@ -254,8 +264,8 @@ jobs:
 
   psql_macos:
     if: |
-      (github.event_name == 'push' && contains(github.event.head_commit.message, 'try-job: psql_macos')) ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, 'try-job: psql_macos')) ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, 'job: +psql_macos')) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, 'job: +psql_macos')) ||
       github.event_name == 'workflow_dispatch'
 
     strategy:
@@ -273,6 +283,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
+          rustup default nightly-2025-06-08
 
           echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
@@ -337,3 +348,52 @@ jobs:
             ./build/postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin.zip
           compression-level: 9
           retention-days: 14
+
+  psql_windows:
+    if: |
+      (github.event_name == 'push' && contains(github.event.head_commit.message, 'job: +psql_windows')) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, 'job: +psql_windows')) ||
+      github.event_name == 'workflow_dispatch'
+
+    strategy:
+      matrix:
+        version: ["16"]
+        arch: ["x86_64"]
+
+    runs-on: "windows-2022"
+
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: true
+
+    steps:
+      - name: Set up Environment
+        run: |
+          rustup set profile
+          rustup default nightly-2025-06-08
+
+          Invoke-WebRequest -Uri "https://get.enterprisedb.com/postgresql/postgresql-16.9-1-windows-x64-binaries.zip" -OutFile "$env:TEMP\postgresql-install.zip"
+          Expand-Archive -Path "$env:TEMP\postgresql-install.zip" -DestinationPath "D:\postgresql-install" -Force
+          Add-Content -Path $env:GITHUB_ENV -Value "PGRX_PG_CONFIG_PATH=D:\postgresql-install\pgsql\bin\pg_config.exe"
+          Add-Content -Path $env:GITHUB_ENV -Value "PGBIN=D:\postgresql-install\pgsql\bin"
+          Add-Content -Path $env:GITHUB_ENV -Value "PGDATA=D:\postgresql-install\pgsql\data"
+          Add-Content -Path $env:GITHUB_ENV -Value "PGROOT=D:\postgresql-install\pgsql"
+
+          Invoke-WebRequest -Uri https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-${{ matrix.arch }}-pc-windows-msvc.zip -OutFile "$env:TEMP\sqllogictest-install.zip"
+          Expand-Archive -Path "$env:TEMP\sqllogictest-install.zip" -DestinationPath "D:\sqllogictest-install" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "D:\sqllogictest-install"
+
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clippy
+        run: |
+          cargo clippy -p vchord --features pg${{ matrix.version }} -- --no-deps
+
+      - name: Install
+        run: |
+          cargo make build -o ./build/raw
+          make PG_CONFIG="$env:PGRX_PG_CONFIG_PATH" install

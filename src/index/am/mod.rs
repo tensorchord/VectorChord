@@ -16,15 +16,16 @@ pub mod am_build;
 
 use super::algorithm::BumpAlloc;
 use crate::index::gucs;
-use crate::index::lazy_cell::LazyCell;
 use crate::index::opclass::{Opfamily, opfamily};
 use crate::index::scanners::*;
 use crate::index::storage::PostgresRelation;
 use algorithm::Bump;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::{BlockIdData, Datum, ItemPointerData};
+use std::cell::LazyCell;
 use std::ffi::CStr;
 use std::num::NonZero;
+use std::ops::DerefMut;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
 
@@ -59,7 +60,7 @@ pub fn init() {
         unsafe {
             kind = pgrx::pg_sys::add_reloption_kind();
             pgrx::pg_sys::add_string_reloption(
-                kind,
+                kind as _,
                 c"options".as_ptr(),
                 c"Vector index options, represented as a TOML string.".as_ptr(),
                 c"".as_ptr(),
@@ -494,7 +495,7 @@ pub unsafe extern "C-unwind" fn amgettuple(
         pgrx::error!("scanning with a non-MVCC-compliant snapshot is not supported");
     }
     let scanner = unsafe { (*scan).opaque.cast::<Scanner>().as_mut().unwrap_unchecked() };
-    if let Some((_, key, recheck)) = LazyCell::force_mut(&mut scanner.scanning).next() {
+    if let Some((_, key, recheck)) = scanner.scanning.deref_mut().next() {
         unsafe {
             (*scan).xs_heaptid = key_to_ctid(key);
             (*scan).xs_recheck = recheck;
@@ -609,6 +610,7 @@ impl Tuple for HeapTuple<'_> {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn filter(&mut self) -> bool {
         unsafe {
             let this = &mut self.this;

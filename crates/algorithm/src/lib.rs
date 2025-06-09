@@ -12,7 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![feature(select_unpredictable)]
 #![allow(clippy::type_complexity)]
 
 mod build;
