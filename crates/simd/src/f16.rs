@@ -239,25 +239,29 @@ mod reduce_sum_of_xy {
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4fp16")]
-    pub fn reduce_sum_of_xy_v4fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
+    #[crate::target_cpu(enable = "v4")]
+    #[target_feature(enable = "avx512fp16")]
+    pub fn reduce_sum_of_xy_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
             unsafe extern "C" {
-                unsafe fn fp16_reduce_sum_of_xy_v4fp16(a: *const (), b: *const (), n: usize)
-                -> f32;
+                unsafe fn fp16_reduce_sum_of_xy_v4_avx512fp16(
+                    a: *const (),
+                    b: *const (),
+                    n: usize,
+                ) -> f32;
             }
-            fp16_reduce_sum_of_xy_v4fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
+            fp16_reduce_sum_of_xy_v4_avx512fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn reduce_sum_of_xy_v4fp16_test() {
+    fn reduce_sum_of_xy_v4_avx512fp16_test() {
         use rand::Rng;
         const EPSILON: f32 = 2.0;
-        if !crate::is_cpu_detected!("v4fp16") {
-            println!("test {} ... skipped (v4fp16)", module_path!());
+        if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
+            println!("test {} ... skipped (v4:avx512fp16)", module_path!());
             return;
         }
         let mut rng = rand::rng();
@@ -272,7 +276,7 @@ mod reduce_sum_of_xy {
             for z in 3984..4016 {
                 let lhs = &lhs[..z];
                 let rhs = &rhs[..z];
-                let specialized = unsafe { reduce_sum_of_xy_v4fp16(lhs, rhs) };
+                let specialized = unsafe { reduce_sum_of_xy_v4_avx512fp16(lhs, rhs) };
                 let fallback = fallback(lhs, rhs);
                 assert!(
                     (specialized - fallback).abs() < EPSILON,
@@ -494,7 +498,7 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[crate::multiversion(@"v4fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_xy(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
@@ -511,25 +515,29 @@ mod reduce_sum_of_d2 {
 
     #[inline]
     #[cfg(target_arch = "x86_64")]
-    #[crate::target_cpu(enable = "v4fp16")]
-    pub fn reduce_sum_of_d2_v4fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
+    #[crate::target_cpu(enable = "v4")]
+    #[target_feature(enable = "avx512fp16")]
+    pub fn reduce_sum_of_d2_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
             unsafe extern "C" {
-                unsafe fn fp16_reduce_sum_of_d2_v4fp16(a: *const (), b: *const (), n: usize)
-                -> f32;
+                unsafe fn fp16_reduce_sum_of_d2_v4_avx512fp16(
+                    a: *const (),
+                    b: *const (),
+                    n: usize,
+                ) -> f32;
             }
-            fp16_reduce_sum_of_d2_v4fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
+            fp16_reduce_sum_of_d2_v4_avx512fp16(lhs.as_ptr().cast(), rhs.as_ptr().cast(), lhs.len())
         }
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
     #[test]
-    fn reduce_sum_of_d2_v4fp16_test() {
+    fn reduce_sum_of_d2_v4_avx512fp16_test() {
         use rand::Rng;
         const EPSILON: f32 = 6.4;
-        if !crate::is_cpu_detected!("v4fp16") {
-            println!("test {} ... skipped (v4fp16)", module_path!());
+        if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
+            println!("test {} ... skipped (v4:avx512fp16)", module_path!());
             return;
         }
         let mut rng = rand::rng();
@@ -544,7 +552,7 @@ mod reduce_sum_of_d2 {
             for z in 3984..4016 {
                 let lhs = &lhs[..z];
                 let rhs = &rhs[..z];
-                let specialized = unsafe { reduce_sum_of_d2_v4fp16(lhs, rhs) };
+                let specialized = unsafe { reduce_sum_of_d2_v4_avx512fp16(lhs, rhs) };
                 let fallback = fallback(lhs, rhs);
                 assert!(
                     (specialized - fallback).abs() < EPSILON,
@@ -774,7 +782,7 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[crate::multiversion(@"v4fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();

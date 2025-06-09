@@ -12,9 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![feature(slice_as_chunks)]
-#![feature(select_unpredictable)]
-
 pub mod binary;
 pub mod block;
 pub mod packing;

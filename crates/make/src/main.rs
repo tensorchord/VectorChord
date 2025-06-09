@@ -83,6 +83,7 @@ fn main() -> Result<()> {
         eprintln!("Fork: {fork}");
         fork
     };
+    #[allow(clippy::collapsible_if)]
     let version = 'version: {
         for line in std::fs::read_to_string("./vchord.control")?.lines() {
             if let Some(prefix_stripped) = line.strip_prefix("default_version = '") {

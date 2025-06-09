@@ -17,7 +17,6 @@ pub mod am;
 pub mod functions;
 pub mod gucs;
 pub mod hook;
-pub mod lazy_cell;
 pub mod opclass;
 pub mod scanners;
 pub mod storage;

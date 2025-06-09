@@ -173,25 +173,6 @@ impl Page for PostgresPage {
 
 const _: () = assert!(align_of::<Opaque>() == pgrx::pg_sys::MAXIMUM_ALIGNOF as usize);
 
-pub struct PostgresBufferGuard {
-    buf: i32,
-    id: u32,
-}
-
-impl PageGuard for PostgresBufferGuard {
-    fn id(&self) -> u32 {
-        self.id
-    }
-}
-
-impl Drop for PostgresBufferGuard {
-    fn drop(&mut self) {
-        unsafe {
-            pgrx::pg_sys::ReleaseBuffer(self.buf);
-        }
-    }
-}
-
 pub struct PostgresBufferReadGuard {
     buf: i32,
     page: NonNull<PostgresPage>,

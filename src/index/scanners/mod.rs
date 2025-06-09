@@ -16,9 +16,10 @@ mod default;
 mod maxsim;
 
 use super::opclass::Opfamily;
-use crate::index::lazy_cell::LazyCell;
 use algorithm::{Bump, RelationPrefetch, RelationRead, RelationReadStream, Sequence};
 use pgrx::pg_sys::Datum;
+use std::cell::LazyCell;
+use std::ops::DerefMut;
 
 pub use default::DefaultBuilder;
 pub use maxsim::MaxsimBuilder;
@@ -82,7 +83,7 @@ impl<T: Fetcher, F: FnOnce() -> T> Fetcher for LazyCell<T, F> {
         Self: 'a;
 
     fn fetch(&mut self, key: [u16; 3]) -> Option<Self::Tuple<'_>> {
-        LazyCell::force_mut(self).fetch(key)
+        self.deref_mut().fetch(key)
     }
 }
 
