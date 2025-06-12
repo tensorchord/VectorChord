@@ -36,7 +36,7 @@ pub trait VectorBorrowed: Copy {
 
     fn operator_dot(self, rhs: Self) -> distance::Distance;
 
-    fn operator_l2(self, rhs: Self) -> distance::Distance;
+    fn operator_l2s(self, rhs: Self) -> distance::Distance;
 
     fn operator_cos(self, rhs: Self) -> distance::Distance;
 

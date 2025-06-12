@@ -12,18 +12,18 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-pub mod algorithm;
-pub mod am;
+pub mod allocator;
+pub mod fetcher;
 pub mod functions;
-pub mod gucs;
-pub mod hook;
-pub mod opclass;
-pub mod scanners;
 pub mod storage;
-pub mod types;
+pub mod vamana;
+pub mod vchordrq;
 
 pub fn init() {
-    am::init();
-    hook::init();
-    gucs::init();
+    vchordrq::am::init();
+    vchordrq::hook::init();
+    vchordrq::gucs::init();
+    vamana::am::init();
+    vamana::hook::init();
+    vamana::gucs::init();
 }

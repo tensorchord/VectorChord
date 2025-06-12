@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use rabitq::block::BlockCode;
+use rabitq::original::block::BlockCode;
 use rabitq::packing::{any_pack, padding_pack};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -55,7 +55,7 @@ pub fn k_means(
                 move |pool| {
                     let compute = |centroids: &[Vec<f32>]| {
                         if n >= 1024 && c >= 1024 {
-                            rabitq_index(dims, n, c, samples, centroids)
+                            rabitq_index(n, c, samples, centroids)
                         } else {
                             flat_index(dims, n, c, samples, centroids)
                         }
@@ -116,17 +116,11 @@ fn quick_centers(
     centroids
 }
 
-fn rabitq_index(
-    dims: usize,
-    n: usize,
-    c: usize,
-    samples: &[Vec<f32>],
-    centroids: &[Vec<f32>],
-) -> Vec<usize> {
+fn rabitq_index(n: usize, c: usize, samples: &[Vec<f32>], centroids: &[Vec<f32>]) -> Vec<usize> {
     let branches = {
         let mut branches = Vec::new();
         for centroid in centroids {
-            let code = rabitq::code(dims as _, centroid);
+            let code = rabitq::original::code(centroid);
             branches.push(code);
         }
         branches
@@ -162,10 +156,10 @@ fn rabitq_index(
     (0..n)
         .into_par_iter()
         .map(|i| {
-            let lut = rabitq::block::preprocess(&samples[i]);
+            let lut = rabitq::original::block::preprocess(&samples[i]);
             let mut result = (f32::INFINITY, 0);
             for block in 0..c.div_ceil(32) {
-                let returns = rabitq::block::full_process_l2(&lut, blocks[block].code());
+                let returns = rabitq::original::block::full_process_l2(blocks[block].code(), &lut);
                 let lowerbound = returns.map(|(rough, err)| rough - err * 1.9);
                 for j in block * 32..std::cmp::min(block * 32 + 32, c) {
                     if lowerbound[j - block * 32] < result.0 {

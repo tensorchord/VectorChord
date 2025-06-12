@@ -33,12 +33,12 @@ pub mod flip {
     pub fn flip(bits: &[u64; 1024], result: &mut [f32]) {
         use std::hint::select_unpredictable;
         let result: &mut [u32] = unsafe { std::mem::transmute(result) };
-        let (slice, remainder) = result.as_chunks_mut::<64>();
-        let n = slice.len();
+        let (arrays, remainder) = result.as_chunks_mut::<64>();
+        let n = arrays.len();
         assert!(n <= 1024);
         for i in 0..n {
             for j in 0..64 {
-                slice[i][j] ^= select_unpredictable((bits[i] & (1 << j)) != 0, 0x80000000, 0);
+                arrays[i][j] ^= select_unpredictable((bits[i] & (1 << j)) != 0, 0x80000000, 0);
             }
         }
         for j in 0..remainder.len() {

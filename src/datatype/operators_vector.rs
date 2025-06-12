@@ -38,7 +38,7 @@ fn _vchord_vector_sphere_l2_in(
     if lhs.dims() != center.dims() {
         pgrx::error!("dimension is not matched");
     }
-    let d = VectBorrowed::operator_l2(lhs, center).to_f32().sqrt();
+    let d = VectBorrowed::operator_l2s(lhs, center).to_f32().sqrt();
     d < radius
 }
 

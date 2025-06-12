@@ -1,0 +1,25 @@
+[package]
+name = "vchordrq"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+algo = { path = "../algo" }
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+k_means = { path = "../k_means" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+vector = { path = "../vector" }
+
+half.workspace = true
+paste.workspace = true
+pin-project = "1"
+rand.workspace = true
+serde.workspace = true
+validator.workspace = true
+zerocopy.workspace = true
+
+[lints]
+workspace = true

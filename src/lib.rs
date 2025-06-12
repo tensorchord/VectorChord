@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 #![allow(unsafe_code)]
+#![allow(clippy::type_complexity)]
 
 mod datatype;
 mod index;
@@ -31,7 +32,7 @@ extern "C-unwind" fn _PG_init() {
     unsafe {
         #[cfg(any(feature = "pg13", feature = "pg14"))]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchord".as_ptr());
-        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17"))]
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchord".as_ptr());
     }
 }

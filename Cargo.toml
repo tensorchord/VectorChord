@@ -19,20 +19,23 @@ pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
 pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
 pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
 pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
+pg18 = ["pgrx/pg18", "pgrx-catalog/pg18"]
 
 [dependencies]
-algorithm = { path = "./crates/algorithm" }
+algo = { path = "./crates/algo" }
 always_equal = { path = "./crates/always_equal" }
 distance = { path = "./crates/distance" }
 k_means = { path = "./crates/k_means" }
 rabitq = { path = "./crates/rabitq" }
 simd = { path = "./crates/simd" }
+vamana = { path = "./crates/vamana" }
+vchordrq = { path = "./crates/vchordrq" }
 vector = { path = "./crates/vector" }
 
 half.workspace = true
 paste.workspace = true
-pgrx = { version = "=0.14.1", default-features = false, features = ["cshim"] }
-pgrx-catalog = "0.2.0"
+pgrx = { version = "=0.15.0", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.3.0"
 rand.workspace = true
 seq-macro.workspace = true
 serde.workspace = true
@@ -64,7 +67,7 @@ rand = "0.9.1"
 seq-macro = "0.3.6"
 serde = { version = "1", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
-zerocopy = { version = "0.8.25", features = ["derive"] }
+zerocopy = { version = "0.8.26", features = ["derive"] }
 
 [workspace.lints]
 clippy.identity_op = "allow"

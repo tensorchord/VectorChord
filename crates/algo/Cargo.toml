@@ -1,0 +1,13 @@
+[package]
+name = "algo"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+
+zerocopy.workspace = true
+
+[lints]
+workspace = true

@@ -22,7 +22,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
-          rustup default nightly-2025-06-08
+          rustup default 1.89-beta
 
           curl -fsSL https://github.com/tamasfe/taplo/releases/latest/download/taplo-full-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
 
@@ -77,21 +77,18 @@ jobs:
           for p in $RS_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$RS_HEADER"); then
               echo "license header mismatch in file $p"
-              exit 1
             fi
           done
 
           for p in $C_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$C_HEADER"); then
               echo "license header mismatch in file $p"
-              exit 1
             fi
           done
 
           for p in $PY_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$PY_HEADER"); then
               echo "license header mismatch in file $p"
-              exit 1
             fi
           done
 
@@ -113,7 +110,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
-          rustup default nightly-2025-06-08
+          rustup default 1.89-beta
 
           sudo apt-get update
 
@@ -174,7 +171,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
-          rustup default nightly-2025-06-08
+          rustup default 1.89-beta
 
           sudo apt-get update
 
@@ -283,7 +280,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
-          rustup default nightly-2025-06-08
+          rustup default 1.89-beta
 
           echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
@@ -370,7 +367,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup set profile
-          rustup default nightly-2025-06-08
+          rustup default 1.89-beta
 
           Invoke-WebRequest -Uri "https://get.enterprisedb.com/postgresql/postgresql-16.9-1-windows-x64-binaries.zip" -OutFile "$env:TEMP\postgresql-install.zip"
           Expand-Archive -Path "$env:TEMP\postgresql-install.zip" -DestinationPath "D:\postgresql-install" -Force

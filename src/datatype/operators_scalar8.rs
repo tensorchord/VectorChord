@@ -34,7 +34,7 @@ fn _vchord_scalar8_operator_l2(lhs: Scalar8Input<'_>, rhs: Scalar8Input<'_>) -> 
     if lhs.dims() != rhs.dims() {
         pgrx::error!("dimension is not matched");
     }
-    Scalar8Borrowed::operator_l2(lhs, rhs).to_f32().sqrt()
+    Scalar8Borrowed::operator_l2s(lhs, rhs).to_f32().sqrt()
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
@@ -91,7 +91,7 @@ fn _vchord_scalar8_sphere_l2_in(
     if lhs.dims() != center.dims() {
         pgrx::error!("dimension is not matched");
     }
-    let d = Scalar8Borrowed::operator_l2(lhs, center).to_f32().sqrt();
+    let d = Scalar8Borrowed::operator_l2s(lhs, center).to_f32().sqrt();
     d < radius
 }
 

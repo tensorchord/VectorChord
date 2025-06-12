@@ -12,9 +12,30 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    IntoBytes,
+    FromBytes,
+    Immutable,
+    KnownLayout,
+)]
 #[repr(transparent)]
 pub struct Distance(i32);
+
+impl std::fmt::Debug for Distance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_f32())
+    }
+}
 
 impl Distance {
     pub const ZERO: Self = Distance::from_f32(0.0f32);

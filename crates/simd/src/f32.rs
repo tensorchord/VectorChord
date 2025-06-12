@@ -95,40 +95,54 @@ impl Floating for f32 {
         reduce_sum_of_d2_sparse::reduce_sum_of_d2_sparse(lidx, lval, ridx, rval)
     }
 
+    #[inline(always)]
     fn vector_add(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {
         vector_add::vector_add(lhs, rhs)
     }
 
+    #[inline(always)]
     fn vector_add_inplace(lhs: &mut [f32], rhs: &[f32]) {
         vector_add_inplace::vector_add_inplace(lhs, rhs)
     }
 
+    #[inline(always)]
     fn vector_sub(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {
         vector_sub::vector_sub(lhs, rhs)
     }
 
+    #[inline(always)]
     fn vector_mul(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {
         vector_mul::vector_mul(lhs, rhs)
     }
 
+    #[inline(always)]
     fn vector_mul_scalar(lhs: &[f32], rhs: f32) -> Vec<f32> {
         vector_mul_scalar::vector_mul_scalar(lhs, rhs)
     }
 
+    #[inline(always)]
     fn vector_mul_scalar_inplace(lhs: &mut [f32], rhs: f32) {
         vector_mul_scalar_inplace::vector_mul_scalar_inplace(lhs, rhs);
     }
 
+    #[inline(always)]
     fn vector_from_f32(this: &[f32]) -> Vec<f32> {
         this.to_vec()
     }
 
+    #[inline(always)]
     fn vector_to_f32(this: &[f32]) -> Vec<f32> {
         this.to_vec()
     }
 
+    #[inline(always)]
     fn vector_to_f32_borrowed(this: &[Self]) -> impl AsRef<[f32]> {
         this
+    }
+
+    #[inline(always)]
+    fn vector_abs_inplace(this: &mut [Self]) {
+        vector_abs_inplace::vector_abs_inplace(this);
     }
 }
 
