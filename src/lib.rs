@@ -40,7 +40,11 @@ extern "C-unwind" fn _PG_init() {
 compile_error!("Target architecture is not supported.");
 
 #[cfg(not(miri))]
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-#[cfg(target_os = "linux")]
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
+#[cfg(not(miri))]
+#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
