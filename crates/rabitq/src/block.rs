@@ -183,11 +183,11 @@ fn compress(vector: &[f32]) -> Vec<[f32; 16]> {
         ]
     };
 
-    let (arrays, reminder) = vector.as_chunks::<4>();
+    let (arrays, remainder) = vector.as_chunks::<4>();
     let mut result = arrays.iter().copied().map(f).collect::<Vec<_>>();
-    if !reminder.is_empty() {
+    if !remainder.is_empty() {
         let mut array = [0.0; 4];
-        array[..reminder.len()].copy_from_slice(reminder);
+        array[..remainder.len()].copy_from_slice(remainder);
         result.push(f(array));
     }
     result

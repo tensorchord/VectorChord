@@ -36,12 +36,15 @@ pgrx-catalog = "0.2.0"
 rand.workspace = true
 seq-macro.workspace = true
 serde.workspace = true
-toml = "0.8.22"
+toml = "0.8.23"
 validator.workspace = true
 zerocopy.workspace = true
 
-[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
+[target.'cfg(all(target_arch = "x86_64", target_os = "linux"))'.dependencies]
 jemallocator = { version = "0.5.4", features = ["disable_initial_exec_tls"] }
+
+[target.'cfg(all(target_arch = "aarch64", target_os = "linux"))'.dependencies]
+mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }
 
 [lints]
 workspace = true
