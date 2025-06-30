@@ -208,7 +208,7 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
     }
 
     #[inline(always)]
-    fn operator_l2(self, rhs: Self) -> Distance {
+    fn operator_l2s(self, rhs: Self) -> Distance {
         let d2 = S::reduce_sum_of_d2_sparse(self.indexes, self.values, rhs.indexes, rhs.values);
         Distance::from(d2)
     }

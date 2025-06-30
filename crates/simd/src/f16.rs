@@ -152,6 +152,11 @@ impl Floating for f16 {
     fn vector_to_f32_borrowed(this: &[Self]) -> impl AsRef<[f32]> {
         Self::vector_to_f32(this)
     }
+
+    #[inline(always)]
+    fn vector_abs_inplace(this: &mut [Self]) {
+        vector_abs_inplace::vector_abs_inplace(this);
+    }
 }
 
 mod reduce_or_of_is_zero_x {

@@ -112,19 +112,3 @@ pub fn pack_to_u4(signs: &[bool]) -> Vec<u8> {
     }
     result
 }
-
-pub fn pack_to_u64(signs: &[bool]) -> Vec<u64> {
-    fn f(x: [bool; 64]) -> u64 {
-        let mut result = 0_u64;
-        for i in 0..64 {
-            result |= (x[i] as u64) << i;
-        }
-        result
-    }
-    let mut result = Vec::with_capacity(signs.len().div_ceil(64));
-    for i in 0..signs.len().div_ceil(64) {
-        let x = std::array::from_fn(|j| signs.get(i * 64 + j).copied().unwrap_or_default());
-        result.push(f(x));
-    }
-    result
-}

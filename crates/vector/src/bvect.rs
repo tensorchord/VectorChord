@@ -171,7 +171,7 @@ impl VectorBorrowed for BVectBorrowed<'_> {
     }
 
     #[inline(always)]
-    fn operator_l2(self, _: Self) -> Distance {
+    fn operator_l2s(self, _: Self) -> Distance {
         unimplemented!()
     }
 

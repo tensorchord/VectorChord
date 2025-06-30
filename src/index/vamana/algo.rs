@@ -1,0 +1,259 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
+use crate::index::vamana::opclass::Opfamily;
+use algo::prefetcher::*;
+use algo::*;
+use half::f16;
+use std::num::NonZero;
+use vamana::Opaque;
+use vamana::operator::{Dot, L2S, Op};
+use vamana::types::*;
+use vector::VectorOwned;
+use vector::vect::{VectBorrowed, VectOwned};
+
+pub fn bulkdelete<R>(
+    opfamily: Opfamily,
+    index: &R,
+    check: impl Fn(),
+    callback: impl Fn(NonZero<u64>) -> bool,
+) where
+    R: RelationRead + RelationWrite + RelationLength,
+    R::Page: Page<Opaque = Opaque>,
+{
+    match (opfamily.vector_kind(), opfamily.distance_kind()) {
+        (VectorKind::Vecf32, DistanceKind::L2S) => {
+            vamana::bulkdelete::<_, Op<VectOwned<f32>, L2S>>(index, &check, &callback);
+        }
+        (VectorKind::Vecf16, DistanceKind::L2S) => {
+            vamana::bulkdelete::<_, Op<VectOwned<f16>, L2S>>(index, &check, &callback);
+        }
+        (VectorKind::Vecf32, DistanceKind::Dot) => {
+            vamana::bulkdelete::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
+        }
+        (VectorKind::Vecf16, DistanceKind::Dot) => {
+            vamana::bulkdelete::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
+        }
+    }
+}
+
+pub fn maintain<R>(opfamily: Opfamily, index: &R, check: impl Fn())
+where
+    R: RelationRead + RelationWrite,
+    R::Page: Page<Opaque = Opaque>,
+{
+    match (opfamily.vector_kind(), opfamily.distance_kind()) {
+        (VectorKind::Vecf32, DistanceKind::L2S) => {
+            vamana::maintain::<_, Op<VectOwned<f32>, L2S>>(index, &check);
+        }
+        (VectorKind::Vecf16, DistanceKind::L2S) => {
+            vamana::maintain::<_, Op<VectOwned<f16>, L2S>>(index, &check);
+        }
+        (VectorKind::Vecf32, DistanceKind::Dot) => {
+            vamana::maintain::<_, Op<VectOwned<f32>, Dot>>(index, &check);
+        }
+        (VectorKind::Vecf16, DistanceKind::Dot) => {
+            vamana::maintain::<_, Op<VectOwned<f16>, Dot>>(index, &check);
+        }
+    }
+}
+
+pub fn build<R>(vector_options: VectorOptions, vamana_options: VamanaIndexOptions, index: &R)
+where
+    R: RelationRead + RelationWrite,
+    R::Page: Page<Opaque = Opaque>,
+{
+    match (vector_options.v, vector_options.d) {
+        (VectorKind::Vecf32, DistanceKind::L2S) => {
+            vamana::build::<_, Op<VectOwned<f32>, L2S>>(vector_options, vamana_options, index)
+        }
+        (VectorKind::Vecf16, DistanceKind::L2S) => {
+            vamana::build::<_, Op<VectOwned<f16>, L2S>>(vector_options, vamana_options, index)
+        }
+        (VectorKind::Vecf32, DistanceKind::Dot) => {
+            vamana::build::<_, Op<VectOwned<f32>, Dot>>(vector_options, vamana_options, index)
+        }
+        (VectorKind::Vecf16, DistanceKind::Dot) => {
+            vamana::build::<_, Op<VectOwned<f16>, Dot>>(vector_options, vamana_options, index)
+        }
+    }
+}
+
+pub fn insert<R>(opfamily: Opfamily, index: &R, payload: NonZero<u64>, vector: OwnedVector)
+where
+    R: RelationRead + RelationWrite + RelationReadStream,
+    R::Page: Page<Opaque = Opaque>,
+{
+    let make_vertex_stream_prefetcher = MakeStreamPrefetcher {
+        index,
+        hints: Hints::default().full(true),
+    };
+    let make_vector_stream_prefetcher = MakeStreamPrefetcher {
+        index,
+        hints: Hints::default().full(true),
+    };
+    match (vector, opfamily.distance_kind()) {
+        (OwnedVector::Vecf32(unprojected), DistanceKind::L2S) => {
+            assert!(opfamily.vector_kind() == VectorKind::Vecf32);
+            let projected = RandomProject::project(unprojected.as_borrowed());
+            vamana::insert::<_, Op<VectOwned<f32>, L2S>>(
+                index,
+                projected.as_borrowed(),
+                payload,
+                make_vertex_stream_prefetcher,
+                make_vector_stream_prefetcher,
+            )
+        }
+        (OwnedVector::Vecf16(unprojected), DistanceKind::L2S) => {
+            assert!(opfamily.vector_kind() == VectorKind::Vecf16);
+            let projected = RandomProject::project(unprojected.as_borrowed());
+            vamana::insert::<_, Op<VectOwned<f16>, L2S>>(
+                index,
+                projected.as_borrowed(),
+                payload,
+                make_vertex_stream_prefetcher,
+                make_vector_stream_prefetcher,
+            )
+        }
+        (OwnedVector::Vecf32(unprojected), DistanceKind::Dot) => {
+            assert!(opfamily.vector_kind() == VectorKind::Vecf32);
+            let projected = RandomProject::project(unprojected.as_borrowed());
+            vamana::insert::<_, Op<VectOwned<f32>, Dot>>(
+                index,
+                projected.as_borrowed(),
+                payload,
+                make_vertex_stream_prefetcher,
+                make_vector_stream_prefetcher,
+            )
+        }
+        (OwnedVector::Vecf16(unprojected), DistanceKind::Dot) => {
+            assert!(opfamily.vector_kind() == VectorKind::Vecf16);
+            let projected = RandomProject::project(unprojected.as_borrowed());
+            vamana::insert::<_, Op<VectOwned<f16>, Dot>>(
+                index,
+                projected.as_borrowed(),
+                payload,
+                make_vertex_stream_prefetcher,
+                make_vector_stream_prefetcher,
+            )
+        }
+    }
+}
+
+pub trait RandomProject {
+    type Output;
+    fn project(self) -> Self::Output;
+}
+
+impl RandomProject for VectBorrowed<'_, f32> {
+    type Output = VectOwned<f32>;
+    fn project(self) -> VectOwned<f32> {
+        use rabitq::rotate::rotate;
+        let input = self.slice();
+        VectOwned::new(rotate(input))
+    }
+}
+
+impl RandomProject for VectBorrowed<'_, f16> {
+    type Output = VectOwned<f16>;
+    fn project(self) -> VectOwned<f16> {
+        use rabitq::rotate::rotate;
+        use simd::Floating;
+        let input = f16::vector_to_f32(self.slice());
+        VectOwned::new(f16::vector_from_f32(&rotate(&input)))
+    }
+}
+
+#[derive(Debug)]
+pub struct MakePlainPrefetcher<'r, R> {
+    pub index: &'r R,
+}
+
+impl<'r, R> Clone for MakePlainPrefetcher<'r, R> {
+    fn clone(&self) -> Self {
+        Self { index: self.index }
+    }
+}
+
+impl<'r, R: RelationRead> PrefetcherSequenceFamily<'r, R> for MakePlainPrefetcher<'r, R> {
+    type P<S: Sequence>
+        = PlainPrefetcher<'r, R, S>
+    where
+        S::Item: Fetch;
+
+    fn prefetch<S: Sequence>(&mut self, seq: S) -> Self::P<S>
+    where
+        S::Item: Fetch,
+    {
+        PlainPrefetcher::new(self.index, seq)
+    }
+}
+
+#[derive(Debug)]
+pub struct MakeSimplePrefetcher<'r, R> {
+    pub index: &'r R,
+}
+
+impl<'r, R> Clone for MakeSimplePrefetcher<'r, R> {
+    fn clone(&self) -> Self {
+        Self { index: self.index }
+    }
+}
+
+impl<'r, R: RelationRead + RelationPrefetch> PrefetcherSequenceFamily<'r, R>
+    for MakeSimplePrefetcher<'r, R>
+{
+    type P<S: Sequence>
+        = SimplePrefetcher<'r, R, S>
+    where
+        S::Item: Fetch;
+
+    fn prefetch<S: Sequence>(&mut self, seq: S) -> Self::P<S>
+    where
+        S::Item: Fetch,
+    {
+        SimplePrefetcher::new(self.index, seq)
+    }
+}
+
+#[derive(Debug)]
+pub struct MakeStreamPrefetcher<'r, R> {
+    pub index: &'r R,
+    pub hints: Hints,
+}
+
+impl<'r, R> Clone for MakeStreamPrefetcher<'r, R> {
+    fn clone(&self) -> Self {
+        Self {
+            index: self.index,
+            hints: self.hints.clone(),
+        }
+    }
+}
+
+impl<'r, R: RelationRead + RelationReadStream> PrefetcherSequenceFamily<'r, R>
+    for MakeStreamPrefetcher<'r, R>
+{
+    type P<S: Sequence>
+        = StreamPrefetcher<'r, R, S>
+    where
+        S::Item: Fetch;
+
+    fn prefetch<S: Sequence>(&mut self, seq: S) -> Self::P<S>
+    where
+        S::Item: Fetch,
+    {
+        StreamPrefetcher::new(self.index, seq, self.hints.clone())
+    }
+}

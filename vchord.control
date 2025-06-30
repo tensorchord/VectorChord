@@ -1,6 +1,6 @@
 comment = 'vchord: Vector database plugin for Postgres, written in Rust, specifically designed for LLM'
 default_version = '0.0.0'
-module_pathname = '$libdir/vchord'
+module_pathname = 'vchord'
 relocatable = true
 superuser = true
 requires = 'vector'

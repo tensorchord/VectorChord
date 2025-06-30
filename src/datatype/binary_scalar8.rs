@@ -34,7 +34,7 @@ fn _vchord_scalar8_send(vector: Scalar8Input<'_>) -> Vec<u8> {
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_scalar8_recv(internal: Internal, oid: Oid, typmod: i32) -> Scalar8Output {
+fn _vchord_scalar8_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Scalar8Output {
     let _ = (oid, typmod);
     let buf = unsafe { internal.get_mut::<pgrx::pg_sys::StringInfoData>().unwrap() };
 

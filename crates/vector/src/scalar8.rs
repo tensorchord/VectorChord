@@ -207,7 +207,7 @@ impl VectorBorrowed for Scalar8Borrowed<'_> {
     }
 
     #[inline(always)]
-    fn operator_l2(self, rhs: Self) -> Distance {
+    fn operator_l2s(self, rhs: Self) -> Distance {
         assert_eq!(self.code.len(), rhs.code.len());
         let xy =
             self.k * rhs.k * simd::u8::reduce_sum_of_x_as_u32_y_as_u32(self.code, rhs.code) as f32

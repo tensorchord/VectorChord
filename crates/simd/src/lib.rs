@@ -22,6 +22,7 @@ mod f32;
 pub mod bit;
 pub mod fast_scan;
 pub mod fht;
+pub mod packed;
 pub mod quantize;
 pub mod rotate;
 pub mod u8;
@@ -57,6 +58,7 @@ pub trait Floating:
     fn vector_mul(lhs: &[Self], rhs: &[Self]) -> Vec<Self>;
     fn vector_mul_scalar(lhs: &[Self], rhs: f32) -> Vec<Self>;
     fn vector_mul_scalar_inplace(lhs: &mut [Self], rhs: f32);
+    fn vector_abs_inplace(this: &mut [Self]);
 }
 
 mod internal {
