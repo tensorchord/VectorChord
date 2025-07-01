@@ -5,6 +5,7 @@ mod bulkdelete;
 mod candidates;
 mod insert;
 mod maintain;
+mod prewarm;
 mod prune;
 mod results;
 mod search;
@@ -19,6 +20,7 @@ pub use build::build;
 pub use bulkdelete::bulkdelete;
 pub use insert::insert;
 pub use maintain::maintain;
+pub use prewarm::prewarm;
 pub use search::search;
 
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};

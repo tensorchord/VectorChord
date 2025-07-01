@@ -151,6 +151,9 @@ STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_prewarm_wrapper';
 CREATE FUNCTION vchordg_amhandler(internal) RETURNS index_am_handler
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchordg_amhandler_wrapper';
 
+CREATE FUNCTION vchordg_prewarm(regclass) RETURNS TEXT
+STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordg_prewarm_wrapper';
+
 -- List of access methods
 
 CREATE ACCESS METHOD vchordrq TYPE INDEX HANDLER vchordrq_amhandler;

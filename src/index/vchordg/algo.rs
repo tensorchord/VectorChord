@@ -24,6 +24,27 @@ use vchordg::types::*;
 use vector::VectorOwned;
 use vector::vect::{VectBorrowed, VectOwned};
 
+pub fn prewarm<R>(opfamily: Opfamily, index: &R) -> String
+where
+    R: RelationRead,
+    R::Page: Page<Opaque = Opaque>,
+{
+    match (opfamily.vector_kind(), opfamily.distance_kind()) {
+        (VectorKind::Vecf32, DistanceKind::L2S) => {
+            vchordg::prewarm::<_, Op<VectOwned<f32>, L2S>>(index)
+        }
+        (VectorKind::Vecf32, DistanceKind::Dot) => {
+            vchordg::prewarm::<_, Op<VectOwned<f32>, Dot>>(index)
+        }
+        (VectorKind::Vecf16, DistanceKind::L2S) => {
+            vchordg::prewarm::<_, Op<VectOwned<f16>, L2S>>(index)
+        }
+        (VectorKind::Vecf16, DistanceKind::Dot) => {
+            vchordg::prewarm::<_, Op<VectOwned<f16>, Dot>>(index)
+        }
+    }
+}
+
 pub fn bulkdelete<R>(
     opfamily: Opfamily,
     index: &R,
