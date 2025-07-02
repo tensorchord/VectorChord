@@ -72,14 +72,29 @@ validator = { version = "0.20.0", features = ["derive"] }
 zerocopy = { version = "0.8.26", features = ["derive"] }
 
 [workspace.lints]
+# complexity
 clippy.identity_op = "allow"
 clippy.int_plus_one = "allow"
-clippy.needless_range_loop = "allow"
 clippy.nonminimal_bool = "allow"
+clippy.too_many_arguments = "allow"
+clippy.type_complexity = "allow"
+# style
+clippy.just_underscores_and_digits = "allow"
+clippy.needless_range_loop = "allow"
+# unsafe
 rust.unsafe_code = "deny"
 rust.unsafe_op_in_unsafe_fn = "deny"
+# unused
+rust.unused_crate_dependencies = "warn"
+rust.unused_extern_crates = "warn"
+rust.unused_import_braces = "warn"
 rust.unused_lifetimes = "warn"
+rust.unused_macro_rules = "warn"
 rust.unused_qualifications = "warn"
+
+[profile.dev]
+lto = "thin"
+opt-level = 1
 
 [profile.release]
 codegen-units = 1

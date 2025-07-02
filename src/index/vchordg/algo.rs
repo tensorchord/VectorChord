@@ -75,19 +75,18 @@ where
     R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = Opaque>,
 {
-    let bump = bumpalo::Bump::new();
     match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2S) => {
-            vchordg::maintain::<_, Op<VectOwned<f32>, L2S>>(index, &check, &bump);
+            vchordg::maintain::<_, Op<VectOwned<f32>, L2S>>(index, &check);
         }
         (VectorKind::Vecf16, DistanceKind::L2S) => {
-            vchordg::maintain::<_, Op<VectOwned<f16>, L2S>>(index, &check, &bump);
+            vchordg::maintain::<_, Op<VectOwned<f16>, L2S>>(index, &check);
         }
         (VectorKind::Vecf32, DistanceKind::Dot) => {
-            vchordg::maintain::<_, Op<VectOwned<f32>, Dot>>(index, &check, &bump);
+            vchordg::maintain::<_, Op<VectOwned<f32>, Dot>>(index, &check);
         }
         (VectorKind::Vecf16, DistanceKind::Dot) => {
-            vchordg::maintain::<_, Op<VectOwned<f16>, Dot>>(index, &check, &bump);
+            vchordg::maintain::<_, Op<VectOwned<f16>, Dot>>(index, &check);
         }
     }
 }

@@ -192,7 +192,7 @@ jobs:
           echo "host all all ::1/128 trust" | sudo tee -a /etc/postgresql/${{ matrix.version }}/main/pg_hba.conf
           sudo -iu postgres createuser -s -r $USER
           sudo -iu postgres createdb -O $USER $USER
-          sudo -iu postgres psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord.so"'
+          sudo -iu postgres psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
           sudo systemctl stop postgresql
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
@@ -208,7 +208,7 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw
+          cargo make build -o ./build/raw --profile dev
           sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
@@ -290,11 +290,7 @@ jobs:
           for i in {1..60}; do [ -S /tmp/.s.PGSQL.5432 ] && echo "PostgreSQL ready" && break || sleep 1; done
           [ -S /tmp/.s.PGSQL.5432 ] || echo "PostgreSQL socket not found after 60 seconds"
           $(brew --prefix postgresql@${{ matrix.version }})/bin/createdb -O $USER $USER
-          if [[ ${{ matrix.version }} != 13 && ${{ matrix.version }} != 14 && ${{ matrix.version }} != 15 ]]; then
-            $(brew --prefix postgresql@${{ matrix.version }})/bin/psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord.dylib"'
-          else
-            $(brew --prefix postgresql@${{ matrix.version }})/bin/psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord.so"'
-          fi
+          $(brew --prefix postgresql@${{ matrix.version }})/bin/psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
           brew services stop postgresql@${{ matrix.version }}
           echo PGRX_PG_CONFIG_PATH=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config >> $GITHUB_ENV
 
@@ -312,7 +308,7 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw
+          cargo make build -o ./build/raw --profile dev
           sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
@@ -392,5 +388,5 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw
+          cargo make build -o ./build/raw --profile dev
           make PG_CONFIG="$env:PGRX_PG_CONFIG_PATH" install

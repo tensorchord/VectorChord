@@ -28,9 +28,7 @@ pub fn build<R: RelationWrite, O: Operator>(
     let mut meta_guard = index.extend(
         Opaque {
             next: u32::MAX,
-            skip: u32::MAX,
             link: 1,
-            _padding_0: Default::default(),
         },
         false,
     );
@@ -38,9 +36,7 @@ pub fn build<R: RelationWrite, O: Operator>(
     let vertex_guard = index.extend(
         Opaque {
             next: u32::MAX,
-            skip: 1,
             link: 2,
-            _padding_0: Default::default(),
         },
         true,
     );
@@ -49,9 +45,7 @@ pub fn build<R: RelationWrite, O: Operator>(
     let vector_guard = index.extend(
         Opaque {
             next: u32::MAX,
-            skip: u32::MAX,
             link: u32::MAX,
-            _padding_0: Default::default(),
         },
         false,
     );
@@ -64,6 +58,7 @@ pub fn build<R: RelationWrite, O: Operator>(
         ef_construction: index_options.ef_construction,
         beam_construction: index_options.beam_construction,
         start: OptionPointer::NONE,
+        skip: 1,
     });
     let i = meta_guard
         .alloc(&serialized)

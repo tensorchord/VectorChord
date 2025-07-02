@@ -46,8 +46,8 @@ struct MetaTupleHeader {
     alpha: f32,
     ef_construction: u32,
     beam_construction: u32,
-    _padding_0: [Padding; 4],
     start: OptionPointer,
+    skip: u32,
 }
 
 pub struct MetaTuple {
@@ -57,6 +57,7 @@ pub struct MetaTuple {
     pub ef_construction: u32,
     pub beam_construction: u32,
     pub start: OptionPointer,
+    pub skip: u32,
 }
 
 impl Tuple for MetaTuple {
@@ -71,6 +72,7 @@ impl Tuple for MetaTuple {
                 ef_construction,
                 beam_construction,
                 start,
+                skip,
             } => {
                 buffer.extend((MAGIC as Tag).to_ne_bytes());
                 buffer.extend(std::iter::repeat_n(0, size_of::<MetaTupleHeader>()));
@@ -84,7 +86,7 @@ impl Tuple for MetaTuple {
                         ef_construction: *ef_construction,
                         beam_construction: *beam_construction,
                         start: *start,
-                        _padding_0: Default::default(),
+                        skip: *skip,
                     }
                     .as_bytes(),
                 );
@@ -136,6 +138,9 @@ impl<'a> MetaTupleReader<'a> {
     pub fn start(self) -> OptionPointer {
         self.header.start
     }
+    pub fn skip(self) -> u32 {
+        self.header.skip
+    }
 }
 
 impl WithWriter for MetaTuple {
@@ -165,6 +170,9 @@ pub struct MetaTupleWriter<'a> {
 impl<'a> MetaTupleWriter<'a> {
     pub fn start(&mut self) -> &mut OptionPointer {
         &mut self.header.start
+    }
+    pub fn skip(&mut self) -> &mut u32 {
+        &mut self.header.skip
     }
 }
 

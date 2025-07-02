@@ -12,7 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![allow(clippy::just_underscores_and_digits)]
 mod reduce_sum_of_x_as_u32_y_as_u32 {
     #[inline]
     #[cfg(target_arch = "x86_64")]

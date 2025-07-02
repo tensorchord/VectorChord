@@ -462,10 +462,6 @@ pub struct PostgresReadStream<O: Opaque, I: Iterator> {
 pub struct PostgresReadStreamGuards<O, I, L> {
     #[cfg(any(feature = "pg17", feature = "pg18"))]
     raw: *mut pgrx::pg_sys::ReadStream,
-    #[cfg_attr(
-        any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"),
-        expect(dead_code)
-    )]
     list: L,
     _phantom: PhantomData<fn(O, I) -> (O, I)>,
 }
@@ -497,6 +493,15 @@ where
                 id: pgrx::pg_sys::BufferGetBlockNumber(buf),
             })
         }
+    }
+}
+
+impl<O: Opaque, I: Iterator, L> ExactSizeIterator for PostgresReadStreamGuards<O, I, L>
+where
+    L: ExactSizeIterator<Item = u32>,
+{
+    fn len(&self) -> usize {
+        self.list.len()
     }
 }
 

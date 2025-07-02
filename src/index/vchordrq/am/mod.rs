@@ -148,7 +148,6 @@ pub unsafe extern "C-unwind" fn amoptions(
     rdopts as *mut pgrx::pg_sys::bytea
 }
 
-#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C-unwind" fn amcostestimate(
     root: *mut pgrx::pg_sys::PlannerInfo,
@@ -258,7 +257,6 @@ pub unsafe extern "C-unwind" fn amcostestimate(
 }
 
 #[cfg(feature = "pg13")]
-#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
@@ -279,7 +277,6 @@ pub unsafe extern "C-unwind" fn aminsert(
     feature = "pg17",
     feature = "pg18"
 ))]
-#[allow(clippy::too_many_arguments)]
 #[pgrx::pg_guard]
 pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,

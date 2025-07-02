@@ -8,7 +8,5 @@ publish = false
 distance = { path = "../distance" }
 simd = { path = "../simd" }
 
-half.workspace = true
-
 [lints]
 workspace = true
