@@ -36,6 +36,8 @@ pub enum PostgresIo {
     ReadStream,
 }
 
+static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
+
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
 
 static VCHORDG_BEAM_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(1);
@@ -55,6 +57,8 @@ static VCHORDG_IO_RERANK: GucSetting<PostgresIo> = GucSetting::<PostgresIo>::new
     #[cfg(any(feature = "pg17", feature = "pg18"))]
     PostgresIo::ReadStream,
 );
+
+static VCHORDRQ_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDRQ_PROBES: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(Some(c""));
 
@@ -83,6 +87,14 @@ static VCHORDRQ_IO_RERANK: GucSetting<PostgresIo> = GucSetting::<PostgresIo>::ne
 );
 
 pub fn init() {
+    GucRegistry::define_bool_guc(
+        c"vchordrq.enable_scan",
+        c"`enable_scan` argument of vchordrq.",
+        c"`enable_scan` argument of vchordrq.",
+        &VCHORDRQ_ENABLE_SCAN,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
     GucRegistry::define_string_guc(
         c"vchordrq.probes",
         c"`probes` argument of vchordrq.",
@@ -161,6 +173,14 @@ pub fn init() {
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchordrq".as_ptr());
     }
+    GucRegistry::define_bool_guc(
+        c"vchordg.enable_scan",
+        c"`enable_scan` argument of vchordg.",
+        c"`enable_scan` argument of vchordg.",
+        &VCHORDG_ENABLE_SCAN,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
     GucRegistry::define_int_guc(
         c"vchordg.ef_search",
         c"`ef_search` argument of vchordg.",
@@ -215,6 +235,10 @@ pub fn init() {
     }
 }
 
+pub fn vchordg_enable_scan() -> bool {
+    VCHORDG_ENABLE_SCAN.get()
+}
+
 pub fn vchordg_ef_search() -> u32 {
     VCHORDG_EF_SEARCH.get() as u32
 }
@@ -246,6 +270,10 @@ pub fn vchordg_io_rerank() -> crate::index::vchordg::scanners::Io {
         #[cfg(any(feature = "pg17", feature = "pg18"))]
         PostgresIo::ReadStream => Io::Stream,
     }
+}
+
+pub fn vchordrq_enable_scan() -> bool {
+    VCHORDRQ_ENABLE_SCAN.get()
 }
 
 pub fn vchordrq_probes() -> Vec<u32> {

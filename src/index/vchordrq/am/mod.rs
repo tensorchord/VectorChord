@@ -163,7 +163,9 @@ pub unsafe extern "C-unwind" fn amcostestimate(
         use pgrx::pg_sys::disable_cost;
         let index_opt_info = (*path).indexinfo;
         // do not use index, if there are no orderbys or clauses
-        if (*path).indexorderbys.is_null() && (*path).indexclauses.is_null() {
+        if ((*path).indexorderbys.is_null() && (*path).indexclauses.is_null())
+            || !gucs::vchordrq_enable_scan()
+        {
             *index_startup_cost = disable_cost;
             *index_total_cost = disable_cost;
             *index_selectivity = 0.0;

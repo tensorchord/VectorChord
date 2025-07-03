@@ -160,6 +160,15 @@ pub unsafe extern "C-unwind" fn amcostestimate(
     index_pages: *mut f64,
 ) {
     unsafe {
+        use pgrx::pg_sys::disable_cost;
+        if !gucs::vchordg_enable_scan() {
+            *index_startup_cost = disable_cost;
+            *index_total_cost = disable_cost;
+            *index_selectivity = 0.0;
+            *index_correlation = 0.0;
+            *index_pages = 1.0;
+            return;
+        }
         *index_startup_cost = 0.0;
         *index_total_cost = 0.0;
         *index_selectivity = 1.0;

@@ -1,0 +1,53 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val)
+SELECT ARRAY[i * 0.0001, i * 0.00005, i * 0.0002]::vector(3) FROM generate_series(1, 10000) as s(i);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops);
+
+statement ok
+SET vchordrq.epsilon = 0.8;
+
+statement ok
+SET vchordrq.probes = '1';
+
+statement error MaxSim operator cannot be used for estimated recall
+SELECT * from vchordrq_evaluate_query_recall(query=>'@#');
+
+statement error Error executing ANN query
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+statement ok
+SET vchordrq.probes = '';
+
+statement error Error executing ANN query
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT val FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+statement error Error executing ANN query
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT * FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+query I
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+----
+1
+
+query I
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$, exact_search=>true);
+----
+1
+
+query I
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t WHERE FALSE ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+----
+NaN
+
+query I
+SHOW vchordrq.epsilon;
+----
+0.8
+
+statement ok
+DROP TABLE t;
