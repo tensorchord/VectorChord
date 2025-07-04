@@ -12,8 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![allow(clippy::type_complexity)]
-
 mod build;
 mod bulkdelete;
 mod cache;

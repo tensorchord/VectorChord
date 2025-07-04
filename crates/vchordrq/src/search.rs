@@ -30,7 +30,6 @@ use vector::{VectorBorrowed, VectorOwned};
 
 type Extra<'b> = &'b mut (NonZero<u64>, u16, &'b mut [u32]);
 
-#[allow(clippy::too_many_arguments)]
 pub fn default_search<'r, 'b: 'r, R: RelationRead, O: Operator>(
     index: &'r R,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,
@@ -156,7 +155,6 @@ where
     results.into_vec()
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn maxsim_search<'r, 'b: 'r, R: RelationRead, O: Operator>(
     index: &'r R,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,

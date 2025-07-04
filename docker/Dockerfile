@@ -11,4 +11,4 @@ RUN echo ${PG_VERSION}
 COPY ./build/postgresql-${PG_VERSION}-vchord_${SEMVER}-1_${TARGETARCH}.deb /tmp/vchord.deb
 RUN apt-get install -y /tmp/vchord.deb && rm -f /tmp/vchord.deb
 
-CMD ["postgres", "-c" ,"shared_preload_libraries=vchord.so"]
+CMD ["postgres", "-c" ,"shared_preload_libraries=vchord"]

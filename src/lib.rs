@@ -13,13 +13,34 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 #![allow(unsafe_code)]
-#![allow(clippy::type_complexity)]
+#![allow(unused_crate_dependencies)]
 
 mod datatype;
 mod index;
 mod upgrade;
 
-pgrx::pg_module_magic!();
+pgrx::pg_module_magic!(
+    name = c"vchord",
+    version = {
+        const RAW: &str = env!("VCHORD_VERSION");
+        const BUFFER: [u8; RAW.len() + 1] = {
+            let mut buffer = [0u8; RAW.len() + 1];
+            let mut i = 0_usize;
+            while i < RAW.len() {
+                buffer[i] = RAW.as_bytes()[i];
+                i += 1;
+            }
+            buffer
+        };
+        const STR: &::core::ffi::CStr =
+            if let Ok(s) = ::core::ffi::CStr::from_bytes_with_nul(&BUFFER) {
+                s
+            } else {
+                panic!("there are null characters in VCHORD_VERSION")
+            };
+        const { STR }
+    }
+);
 pgrx::extension_sql_file!("./sql/bootstrap.sql", bootstrap);
 pgrx::extension_sql_file!("./sql/finalize.sql", finalize);
 
@@ -36,6 +57,9 @@ extern "C-unwind" fn _PG_init() {
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchord".as_ptr());
     }
 }
+
+#[cfg(not(panic = "unwind"))]
+compile_error!("This crate must be compiled with `-Cpanic=unwind`.");
 
 #[cfg(not(target_endian = "little"))]
 compile_error!("Target architecture is not supported.");

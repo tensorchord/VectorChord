@@ -40,5 +40,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("cargo::rustc-link-arg-cdylib=-Wl,-undefined,dynamic_lookup");
         }
     }
+    let version = 'version: {
+        for line in std::fs::read_to_string("./vchord.control")?.lines() {
+            if let Some(prefix_stripped) = line.strip_prefix("default_version = '")
+                && let Some(stripped) = prefix_stripped.strip_suffix("'")
+            {
+                eprintln!("VectorChord version: {stripped}");
+                break 'version stripped.to_string();
+            }
+        }
+        return Err("VectorChord version is not defined.".into());
+    };
+    println!("cargo::rustc-env=VCHORD_VERSION={version}");
     Ok(())
 }

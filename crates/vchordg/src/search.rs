@@ -17,7 +17,9 @@ use crate::candidates::Candidates;
 use crate::operator::{Operator, Vector};
 use crate::results::Results;
 use crate::tuples::*;
+use crate::vectors::{by_prefetch, copy_outs};
 use crate::visited::Visited;
+use algo::accessor::LAccess;
 use algo::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use algo::{Bump, Page, RelationRead};
 use always_equal::AlwaysEqual;
@@ -39,7 +41,6 @@ pub fn search<'b, R: RelationRead, O: Operator>(
 where
     R::Page: Page<Opaque = Opaque>,
 {
-    let _ = bump;
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
@@ -69,13 +70,20 @@ where
     }
     let mut iter = std::iter::from_fn(move || {
         while let Some(((_, AlwaysEqual(pointers_u)), guards)) = candidates.pop() {
-            let Ok((dis_u, payload_u, outs_u)) =
-                rerank::<R, O>(guards, pointers_u, vector, &mut visited)
-            else {
+            let Ok((dis_u, outs_u, payload_u, _)) = crate::vectors::read::<R, O, _, _>(
+                by_prefetch::<R>(guards, pointers_u.iter().copied()),
+                LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                copy_outs,
+            ) else {
                 // the link is broken
                 continue;
             };
-            let mut iterator = prefetch_vertices.prefetch(outs_u);
+            let mut iterator = prefetch_vertices.prefetch(
+                outs_u
+                    .into_iter()
+                    .filter(|&x| !visited.contains(x))
+                    .collect::<VecDeque<_>>(),
+            );
             while let Some((v, guards)) = iterator.next() {
                 visited.insert(v);
                 let vertex_guard = {
@@ -113,67 +121,4 @@ where
         results.pop_min()
     });
     Box::new(search.filter_map(|(dis_u, AlwaysEqual(payload_u))| Some((dis_u, payload_u?))))
-}
-
-fn rerank<'r, R: RelationRead, O: Operator>(
-    mut guards: impl Iterator<Item = R::ReadGuard<'r>>,
-    pointers_u: &mut [Pointer],
-    vector: <O::Vector as VectorOwned>::Borrowed<'_>,
-    visited: &mut Visited,
-) -> Result<(Distance, Option<NonZero<u64>>, VecDeque<(u32, u16)>), ()> {
-    use algo::accessor::{Accessor1, LAccess};
-    let m = strict_sub(pointers_u.len(), 1);
-    let mut accessor = LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default());
-    for i in 0..m {
-        let vector_guard = guards.next().expect("internal");
-        let Some(vector_bytes) = vector_guard.get(pointers_u[i].into_inner().1) else {
-            // the link is broken
-            return Err(());
-        };
-        let vector_tuple = VectorTuple::<O::Vector>::deserialize_ref(vector_bytes);
-        let VectorTupleReader::_1(segment) = vector_tuple else {
-            // the link is broken
-            return Err(());
-        };
-        if segment.index() as usize != i {
-            // the link is broken
-            return Err(());
-        }
-        accessor.push(segment.elements());
-    }
-    let dis_u;
-    let payload_u;
-    let neighbours_u;
-    {
-        let vector_guard = guards.next().expect("internal");
-        let Some(vector_bytes) = vector_guard.get(pointers_u[m].into_inner().1) else {
-            // the link is broken
-            return Err(());
-        };
-        let vector_tuple = VectorTuple::<O::Vector>::deserialize_ref(vector_bytes);
-        let VectorTupleReader::_0(segment) = vector_tuple else {
-            // the link is broken
-            return Err(());
-        };
-        accessor.push(segment.elements());
-        dis_u = accessor.finish(*segment.metadata());
-        payload_u = segment.payload();
-        neighbours_u = segment
-            .neighbours()
-            .iter()
-            .flat_map(|neighbour| neighbour.into_inner())
-            .map(|(v, _)| v)
-            .filter(|&v| !visited.contains(v))
-            .collect::<VecDeque<_>>();
-    }
-    Ok((dis_u, payload_u, neighbours_u))
-}
-
-// Emulate unstable library feature `strict_overflow_ops`.
-// See https://github.com/rust-lang/rust/issues/118260.
-
-#[inline]
-pub const fn strict_sub(lhs: usize, rhs: usize) -> usize {
-    let (a, b) = lhs.overflowing_sub(rhs);
-    if b { panic!() } else { a }
 }

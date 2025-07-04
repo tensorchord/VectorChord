@@ -12,8 +12,6 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-#![allow(clippy::type_complexity)]
-
 pub mod accessor;
 pub mod prefetcher;
 pub mod tuples;
@@ -55,7 +53,7 @@ pub trait PageGuard {
 
 pub trait ReadStream<'r> {
     type Relation: RelationReadTypes;
-    type Guards: Iterator<Item = <Self::Relation as RelationReadTypes>::ReadGuard<'r>>;
+    type Guards: ExactSizeIterator<Item = <Self::Relation as RelationReadTypes>::ReadGuard<'r>>;
     type Item;
     type Inner: Iterator<Item = Self::Item>;
     fn next(&mut self) -> Option<(Self::Item, Self::Guards)>;

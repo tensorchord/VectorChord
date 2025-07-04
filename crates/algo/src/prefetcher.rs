@@ -27,7 +27,7 @@ where
     Self::Item: Fetch,
 {
     type R: RelationRead + 'r;
-    type Guards: Iterator<Item = <Self::R as RelationReadTypes>::ReadGuard<'r>>;
+    type Guards: ExactSizeIterator<Item = <Self::R as RelationReadTypes>::ReadGuard<'r>>;
 
     #[must_use]
     fn next(&mut self) -> Option<(Self::Item, Self::Guards)>;
@@ -108,6 +108,12 @@ impl<'r, R: RelationRead> Iterator for PlainPrefetcherGuards<'r, R> {
     fn next(&mut self) -> Option<Self::Item> {
         let id = self.list.next()?;
         Some(self.relation.read(id))
+    }
+}
+
+impl<'r, R: RelationRead> ExactSizeIterator for PlainPrefetcherGuards<'r, R> {
+    fn len(&self) -> usize {
+        self.list.len()
     }
 }
 
@@ -199,6 +205,12 @@ impl<'r, R: RelationRead> Iterator for SimplePrefetcherGuards<'r, R> {
     fn next(&mut self) -> Option<Self::Item> {
         let id = self.list.next()?;
         Some(self.relation.read(id))
+    }
+}
+
+impl<'r, R: RelationRead> ExactSizeIterator for SimplePrefetcherGuards<'r, R> {
+    fn len(&self) -> usize {
+        self.list.len()
     }
 }
 

@@ -437,7 +437,6 @@ struct DirectoryTupleHeader1 {
     _padding_0: [Padding; 4],
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DirectoryTuple {
     _0 { elements: Vec<u32> },

@@ -5,7 +5,6 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-distance = { path = "../distance" }
 simd = { path = "../simd" }
 
 zerocopy.workspace = true

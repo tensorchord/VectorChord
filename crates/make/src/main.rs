@@ -12,15 +12,13 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use object::Object;
-use std::collections::HashMap;
-use std::env::consts::{DLL_PREFIX, DLL_SUFFIX, OS};
+use std::collections::{HashMap, HashSet};
 use std::env::var_os;
+use std::error::Error;
 use std::fs::read_dir;
-use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 #[derive(Parser)]
@@ -38,220 +36,239 @@ enum Commands {
 struct BuildArgs {
     #[arg(short, long)]
     output: String,
+    #[arg(long, default_value = "release")]
+    profile: String,
+    #[arg(long, default_value = target_triple::TARGET)]
+    target: String,
 }
 
-fn main() -> Result<()> {
+fn pg_config(pg_config: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    let mut command = Command::new(pg_config.as_ref());
+    command.stderr(Stdio::inherit());
+    eprintln!("Running {command:?}");
+    let command_output = command.output()?;
+    let contents = String::from_utf8(command_output.stdout)?;
+    let mut result = HashMap::new();
+    for line in contents.lines() {
+        if let Some((key, value)) = line.split_once(" = ") {
+            result.insert(key.to_string(), value.to_string());
+        }
+    }
+    Ok(result)
+}
+
+fn control_file(path: impl AsRef<Path>) -> Result<HashMap<String, String>, Box<dyn Error>> {
+    let path = path.as_ref();
+    eprintln!("Reading {path:?}");
+    let contents = std::fs::read_to_string(path)?;
+    let mut result = HashMap::new();
+    for line in contents.lines() {
+        if let Some((key, prefix_stripped)) = line.split_once(" = '")
+            && let Some(value) = prefix_stripped.strip_suffix("'")
+        {
+            result.insert(key.to_string(), value.to_string());
+        }
+    }
+    Ok(result)
+}
+
+fn cfgs(target: &str) -> Result<HashSet<String>, Box<dyn Error>> {
+    let mut command = Command::new("rustc");
+    command
+        .args(["--print", "cfg"])
+        .args(["--target", target])
+        .stderr(Stdio::inherit());
+    eprintln!("Running {command:?}");
+    let command_output = command.output()?;
+    let contents = String::from_utf8(command_output.stdout)?;
+    let mut result = HashSet::new();
+    for line in contents.lines() {
+        result.insert(line.to_string());
+    }
+    Ok(result)
+}
+
+fn build(
+    pg_config: impl AsRef<Path>,
+    pg_version: &str,
+    cfgs: &HashSet<String>,
+    profile: &str,
+    target: &str,
+) -> Result<PathBuf, Box<dyn Error>> {
+    let mut command = Command::new("cargo");
+    command
+        .args(["build", "-p", "vchord", "--lib"])
+        .args(["--profile", profile])
+        .args(["--target", target])
+        .args(["--features", pg_version])
+        .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    eprintln!("Running {command:?}");
+    let command_status = command.spawn()?.wait()?;
+    if !command_status.success() {
+        return Err(format!("Cargo build failed: {command_status}").into());
+    }
+    let mut result = PathBuf::from("./target");
+    result.push(target);
+    result.push(if profile != "dev" { profile } else { "debug" });
+    let is_unix = cfgs.contains("target_family=\"unix\"");
+    let is_macos = cfgs.contains("target_os=\"macos\"");
+    let is_windows = cfgs.contains("target_family=\"windows\"");
+    let is_wasm = cfgs.contains("target_family=\"wasm\"");
+    let prefix = if is_unix {
+        "lib"
+    } else if is_windows || is_wasm {
+        ""
+    } else {
+        return Err("unknown operating system".into());
+    };
+    let suffix = if is_unix && !is_macos {
+        ".so"
+    } else if is_macos {
+        ".dylib"
+    } else if is_windows {
+        ".dll"
+    } else if is_wasm {
+        ".wasm"
+    } else {
+        return Err("unknown operating system".into());
+    };
+    result.push(format!("{prefix}vchord{suffix}"));
+    Ok(result)
+}
+
+fn parse(cfgs: &HashSet<String>, obj: impl AsRef<Path>) -> Result<Vec<String>, Box<dyn Error>> {
+    let obj = obj.as_ref();
+    eprintln!("Reading {obj:?}");
+    let contents = std::fs::read(obj)?;
+    let object = object::File::parse(contents.as_slice())?;
+    let is_macos = cfgs.contains("target_os=\"macos\"");
+    let exports = object
+        .exports()?
+        .into_iter()
+        .flat_map(|x| str::from_utf8(x.name()))
+        .flat_map(|x| {
+            if !is_macos {
+                Some(x)
+            } else {
+                x.strip_prefix("_")
+            }
+        })
+        .filter(|x| x.starts_with("__pgrx_internals"))
+        .map(str::to_string)
+        .collect();
+    Ok(exports)
+}
+
+fn generate(
+    pg_config: impl AsRef<Path>,
+    pg_version: &str,
+    profile: &str,
+    target: &str,
+    exports: Vec<String>,
+) -> Result<String, Box<dyn Error>> {
+    let pgrx_embed = std::env::temp_dir().join("VCHORD_PGRX_EMBED");
+    eprintln!("Writing {pgrx_embed:?}");
+    std::fs::write(
+        &pgrx_embed,
+        format!("crate::schema_generation!({});", exports.join(" ")),
+    )?;
+    let mut command = Command::new("cargo");
+    command
+        .args(["rustc", "-p", "vchord", "--bin", "pgrx_embed_vchord"])
+        .args(["--profile", profile])
+        .args(["--target", target])
+        .args(["--features", pg_version])
+        .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
+        .args(["--", "--cfg", "pgrx_embed"])
+        .env("PGRX_EMBED", &pgrx_embed)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    eprintln!("Running {command:?}");
+    let command_status = command.spawn()?.wait()?;
+    if !command_status.success() {
+        return Err(format!("Cargo build failed: {command_status}").into());
+    }
+    let mut result = PathBuf::from("./target");
+    result.push(target);
+    result.push(if profile != "dev" { profile } else { "debug" });
+    result.push("pgrx_embed_vchord");
+    let mut command = Command::new(result);
+    command.stderr(Stdio::inherit());
+    eprintln!("Running {command:?}");
+    let command_output = command.output()?;
+    let command_stdout = String::from_utf8(command_output.stdout)?.replace("\t", "    ");
+    Ok(command_stdout)
+}
+
+fn install_by_copying(
+    src: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
+    #[cfg_attr(not(target_family = "unix"), expect(unused_variables))]
+    is_executable: bool,
+) -> Result<(), Box<dyn Error>> {
+    std::fs::copy(src, &dst)?;
+    #[cfg(target_family = "unix")]
+    {
+        use std::fs::Permissions;
+        use std::os::unix::fs::PermissionsExt;
+        let perm = Permissions::from_mode(if !is_executable { 0o644 } else { 0o755 });
+        std::fs::set_permissions(dst, perm)?;
+    }
+    Ok(())
+}
+
+fn install_by_writing(
+    contents: impl AsRef<[u8]>,
+    dst: impl AsRef<Path>,
+    #[cfg_attr(not(target_family = "unix"), expect(unused_variables))]
+    is_executable: bool,
+) -> Result<(), Box<dyn Error>> {
+    std::fs::write(&dst, contents)?;
+    #[cfg(target_family = "unix")]
+    {
+        use std::fs::Permissions;
+        use std::os::unix::fs::PermissionsExt;
+        let perm = Permissions::from_mode(if !is_executable { 0o644 } else { 0o755 });
+        std::fs::set_permissions(dst, perm)?;
+    }
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
     if !std::fs::exists("vchord.control")? {
-        bail!("The script must be run from the VectorChord source directory.")
+        return Err("The script must be run from the VectorChord source directory.".into());
     }
     let path = if let Some(value) = var_os("PGRX_PG_CONFIG_PATH") {
         eprintln!("Environment variable `PGRX_PG_CONFIG_PATH`: {value:#?}");
         PathBuf::from(value)
     } else {
-        if let Ok(path) = which::which("pg_config") {
-            eprintln!("Found executable `pg_config` in PATH: {path:#?}");
-            eprintln!("Hint: set environment variable `PGRX_PG_CONFIG_PATH` to {path:#?}");
-        }
-        bail!("Environment variable `PGRX_PG_CONFIG_PATH` is not set.")
+        return Err("Environment variable `PGRX_PG_CONFIG_PATH` is not set.".into());
     };
-    let map = {
-        let mut command = Command::new(&path);
-        command.stderr(Stdio::inherit());
-        let command_output = command.output()?;
-        let command_stdout = String::from_utf8(command_output.stdout)?;
-        let mut map = HashMap::new();
-        for line in command_stdout.lines() {
-            if let Some((key, value)) = line.split_once(" = ") {
-                map.insert(key.to_string(), value.to_string());
-                eprintln!("Config `{key}`: {value}");
-            }
-        }
-        map
-    };
-    let fork = {
-        let version = map["VERSION"].clone();
-        let fork = if let Some(prefix_stripped) = version.strip_prefix("PostgreSQL ") {
+    let pg_config = pg_config(&path)?;
+    let pg_version = {
+        let version = pg_config["VERSION"].clone();
+        if let Some(prefix_stripped) = version.strip_prefix("PostgreSQL ") {
             if let Some((stripped, _)) = prefix_stripped.split_once(|c: char| !c.is_ascii_digit()) {
                 format!("pg{stripped}",)
             } else {
                 format!("pg{prefix_stripped}",)
             }
         } else {
-            bail!("PostgreSQL version is invalid.")
-        };
-        eprintln!("Fork: {fork}");
-        fork
-    };
-    #[allow(clippy::collapsible_if)]
-    let version = 'version: {
-        for line in std::fs::read_to_string("./vchord.control")?.lines() {
-            if let Some(prefix_stripped) = line.strip_prefix("default_version = '") {
-                if let Some(stripped) = prefix_stripped.strip_suffix("'") {
-                    eprintln!("VectorChord version: {stripped}");
-                    break 'version stripped.to_string();
-                }
-            }
+            return Err("PostgreSQL version is invalid.".into());
         }
-        bail!("VectorChord version is not defined.")
     };
-    let build = || {
-        let mut command = Command::new("cargo");
-        command
-            .args(["build", "--release"])
-            .args(["-p", "vchord", "--lib"])
-            .args(["--features", fork.as_str()])
-            .env("PGRX_PG_CONFIG_PATH", &path)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
-        let debug = format!("{command:?}");
-        let status = command.spawn()?.wait()?;
-        if !status.success() {
-            bail!("Cargo build failed: {debug}");
-        }
-        Ok(())
-    };
-    let schema = || {
-        let object = std::fs::read(format!("./target/release/{DLL_PREFIX}vchord{DLL_SUFFIX}"))?;
-        let object = object::File::parse(object.as_slice())?;
-        let exports = object
-            .exports()?
-            .into_iter()
-            .flat_map(|x| str::from_utf8(x.name()));
-        let exports = if matches!(object.format(), object::BinaryFormat::MachO) {
-            exports
-                .flat_map(|x| x.strip_prefix("_"))
-                .filter(|x| x.starts_with("__pgrx_internals"))
-                .collect::<Vec<_>>()
-        } else {
-            exports
-                .filter(|x| x.starts_with("__pgrx_internals"))
-                .collect::<Vec<_>>()
-        };
-        let pushes = exports
-            .into_iter()
-            .map(|x| {
-                format!(
-                    r#"
-                entities.push(unsafe {{
-                    unsafe extern "Rust" {{
-                        fn {x}() -> ::pgrx::pgrx_sql_entity_graph::SqlGraphEntity;
-                    }}
-                    {x}()
-                }});
-            "#
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        let code = format!(
-            r#"
-            pub fn main() {{
-                extern crate vchord as _;
-
-                let mut entities = Vec::new();
-                let control_file = std::fs::read_to_string("./vchord.control").unwrap();
-                let control_file = ::pgrx::pgrx_sql_entity_graph::ControlFile::try_from(control_file.as_str()).expect(".control file should properly formatted");
-                let control_file_entity = ::pgrx::pgrx_sql_entity_graph::SqlGraphEntity::ExtensionRoot(control_file);
-
-                entities.push(control_file_entity);
-
-                {pushes}
-
-                let pgrx_sql = ::pgrx::pgrx_sql_entity_graph::PgrxSql::build(
-                    entities.into_iter(),
-                    "vchord".to_string(),
-                    false,
-                )
-                .expect("SQL generation error");
-
-                pgrx_sql
-                    .write(&mut std::io::stdout())
-                    .expect("Could not write SQL to stdout");
-            }}
-        "#
-        );
-        let mut file = tempfile::NamedTempFile::new()?;
-        file.write_all(code.as_bytes())?;
-        let pgrx_embed_path = file.into_temp_path();
-        let mut command = Command::new("cargo");
-        command
-            .args(["rustc"])
-            .args(["-p", "vchord", "--bin", "pgrx_embed_vchord"])
-            .args(["--features", fork.as_str()])
-            .args(["--", "--cfg", "pgrx_embed"])
-            .env("PGRX_EMBED", &pgrx_embed_path)
-            .env("PGRX_PG_CONFIG_PATH", &path)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
-        let debug = format!("{command:?}");
-        let status = command.spawn()?.wait()?;
-        if !status.success() {
-            bail!("Cargo build failed: {debug}");
-        }
-        let mut command = Command::new("./target/debug/pgrx_embed_vchord");
-        command.stderr(Stdio::inherit());
-        let command_output = command.output()?;
-        let command_stdout = String::from_utf8(command_output.stdout)?.replace("\t", "    ");
-        Ok(command_stdout)
-    };
-    let uilts_install = |permission: &str, src: &str, dst: &str| {
-        let mut command = Command::new("install");
-        command.args(["-m", permission, src, dst]);
-        let debug = format!("{command:?}");
-        let status = command.spawn()?.wait()?;
-        if !status.success() {
-            bail!("Command execution failed: {debug}");
-        }
-        Ok(())
-    };
-    let dll_suffix = if OS == "macos" && matches!(fork.as_str(), "pg13" | "pg14" | "pg15") {
-        ".so"
-    } else {
-        DLL_SUFFIX
-    };
-    let install = |pkglibdir, sharedir_extension| -> Result<()> {
-        uilts_install(
-            "755",
-            &format!("./target/release/{DLL_PREFIX}vchord{DLL_SUFFIX}"),
-            &format!("{pkglibdir}/vchord{dll_suffix}"),
-        )?;
-        uilts_install(
-            "644",
-            "./vchord.control",
-            &format!("{sharedir_extension}/vchord.control"),
-        )?;
-        if version != "0.0.0" {
-            for maybe_entry in read_dir("./sql/upgrade")? {
-                let path = maybe_entry?.path();
-                let name = path.file_name().context("broken assets")?;
-                uilts_install(
-                    "644",
-                    &format!("{}", path.display()),
-                    &format!("{sharedir_extension}/{}", name.display()),
-                )?;
-            }
-            uilts_install(
-                "644",
-                &format!("./sql/install/vchord--{version}.sql"),
-                &format!("{sharedir_extension}/vchord--{version}.sql"),
-            )?;
-        } else {
-            let contents = schema()?;
-            let mut file = tempfile::NamedTempFile::new()?;
-            file.write_all(contents.as_bytes())?;
-            let path = file.into_temp_path();
-            uilts_install(
-                "644",
-                &format!("{}", path.display()),
-                &format!("{sharedir_extension}/vchord--0.0.0.sql"),
-            )?;
-        }
-        Ok(())
-    };
+    let vchord_version = control_file("./vchord.control")?["default_version"].clone();
     match cli.command {
-        Commands::Build(BuildArgs { output }) => {
-            build()?;
+        Commands::Build(BuildArgs {
+            output,
+            profile,
+            target,
+        }) => {
+            let cfgs = cfgs(&target)?;
+            let obj = build(&path, &pg_version, &cfgs, &profile, &target)?;
             let pkglibdir = format!("{output}/pkglibdir");
             let sharedir = format!("{output}/sharedir");
             let sharedir_extension = format!("{sharedir}/extension");
@@ -262,7 +279,50 @@ fn main() -> Result<()> {
             std::fs::create_dir_all(&pkglibdir)?;
             std::fs::create_dir_all(&sharedir)?;
             std::fs::create_dir_all(&sharedir_extension)?;
-            install(pkglibdir, sharedir_extension)?;
+            let is_unix = cfgs.contains("target_family=\"unix\"");
+            let is_macos = cfgs.contains("target_os=\"macos\"");
+            let is_windows = cfgs.contains("target_family=\"windows\"");
+            let is_wasm = cfgs.contains("target_family=\"wasm\"");
+            let suffix = if is_unix
+                && (!is_macos || matches!(pg_version.as_str(), "pg13" | "pg14" | "pg15"))
+            {
+                ".so"
+            } else if is_macos {
+                ".dylib"
+            } else if is_windows {
+                ".dll"
+            } else if is_wasm {
+                ".wasm"
+            } else {
+                return Err("unknown operating system".into());
+            };
+            install_by_copying(&obj, format!("{pkglibdir}/vchord{suffix}"), true)?;
+            install_by_copying(
+                "vchord.control",
+                format!("{sharedir}/extension/vchord.control"),
+                false,
+            )?;
+            if vchord_version != "0.0.0" {
+                for e in read_dir("./sql/upgrade")?.collect::<Result<Vec<_>, _>>()? {
+                    install_by_copying(
+                        e.path(),
+                        format!("{sharedir}/extension/{}", e.file_name().display()),
+                        false,
+                    )?;
+                }
+                install_by_copying(
+                    format!("./sql/install/vchord--{vchord_version}.sql"),
+                    format!("{sharedir}/extension/vchord--{vchord_version}.sql"),
+                    false,
+                )?;
+            } else {
+                let exports = parse(&cfgs, obj)?;
+                install_by_writing(
+                    generate(&path, &pg_version, &profile, &target, exports)?,
+                    format!("{sharedir_extension}/vchord--0.0.0.sql"),
+                    false,
+                )?;
+            }
         }
     }
     Ok(())

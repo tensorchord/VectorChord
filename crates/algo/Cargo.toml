@@ -6,11 +6,12 @@ publish = false
 
 [dependencies]
 always_equal = { path = "../always_equal" }
-bumpalo.workspace = true
 distance = { path = "../distance" }
-half.workspace = true
 simd = { path = "../simd" }
 vector = { path = "../vector" }
+
+bumpalo.workspace = true
+half.workspace = true
 zerocopy.workspace = true
 
 [lints]

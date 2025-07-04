@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 mod build;
 mod bulkdelete;
 mod candidates;
@@ -10,12 +8,12 @@ mod prune;
 mod results;
 mod search;
 mod tuples;
+mod vectors;
 mod visited;
 
 pub mod operator;
 pub mod types;
 
-use algo::tuples::Padding;
 pub use build::build;
 pub use bulkdelete::bulkdelete;
 pub use insert::insert;
@@ -29,9 +27,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 #[derive(Debug, Clone, Copy, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
 pub struct Opaque {
     pub next: u32,
-    pub skip: u32,
     pub link: u32,
-    pub _padding_0: [Padding; 4],
 }
 
 #[allow(unsafe_code)]
