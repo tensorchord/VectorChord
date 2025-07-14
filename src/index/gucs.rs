@@ -36,6 +36,9 @@ pub enum PostgresIo {
     ReadStream,
 }
 
+static VCHORDRQ_LOG_QUERIES_SIZE: GucSetting<i32> = GucSetting::<i32>::new(0);
+static VCHORDRQ_LOG_QUERIES_SAMPLE_RATE: GucSetting<i32> = GucSetting::<i32>::new(100);
+
 static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
@@ -164,6 +167,26 @@ pub fn init() {
         c"`io_rerank` argument of vchordrq.",
         c"`io_rerank` argument of vchordrq.",
         &VCHORDRQ_IO_RERANK,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.log_queries_size",
+        c"`log_queries_size` argument of vchordrq.",
+        c"`log_queries_size` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_SIZE,
+        0,
+        10000,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.log_queries_sample_rate",
+        c"`log_queries_sample_rate` argument of vchordrq.",
+        c"`log_queries_sample_rate` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_SAMPLE_RATE,
+        1,
+        10000,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -343,4 +366,12 @@ pub fn vchordrq_io_rerank() -> crate::index::vchordrq::scanners::Io {
         #[cfg(any(feature = "pg17", feature = "pg18"))]
         PostgresIo::ReadStream => Io::Stream,
     }
+}
+
+pub fn vchordrq_log_queries_size() -> u32 {
+    VCHORDRQ_LOG_QUERIES_SIZE.get() as u32
+}
+
+pub fn vchordrq_log_queries_sample_rate() -> u32 {
+    VCHORDRQ_LOG_QUERIES_SAMPLE_RATE.get() as u32
 }

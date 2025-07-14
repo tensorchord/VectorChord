@@ -1,5 +1,5 @@
 statement ok
-CREATE TABLE t (val vector(3));
+CREATE TABLE t (id SERIAL PRIMARY KEY, val vector(3));
 
 statement ok
 INSERT INTO t (val)
@@ -23,11 +23,14 @@ SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER B
 statement ok
 SET vchordrq.probes = '';
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT val FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT * FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+statement error Error executing Ground Truth query (.+) need 0 probes, but 1 probes provided
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$, accu_probes=>'1');
 
 query I
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
@@ -50,4 +53,58 @@ SHOW vchordrq.epsilon;
 0.8
 
 statement ok
-DROP TABLE t;
+CREATE TABLE t_dim4 (val vector(4), id SERIAL PRIMARY KEY);
+
+statement ok
+INSERT INTO t_dim4 (val)
+SELECT ARRAY[i * 0.0001, i * 0.00005, i * 0.0002, i * 0.001]::vector(4) FROM generate_series(1, 10000) as s(i);
+
+statement ok
+CREATE INDEX ON t_dim4 USING vchordrq (val vector_l2_ops);
+
+statement ok
+SET vchordrq.log_queries_size = 2;
+
+statement ok
+SET vchordrq.log_queries_sample_rate = 1;
+
+statement ok
+SELECT * from t ORDER BY val <-> '[0.50, 0.25, 1.00]';
+
+statement ok
+SELECT * from t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0]';
+
+query I
+SELECT simplified_query from vchordrq_logged_queries();
+----
+SELECT ctid from public.t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0.00]'
+SELECT ctid from public.t ORDER BY val <-> '[0.50, 0.25, 1.00]'
+
+statement ok
+SELECT * from t_dim4 ORDER BY val <-> '[2.00, 1, 0.5, 0]';
+
+statement ok
+VACUUM
+
+query I
+SELECT COUNT(*) from _internal_vchord_query_storage;
+----
+2
+
+query I
+SELECT simplified_query from vchordrq_logged_queries();
+----
+SELECT ctid from public.t_dim4 ORDER BY val <-> '[2.00, 1.00, 0.50, 0.00]'
+SELECT ctid from public.t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0.00]'
+
+query I
+SELECT AVG(recall_value)
+FROM vchordrq_logged_queries() AS lq,
+LATERAL (
+    SELECT vchordrq_evaluate_query_recall(query=>lq.simplified_query) AS recall_value
+) AS eval_results;
+----
+1
+
+statement ok
+DROP TABLE t, t_dim4;

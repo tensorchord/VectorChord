@@ -255,6 +255,7 @@ pub unsafe extern "C-unwind" fn ambuild(
     index_info: *mut pgrx::pg_sys::IndexInfo,
 ) -> *mut pgrx::pg_sys::IndexBuildResult {
     use validator::Validate;
+    crate::index::capture::QueryLoggerMaster::init();
     let (vector_options, vchordrq_options) = unsafe { options(index_relation) };
     if let Err(errors) = Validate::validate(&vector_options) {
         pgrx::error!("error while validating options: {}", errors);

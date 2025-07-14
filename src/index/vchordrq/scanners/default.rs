@@ -13,7 +13,9 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use super::{Io, SearchBuilder, SearchOptions, filter};
+use crate::index::capture::{Query, QueryLoggerMaster};
 use crate::index::fetcher::*;
+use crate::index::gucs;
 use crate::index::opclass::Sphere;
 use crate::index::vchordrq::algo::*;
 use crate::index::vchordrq::opclass::Opfamily;
@@ -22,6 +24,7 @@ use algo::prefetcher::*;
 use algo::*;
 use always_equal::AlwaysEqual;
 use half::f16;
+use rand::Rng;
 use std::collections::BinaryHeap;
 use std::num::NonZero;
 use vchordrq::operator::{self};
@@ -34,6 +37,18 @@ pub struct DefaultBuilder {
     opfamily: Opfamily,
     orderbys: Vec<Option<OwnedVector>>,
     spheres: Vec<Option<Sphere<OwnedVector>>>,
+    index_oid: u32,
+    table_oid: u32,
+}
+
+impl DefaultBuilder {
+    pub fn set_index_oid(&mut self, oid: u32) {
+        self.index_oid = oid;
+    }
+
+    pub fn set_table_oid(&mut self, oid: u32) {
+        self.table_oid = oid;
+    }
 }
 
 impl SearchBuilder for DefaultBuilder {
@@ -53,6 +68,8 @@ impl SearchBuilder for DefaultBuilder {
             opfamily,
             orderbys: Vec::new(),
             spheres: Vec::new(),
+            index_oid: u32::default(),
+            table_oid: u32::default(),
         }
     }
 
@@ -102,6 +119,16 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
+        if gucs::vchordrq_log_queries_size() > 0 {
+            let rate = 1.0 / gucs::vchordrq_log_queries_sample_rate() as f64;
+            let mut rng = rand::rng();
+            if rng.random_bool(rate) {
+                let query = Query::new(self.table_oid, self.index_oid, opfamily, vector.clone());
+                if let Some(q) = query {
+                    QueryLoggerMaster::push(q);
+                }
+            }
+        }
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };

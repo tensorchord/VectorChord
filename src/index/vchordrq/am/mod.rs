@@ -376,6 +376,7 @@ pub unsafe extern "C-unwind" fn amvacuumcleanup(
         pgrx::pg_sys::vacuum_delay_point(false);
     };
     crate::index::vchordrq::algo::maintain(opfamily, &index, check);
+    crate::index::capture::QueryLoggerMaster::maintain();
     stats
 }
 
@@ -460,6 +461,8 @@ pub unsafe extern "C-unwind" fn amrescan(
             | Opfamily::HalfvecIp
             | Opfamily::HalfvecCosine => {
                 let mut builder = DefaultBuilder::new(opfamily);
+                builder.set_table_oid((*(*scan).heapRelation).rd_id.to_u32());
+                builder.set_index_oid((*(*scan).indexRelation).rd_id.to_u32());
                 for i in 0..(*scan).numberOfOrderBys {
                     let data = (*scan).orderByData.add(i as usize);
                     let value = (*data).sk_argument;

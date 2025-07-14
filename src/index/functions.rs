@@ -12,9 +12,12 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+use crate::index::capture::QueryLoggerMaster;
 use crate::index::storage::PostgresRelation;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass, PgClassRelkind};
+
+const LOGGED_QUERY_COMPOSITE_TYPE: &str = "logged_query";
 
 #[pgrx::pg_extern(sql = "")]
 fn _vchordg_prewarm(indexrelid: Oid) -> String {
@@ -83,4 +86,24 @@ impl Drop for Index {
             pgrx::pg_sys::index_close(self.raw, self.lockmode);
         }
     }
+}
+
+#[pgrx::pg_extern(sql = "")]
+fn _vchordrq_logged_queries()
+-> pgrx::iter::SetOfIterator<'static, pgrx::composite_type!('static, LOGGED_QUERY_COMPOSITE_TYPE)> {
+    use pgrx::heap_tuple::PgHeapTuple;
+    let queries = QueryLoggerMaster::load_all();
+    pgrx::iter::SetOfIterator::new(queries.into_iter().filter_map(|query| {
+        query.dump().map(|dump| {
+            let mut view = PgHeapTuple::new_composite_type(LOGGED_QUERY_COMPOSITE_TYPE).unwrap();
+            view.set_by_name("table_schema", dump.namespace).unwrap();
+            view.set_by_name("table_name", dump.table_name).unwrap();
+            view.set_by_name("column_name", dump.column_name).unwrap();
+            view.set_by_name("operator", dump.operator).unwrap();
+            view.set_by_name("vector_text", dump.vector_text).unwrap();
+            view.set_by_name("simplified_query", dump.simplified_query)
+                .unwrap();
+            view
+        })
+    }))
 }

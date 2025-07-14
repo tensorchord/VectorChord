@@ -12,6 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+pub mod capture;
 pub mod fetcher;
 pub mod functions;
 pub mod gucs;

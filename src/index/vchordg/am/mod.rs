@@ -296,6 +296,7 @@ pub unsafe extern "C-unwind" fn amvacuumcleanup(
         pgrx::pg_sys::vacuum_delay_point(false);
     };
     crate::index::vchordg::algo::maintain(opfamily, &index, check);
+    crate::index::capture::QueryLoggerMaster::maintain();
     stats
 }
 
