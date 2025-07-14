@@ -14,6 +14,7 @@
 
 pub mod am_build;
 
+use crate::index::collector::DefaultSender;
 use crate::index::fetcher::*;
 use crate::index::gucs;
 use crate::index::storage::PostgresRelation;
@@ -438,6 +439,8 @@ pub unsafe extern "C-unwind" fn amrescan(
             io_search: gucs::vchordrq_io_search(),
             io_rerank: gucs::vchordrq_io_rerank(),
             prefilter: gucs::vchordrq_prefilter(),
+            collect_enable: gucs::vchordrq_max_logged_queries_per_index() > 0,
+            collect_rate: gucs::vchordrq_log_queries_sample_rate(),
         };
         let fetcher = {
             let hack = scanner.hack;
@@ -453,6 +456,12 @@ pub unsafe extern "C-unwind" fn amrescan(
                     },
                 )
             })
+        };
+        let sender = DefaultSender {
+            database_oid: (*(*scan).heapRelation).rd_lockInfo.lockRelId.dbId.to_u32(),
+            table_oid: (*(*scan).heapRelation).rd_id.to_u32(),
+            index_oid: (*(*scan).indexRelation).rd_id.to_u32(),
+            opfamily,
         };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.
         let bump = scanner.bump.as_ref();
@@ -479,7 +488,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, sender)
                 }))
             }
             Opfamily::VectorMaxsim | Opfamily::HalfvecMaxsim => {
@@ -499,7 +508,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, sender)
                 }))
             }
         };
