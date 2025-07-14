@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use super::{Io, SearchBuilder, SearchOptions, filter};
+use crate::index::collector::CollectorSender;
 use crate::index::fetcher::*;
 use crate::index::opclass::Sphere;
 use crate::index::vchordrq::algo::*;
@@ -76,12 +77,14 @@ impl SearchBuilder for DefaultBuilder {
         options: SearchOptions,
         mut fetcher: impl Fetcher + 'a,
         bump: &'a impl Bump,
+        sender: impl CollectorSender,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,
         R::Page: Page<Opaque = vchordrq::Opaque>,
     {
         let mut vector = None;
+
         let mut threshold = None;
         let mut recheck = false;
         for orderby_vector in self.orderbys.into_iter().flatten() {
@@ -102,6 +105,7 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
+        sender.exec(&options, &vector);
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };

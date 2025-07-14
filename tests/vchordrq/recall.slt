@@ -1,12 +1,12 @@
 statement ok
-CREATE TABLE t (val vector(3));
+CREATE TABLE t (id SERIAL PRIMARY KEY, val vector(3));
 
 statement ok
 INSERT INTO t (val)
 SELECT ARRAY[i * 0.0001, i * 0.00005, i * 0.0002]::vector(3) FROM generate_series(1, 10000) as s(i);
 
 statement ok
-CREATE INDEX ON t USING vchordrq (val vector_l2_ops);
+CREATE INDEX idx1 ON t USING vchordrq (val vector_l2_ops);
 
 statement ok
 SET vchordrq.epsilon = 0.8;
@@ -17,17 +17,20 @@ SET vchordrq.probes = '1';
 statement error MaxSim operator cannot be used for estimated recall
 SELECT * from vchordrq_evaluate_query_recall(query=>'@#');
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) need 0 probes, but 1 probes provided
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
 
 statement ok
 SET vchordrq.probes = '';
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT val FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT * FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+statement error Error executing Ground Truth query (.+) need 0 probes, but 1 probes provided
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$, accu_probes=>'1');
 
 query I
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
@@ -50,4 +53,106 @@ SHOW vchordrq.epsilon;
 0.8
 
 statement ok
-DROP TABLE t;
+CREATE TABLE t_dim4 (val vector(4), id SERIAL PRIMARY KEY);
+
+statement ok
+INSERT INTO t_dim4 (val)
+SELECT ARRAY[i * 0.0001, i * 0.00005, i * 0.0002, i * 0.001]::vector(4) FROM generate_series(1, 10000) as s(i);
+
+statement ok
+CREATE INDEX idx2 ON t_dim4 USING vchordrq (val vector_l2_ops);
+
+statement ok
+ALTER SYSTEM SET vchordrq.max_logged_queries_per_index = 1;
+
+statement ok
+ALTER SYSTEM SET vchordrq.log_queries_sample_rate = 1;
+
+statement ok
+SELECT pg_reload_conf();
+
+statement ok
+SELECT pg_sleep(1);
+
+statement ok
+SELECT * from t ORDER BY val <-> '[0.50, 0.25, 1.00]';
+
+statement ok
+SELECT * from t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0]';
+
+query I
+SELECT simplified_query from vchordrq_logged_queries('idx1');
+----
+SELECT ctid from public.t ORDER BY val <-> '[0.5000, 0.2500, 1.0000]'
+
+query I
+SELECT simplified_query from vchordrq_logged_queries('idx2');
+----
+SELECT ctid from public.t_dim4 ORDER BY val <-> '[1.0000, 0.5000, 0.2500, 0.0000]'
+
+query I
+SELECT COUNT(*) from vchordrq_logged_queries;
+----
+2
+
+statement ok
+SELECT * from t_dim4 ORDER BY val <-> '[2.00, 1, 0.5, 0]';
+
+query I
+SELECT simplified_query from vchordrq_logged_queries('idx2');
+----
+SELECT ctid from public.t_dim4 ORDER BY val <-> '[2.0000, 1.0000, 0.5000, 0.0000]'
+
+query I
+SELECT AVG(recall_value)
+FROM vchordrq_logged_queries('idx2') AS lq,
+LATERAL (
+    SELECT vchordrq_evaluate_query_recall(query=>lq.simplified_query) AS recall_value
+) AS eval_results;
+----
+1
+
+statement ok
+CREATE TABLE t_expr (id integer);
+
+statement ok
+INSERT INTO t_expr (id) SELECT id FROM generate_series(1, 10000) s(id);
+
+statement ok
+CREATE INDEX idx3 ON t_expr USING vchordrq ((ARRAY[id::real, id::real, id::real]::vector(3)) vector_l2_ops);
+
+statement ok
+SELECT id FROM t_expr ORDER BY ARRAY[id::real, id::real, id::real]::vector(3) <-> '[1.0000, 0.5000, 0.2500]' limit 1;
+
+query I
+SELECT column_name, simplified_query from vchordrq_logged_queries('idx3');
+----
+NULL NULL
+
+query I
+SELECT vector_text from vchordrq_logged_queries('idx3');
+----
+'[1.0000, 0.5000, 0.2500]'
+
+statement ok
+SET search_path='@';
+
+query I
+SELECT vector_text from public.vchordrq_logged_queries('public.idx3');
+----
+'[1.0000, 0.5000, 0.2500]'
+
+statement ok
+RESET search_path;
+
+statement ok
+ALTER SYSTEM RESET vchordrq.max_logged_queries_per_index;
+
+statement ok
+ALTER SYSTEM RESET vchordrq.log_queries_sample_rate;
+
+statement ok
+SELECT pg_reload_conf();
+
+statement ok
+DROP TABLE t, t_dim4, t_expr;

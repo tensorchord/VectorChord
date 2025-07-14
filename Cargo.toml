@@ -27,6 +27,7 @@ always_equal = { path = "./crates/always_equal" }
 distance = { path = "./crates/distance" }
 k_means = { path = "./crates/k_means" }
 rabitq = { path = "./crates/rabitq" }
+send_fd = { path = "./crates/send_fd" }
 simd = { path = "./crates/simd" }
 vchordg = { path = "./crates/vchordg" }
 vchordrq = { path = "./crates/vchordrq" }
@@ -43,6 +44,8 @@ serde.workspace = true
 toml = "0.9.4"
 validator.workspace = true
 zerocopy.workspace = true
+bincode = "2.0.1"
+byteorder = "1.5.0"
 
 [target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
 mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }

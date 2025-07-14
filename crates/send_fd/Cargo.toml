@@ -1,0 +1,13 @@
+[package]
+name = "send_fd"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+libc = "0.2.153"
+log = { version = "0.4.21", features = ["std"] }
+rustix = { version = "0.38.31", features = ["fs", "mm", "net"] }
+
+[lints]
+workspace = true
