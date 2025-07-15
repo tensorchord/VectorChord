@@ -22,7 +22,6 @@ mod f32;
 pub mod bit;
 pub mod fast_scan;
 pub mod fht;
-pub mod packed;
 pub mod quantize;
 pub mod rotate;
 pub mod u8;

@@ -10,8 +10,8 @@ simd = { path = "../simd" }
 zerocopy.workspace = true
 
 [build-dependencies]
-rand = "0.9.1"
-rand_chacha = "0.9.0"
+rand.workspace = true
+rand_chacha.workspace = true
 
 [lints]
 workspace = true

@@ -88,7 +88,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
           PLATFORM: ${{ matrix.arch == 'x86_64' && 'amd64' || 'arm64' }}
         run: |
-          cargo make build -o ./build/raw
+          cargo run -p make -- build -o ./build/raw
 
           (cd ./build/raw && zip -r ../postgresql-${VERSION}-vchord_${SEMVER}_${ARCH}-linux-gnu.zip .)
 

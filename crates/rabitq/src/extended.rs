@@ -179,3 +179,35 @@ fn find_scale<const B: usize>(o: &[f32]) -> f64 {
 
     x_m
 }
+
+pub fn pack_code<const BITS: usize>(input: &[u8]) -> [Vec<u64>; BITS] {
+    #[inline(always)]
+    fn f(array: &[u8; 64], bit: usize) -> u64 {
+        let mut result = 0_u64;
+        for i in 0..64 {
+            result |= ((array[i] as u64 >> bit) & 1) << i;
+        }
+        result
+    }
+    let (arrays, remainder) = input.as_chunks::<64>();
+    let mut buffer = [0_u8; 64];
+    let tailing = if !remainder.is_empty() {
+        buffer[..remainder.len()].copy_from_slice(remainder);
+        Some(&buffer)
+    } else {
+        None
+    };
+    std::array::from_fn(|bit| arrays.iter().chain(tailing).map(|t| f(t, bit)).collect())
+}
+
+pub fn accumulate<const X: usize, const Y: usize>(lhs: &[u64], rhs: &[Vec<u64>; Y]) -> u32 {
+    assert!(lhs.len().is_multiple_of(X));
+    let d = lhs.len() / X;
+    let mut result = 0_u32;
+    for i in 0..X {
+        for j in 0..Y {
+            result += simd::bit::reduce_sum_of_and(&lhs[i * d..][..d], &rhs[j]) << (i + j);
+        }
+    }
+    result
+}

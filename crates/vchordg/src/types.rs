@@ -39,7 +39,7 @@ impl VamanaIndexOptions {
         32
     }
     fn default_max_alpha() -> f32 {
-        1.2
+        1.0
     }
     fn default_ef_construction() -> u32 {
         64

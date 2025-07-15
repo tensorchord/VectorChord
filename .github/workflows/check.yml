@@ -221,7 +221,7 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw --profile dev
+          cargo run -p make -- build -o ./build/raw --profile dev
           sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
@@ -323,7 +323,7 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw --profile dev
+          cargo run -p make -- build -o ./build/raw --profile dev
           sudo make PG_CONFIG=${PGRX_PG_CONFIG_PATH} install
 
       - name: Service
@@ -405,5 +405,5 @@ jobs:
 
       - name: Install
         run: |
-          cargo make build -o ./build/raw --profile dev
+          cargo run -p make -- build -o ./build/raw --profile dev
           make PG_CONFIG="$env:PGRX_PG_CONFIG_PATH" install

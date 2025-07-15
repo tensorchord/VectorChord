@@ -99,7 +99,7 @@ pub fn multiversion(
     }
     let output = sig.output.clone();
     let mut versions = quote::quote! {};
-    let mut branches = quote::quote! {};
+    let mut cold = quote::quote! {};
     for version in attr.versions {
         let target = version.target.clone();
         let name = syn::Ident::new(
@@ -123,30 +123,64 @@ pub fn multiversion(
                 fn #name < #generics_params > (#inputs) #output #generics_where { #block }
             });
         }
-        branches.extend(quote::quote! {
+        cold.extend(quote::quote! {
             #[cfg(target_arch = #target_arch)]
             if crate::is_cpu_detected!(#target_cpu) #(&& crate::is_feature_detected!(#additional_target_features))* {
-                let _multiversion_internal: unsafe fn(#inputs) #output = #name;
-                CACHE.store(_multiversion_internal as *mut (), core::sync::atomic::Ordering::Relaxed);
-                return unsafe { _multiversion_internal(#(#arguments,)*) };
+                let ptr = unsafe { std::mem::transmute::<unsafe fn(#inputs) #output, fn(#inputs) #output>(#name) };
+                CACHE.store(ptr as *mut (), core::sync::atomic::Ordering::Relaxed);
+                return ptr;
             }
         });
     }
+    cold.extend(quote::quote! {
+        let ptr = unsafe { std::mem::transmute::<unsafe fn(#inputs) #output, fn(#inputs) #output>(fallback)} ;
+        CACHE.store(ptr as *mut (), core::sync::atomic::Ordering::Relaxed);
+        ptr
+    });
     quote::quote! {
         #versions
         fn fallback < #generics_params > (#inputs) #output #generics_where { #block }
+        #[must_use]
+        pub(crate) fn pointer() -> fn(#inputs) #output {
+            static CACHE: core::sync::atomic::AtomicPtr<()> = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
+            #[must_use]
+            #[cold]
+            fn cold() -> fn(#inputs) #output {
+                #cold
+            }
+            #[cfg(feature = "init")]
+            #[cfg(target_os = "linux")]
+            {
+                #[used]
+                #[unsafe(link_section = ".init_array")]
+                static INIT: extern "C" fn() -> usize = {
+                    #[unsafe(link_section = ".text.startup")]
+                    extern "C" fn f() -> usize {
+                        let _ = cold();
+                        0
+                    }
+                    f
+                };
+                let cache = unsafe { CACHE.as_ptr().read() };
+                if !cache.is_null() {
+                    let ptr = unsafe { std::mem::transmute::<*mut (), fn(#inputs) #output>(cache) };
+                    return ptr;
+                }
+                panic!("feature `init` is not supported on this platform")
+            }
+            #[allow(unreachable_code)]
+            {
+                let cache = CACHE.load(core::sync::atomic::Ordering::Relaxed);
+                if !cache.is_null() {
+                    let ptr = unsafe { std::mem::transmute::<*mut (), fn(#inputs) #output>(cache) };
+                    return ptr;
+                }
+                cold()
+            }
+        }
         #[inline(always)]
         #(#attrs)* #vis #sig {
-            static CACHE: core::sync::atomic::AtomicPtr<()> = core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
-            let cache = CACHE.load(core::sync::atomic::Ordering::Relaxed);
-            if !cache.is_null() {
-                let f = unsafe { core::mem::transmute::<*mut (), unsafe fn(#inputs) #output>(cache as _) };
-                return unsafe { f(#(#arguments,)*) };
-            }
-            #branches
-            let _multiversion_internal: unsafe fn(#inputs) #output = fallback;
-            CACHE.store(_multiversion_internal as *mut (), core::sync::atomic::Ordering::Relaxed);
-            unsafe { _multiversion_internal(#(#arguments,)*) }
+            pointer()(#(#arguments,)*)
         }
     }
     .into()

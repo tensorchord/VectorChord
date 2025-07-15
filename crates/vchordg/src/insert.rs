@@ -76,7 +76,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
             VertexTuple::serialize(&VertexTuple {
                 metadata: code.0.into_array(),
                 payload: Some(payload),
-                elements: rabitq::original::binary::pack_code(&code.1),
+                elements: rabitq::b2::binary::pack_code(&code.1),
                 pointers: vec![Pointer::new((u32::MAX, 0)); list_of_vector_bytes.len()], // a sentinel value
             })
         };
@@ -144,7 +144,11 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         };
         let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
         let pointers_s = bump.alloc_slice(vertex_tuple.pointers());
-        let score_s = O::process((vertex_tuple.metadata(), vertex_tuple.elements()), &lut);
+        let score_s = O::process(
+            dims,
+            (vertex_tuple.metadata(), vertex_tuple.elements()),
+            &lut,
+        );
         candidates.push((Reverse(score_s), AlwaysEqual((pointers_s, s))));
     }
     let mut iter = std::iter::from_fn(|| {
@@ -178,7 +182,11 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 };
                 let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
                 let pointers_v = bump.alloc_slice(vertex_tuple.pointers());
-                let score_v = O::process((vertex_tuple.metadata(), vertex_tuple.elements()), &lut);
+                let score_v = O::process(
+                    dims,
+                    (vertex_tuple.metadata(), vertex_tuple.elements()),
+                    &lut,
+                );
                 candidates.push((Reverse(score_v), AlwaysEqual((pointers_v, v))));
             }
             return Some((Reverse(dis_u), AlwaysEqual((pointers_u, u))));

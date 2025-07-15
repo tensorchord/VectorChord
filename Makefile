@@ -5,7 +5,7 @@ PG_CONFIG ?= pg_config
 all: build
 
 build:
-	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" cargo make build -o ./build/raw
+	PGRX_PG_CONFIG_PATH="$(PG_CONFIG)" cargo run -p make -- build -o ./build/raw
 
 install:
 	cp -r ./build/raw/pkglibdir/. $(shell $(PG_CONFIG) --pkglibdir)

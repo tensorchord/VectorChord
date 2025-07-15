@@ -13,7 +13,7 @@ name = "pgrx_embed_vchord"
 path = "./src/bin/pgrx_embed.rs"
 
 [features]
-default = []
+default = ["simd/init"]
 pg13 = ["pgrx/pg13", "pgrx-catalog/pg13"]
 pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
 pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
@@ -40,7 +40,7 @@ pgrx-catalog = "0.3.0"
 rand.workspace = true
 seq-macro.workspace = true
 serde.workspace = true
-toml = "0.8.23"
+toml = "0.9.2"
 validator.workspace = true
 zerocopy.workspace = true
 
@@ -66,6 +66,7 @@ bumpalo = "3.19.0"
 half = { version = "2.6.0", features = ["zerocopy"] }
 paste = "1"
 rand = "0.9.1"
+rand_chacha = "0.9.0"
 seq-macro = "0.3.6"
 serde = { version = "1", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }

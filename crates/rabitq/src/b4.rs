@@ -19,17 +19,11 @@ pub fn code(vector: &[f32]) -> Code {
 }
 
 pub mod binary {
-    pub fn pack_code(input: &[u8]) -> Vec<u8> {
-        let f = |&[t_0, t_1]: &[u8; 2]| t_0 | (t_1 << 4);
-        let (arrays, remainder) = input.as_chunks::<2>();
-        let mut buffer = [0u8; 2];
-        let tailing = if !remainder.is_empty() {
-            buffer[..remainder.len()].copy_from_slice(remainder);
-            Some(&buffer)
-        } else {
-            None
-        };
-        arrays.iter().chain(tailing).map(f).collect()
+    pub fn pack_code(input: &[u8]) -> Vec<u64> {
+        crate::extended::pack_code::<4>(input)
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     use crate::extended::CodeMetadata;
@@ -37,16 +31,16 @@ pub mod binary {
     const BITS: usize = 4;
 
     pub type BinaryLutMetadata = CodeMetadata;
-    pub type BinaryLut = (BinaryLutMetadata, Vec<u8>);
+    pub type BinaryLut = (BinaryLutMetadata, [Vec<u64>; BITS]);
     pub type BinaryCode<'a> = ((f32, f32, f32, f32), &'a [u8]);
 
     pub fn preprocess(vector: &[f32]) -> BinaryLut {
         let (metadata, elements) = crate::extended::code::<BITS>(vector);
-        (metadata, pack_code(&elements))
+        (metadata, crate::extended::pack_code::<4>(&elements))
     }
 
-    pub fn accumulate(x: &[u8], y: &[u8]) -> u32 {
-        simd::packed::u4_u4_reduce_sum_of_xy(x, y)
+    pub fn accumulate(lhs: &[u64], rhs: &[Vec<u64>; 4]) -> u32 {
+        crate::extended::accumulate::<4, 4>(lhs, rhs)
     }
 
     pub fn half_process_dot(

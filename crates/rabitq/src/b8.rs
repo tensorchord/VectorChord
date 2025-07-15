@@ -19,10 +19,6 @@ pub fn code(vector: &[f32]) -> Code {
 }
 
 pub mod binary {
-    pub fn pack_code(input: &[u8]) -> Vec<u8> {
-        input.to_vec()
-    }
-
     use crate::extended::CodeMetadata;
 
     const BITS: usize = 8;
@@ -33,7 +29,7 @@ pub mod binary {
 
     pub fn preprocess(vector: &[f32]) -> BinaryLut {
         let (metadata, elements) = crate::extended::code::<BITS>(vector);
-        (metadata, pack_code(&elements))
+        (metadata, elements)
     }
 
     pub fn accumulate(x: &[u8], y: &[u8]) -> u32 {

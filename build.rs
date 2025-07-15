@@ -30,6 +30,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("VectorChord version is not defined.".into());
     };
     println!("cargo::rustc-env=VCHORD_VERSION={version}");
+    if var("CARGO_CFG_TARGET_OS")? == "linux" {
+        println!("cargo::rustc-link-arg-cdylib=-Wl,-Bsymbolic");
+    }
     if var("CARGO_CFG_TARGET_OS")? == "macos" {
         if let Some(path) = var_os("PGRX_PG_CONFIG_PATH") {
             let map = {

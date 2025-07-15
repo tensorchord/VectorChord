@@ -3,3 +3,4 @@
 .vscode
 .ignore
 build
+.cargo/config.toml

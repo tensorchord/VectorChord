@@ -65,7 +65,11 @@ where
         };
         let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
         let pointers_s = bump.alloc_slice(vertex_tuple.pointers());
-        let score_s = O::process((vertex_tuple.metadata(), vertex_tuple.elements()), &lut);
+        let score_s = O::process(
+            dims,
+            (vertex_tuple.metadata(), vertex_tuple.elements()),
+            &lut,
+        );
         candidates.push((Reverse(score_s), AlwaysEqual(pointers_s)));
     }
     let mut iter = std::iter::from_fn(move || {
@@ -99,7 +103,11 @@ where
                 };
                 let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
                 let pointers_v = bump.alloc_slice(vertex_tuple.pointers());
-                let score_v = O::process((vertex_tuple.metadata(), vertex_tuple.elements()), &lut);
+                let score_v = O::process(
+                    dims,
+                    (vertex_tuple.metadata(), vertex_tuple.elements()),
+                    &lut,
+                );
                 candidates.push((Reverse(score_v), AlwaysEqual(pointers_v)));
             }
             return Some((Reverse(dis_u), AlwaysEqual(payload_u)));
