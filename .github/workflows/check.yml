@@ -74,23 +74,32 @@ jobs:
           C_FILES=$(find . -type f -name "*.c" -not -path "./target/*")
           PY_FILES=$(find . -type f -name "*.py" -not -path "./target/*")
 
+          FLAG="0"
+
           for p in $RS_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$RS_HEADER"); then
               echo "license header mismatch in file $p"
+              FLAG="1"
             fi
           done
 
           for p in $C_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$C_HEADER"); then
               echo "license header mismatch in file $p"
+              FLAG="1"
             fi
           done
 
           for p in $PY_FILES; do
             if ! head -n "$COUNT" "$p" | cmp -s - <(echo "$PY_HEADER"); then
               echo "license header mismatch in file $p"
+              FLAG="1"
             fi
           done
+
+          if [ "$FLAG" -eq "1" ]; then
+            exit 1
+          fi
 
       - name: SQL
         run: |
@@ -138,17 +147,21 @@ jobs:
 
       - name: Cargo Test (simd)
         run: |
-          cargo test -p simd --release -- --nocapture
-
           if [ "$(uname -m)" == "x86_64" ]; then
             cargo \
               --config 'target.'\''cfg(all())'\''.runner = ["/opt/sde/sde64", "-spr", "--"]' \
-              test -p simd --release -- --nocapture
+              test -p simd -- --nocapture
           fi
           if [ "$(uname -m)" == "aarch64" ]; then
             cargo \
-              --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max"]' \
-              test -p simd --release -- --nocapture
+              --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=16"]' \
+              test -p simd -- --nocapture
+            cargo \
+              --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=32"]' \
+              test -p simd -- --nocapture
+            cargo \
+              --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=64"]' \
+              test -p simd -- --nocapture
           fi
 
   psql:

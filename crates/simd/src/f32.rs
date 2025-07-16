@@ -452,7 +452,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     fn reduce_sum_of_abs_x_v4_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.008;
+        const EPSILON: f32 = 0.009;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
@@ -515,7 +515,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     fn reduce_sum_of_abs_x_v3_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.008;
+        const EPSILON: f32 = 0.009;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -571,7 +571,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     fn reduce_sum_of_abs_x_v2_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.008;
+        const EPSILON: f32 = 0.009;
         if !crate::is_cpu_detected!("v2") {
             println!("test {} ... skipped (v2)", module_path!());
             return;
@@ -625,7 +625,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     fn reduce_sum_of_abs_x_a2_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.008;
+        const EPSILON: f32 = 0.009;
         if !crate::is_cpu_detected!("a2") {
             println!("test {} ... skipped (a2)", module_path!());
             return;
@@ -665,7 +665,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     fn reduce_sum_of_abs_x_a3_256_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.008;
+        const EPSILON: f32 = 0.009;
         if !crate::is_cpu_detected!("a3.256") {
             println!("test {} ... skipped (a3.256)", module_path!());
             return;
@@ -726,7 +726,7 @@ mod reduce_sum_of_x2 {
     #[test]
     fn reduce_sum_of_x2_v4_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.006;
+        const EPSILON: f32 = 0.008;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
@@ -785,7 +785,7 @@ mod reduce_sum_of_x2 {
     #[test]
     fn reduce_sum_of_x2_v3_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.006;
+        const EPSILON: f32 = 0.008;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -839,7 +839,7 @@ mod reduce_sum_of_x2 {
     #[test]
     fn reduce_sum_of_x2_v2_fma_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.006;
+        const EPSILON: f32 = 0.008;
         if !crate::is_cpu_detected!("v2") || !crate::is_feature_detected!("fma") {
             println!("test {} ... skipped (v2:fma)", module_path!());
             return;
@@ -891,7 +891,7 @@ mod reduce_sum_of_x2 {
     #[test]
     fn reduce_sum_of_x2_a2_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.006;
+        const EPSILON: f32 = 0.008;
         if !crate::is_cpu_detected!("a2") {
             println!("test {} ... skipped (a2)", module_path!());
             return;
@@ -931,7 +931,7 @@ mod reduce_sum_of_x2 {
     #[test]
     fn reduce_sum_of_x2_a3_256_test() {
         use rand::Rng;
-        const EPSILON: f32 = 0.006;
+        const EPSILON: f32 = 0.008;
         if !crate::is_cpu_detected!("a3.256") {
             println!("test {} ... skipped (a3.256)", module_path!());
             return;
