@@ -205,3 +205,12 @@ pub fn emulate_mm_reduce_max_ps(x: std::arch::x86_64::__m128) -> f32 {
     }
     f32::max(f32::max(x.0[0], x.0[1]), f32::max(x.0[2], x.0[3]))
 }
+
+#[inline]
+#[cfg(target_arch = "x86_64")]
+#[crate::target_cpu(enable = "v3")]
+pub fn emulate_mm256_reduce_add_epi64(mut x: std::arch::x86_64::__m256i) -> i64 {
+    use std::arch::x86_64::*;
+    x = _mm256_add_epi64(x, _mm256_permute2f128_si256(x, x, 1));
+    _mm256_extract_epi64(x, 0) + _mm256_extract_epi64(x, 1)
+}

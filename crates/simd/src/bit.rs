@@ -67,16 +67,11 @@ mod reduce_sum_of_and {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_and_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm512_reduce_add_epi16;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
-        let mask_1 = _mm512_set1_epi16(0x00ff);
-        let mut and_0 = _mm512_setzero_si512();
-        let mut and_1 = _mm512_setzero_si512();
-        let mut and_2 = _mm512_setzero_si512();
-        let mut and_3 = _mm512_setzero_si512();
+        let mut sum_and = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -91,11 +86,10 @@ mod reduce_sum_of_and {
             let and_lo = _mm512_and_si512(and, mask_0);
             let and_hi = _mm512_and_si512(_mm512_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm512_shuffle_epi8(lut, and_lo);
-            and_0 = _mm512_add_epi16(and_0, _mm512_and_si512(and_res_lo, mask_1));
-            and_1 = _mm512_add_epi16(and_1, _mm512_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm512_shuffle_epi8(lut, and_hi);
-            and_2 = _mm512_add_epi16(and_2, _mm512_and_si512(and_res_hi, mask_1));
-            and_3 = _mm512_add_epi16(and_3, _mm512_srli_epi16(and_res_hi, 8));
+            let and_res = _mm512_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm512_sad_epu8(and_res, _mm512_setzero_si512());
+            sum_and = _mm512_add_epi64(sum_and, and_sad);
         }
         if n > 0 {
             let mask = _bzhi_u32(0xff, n as u32) as u8;
@@ -106,16 +100,12 @@ mod reduce_sum_of_and {
             let and_lo = _mm512_and_si512(and, mask_0);
             let and_hi = _mm512_and_si512(_mm512_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm512_shuffle_epi8(lut, and_lo);
-            and_0 = _mm512_add_epi16(and_0, _mm512_and_si512(and_res_lo, mask_1));
-            and_1 = _mm512_add_epi16(and_1, _mm512_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm512_shuffle_epi8(lut, and_hi);
-            and_2 = _mm512_add_epi16(and_2, _mm512_and_si512(and_res_hi, mask_1));
-            and_3 = _mm512_add_epi16(and_3, _mm512_srli_epi16(and_res_hi, 8));
+            let and_res = _mm512_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm512_sad_epu8(and_res, _mm512_setzero_si512());
+            sum_and = _mm512_add_epi64(sum_and, and_sad);
         }
-        emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-            _mm512_add_epi16(and_0, and_1),
-            _mm512_add_epi16(and_2, and_3),
-        )) as u32
+        _mm512_reduce_add_epi64(sum_and) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -139,16 +129,12 @@ mod reduce_sum_of_and {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_and_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm256_reduce_add_epi16;
+        use crate::emulate::emulate_mm256_reduce_add_epi64;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
-        let mask_1 = _mm256_set1_epi16(0x00ff);
-        let mut and_0 = _mm256_setzero_si256();
-        let mut and_1 = _mm256_setzero_si256();
-        let mut and_2 = _mm256_setzero_si256();
-        let mut and_3 = _mm256_setzero_si256();
+        let mut sum_and = _mm256_setzero_si256();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -163,16 +149,12 @@ mod reduce_sum_of_and {
             let and_lo = _mm256_and_si256(and, mask_0);
             let and_hi = _mm256_and_si256(_mm256_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm256_shuffle_epi8(lut, and_lo);
-            and_0 = _mm256_add_epi16(and_0, _mm256_and_si256(and_res_lo, mask_1));
-            and_1 = _mm256_add_epi16(and_1, _mm256_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm256_shuffle_epi8(lut, and_hi);
-            and_2 = _mm256_add_epi16(and_2, _mm256_and_si256(and_res_hi, mask_1));
-            and_3 = _mm256_add_epi16(and_3, _mm256_srli_epi16(and_res_hi, 8));
+            let and_res = _mm256_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm256_sad_epu8(and_res, _mm256_setzero_si256());
+            sum_and = _mm256_add_epi64(sum_and, and_sad);
         }
-        let mut and = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(and_0, and_1),
-            _mm256_add_epi16(and_2, and_3),
-        )) as u32;
+        let mut and = emulate_mm256_reduce_add_epi64(sum_and) as u32;
         // this hint is used to disable loop unrolling
         while std::hint::black_box(n) > 0 {
             let x = unsafe { a.read() };
@@ -268,16 +250,11 @@ mod reduce_sum_of_or {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_or_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm512_reduce_add_epi16;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
-        let mask_1 = _mm512_set1_epi16(0x00ff);
-        let mut or_0 = _mm512_setzero_si512();
-        let mut or_1 = _mm512_setzero_si512();
-        let mut or_2 = _mm512_setzero_si512();
-        let mut or_3 = _mm512_setzero_si512();
+        let mut sum_or = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -292,11 +269,10 @@ mod reduce_sum_of_or {
             let or_lo = _mm512_and_si512(or, mask_0);
             let or_hi = _mm512_and_si512(_mm512_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm512_shuffle_epi8(lut, or_lo);
-            or_0 = _mm512_add_epi16(or_0, _mm512_and_si512(or_res_lo, mask_1));
-            or_1 = _mm512_add_epi16(or_1, _mm512_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm512_shuffle_epi8(lut, or_hi);
-            or_2 = _mm512_add_epi16(or_2, _mm512_and_si512(or_res_hi, mask_1));
-            or_3 = _mm512_add_epi16(or_3, _mm512_srli_epi16(or_res_hi, 8));
+            let or_res = _mm512_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm512_sad_epu8(or_res, _mm512_setzero_si512());
+            sum_or = _mm512_add_epi64(sum_or, or_sad);
         }
         if n > 0 {
             let mask = _bzhi_u32(0xff, n as u32) as u8;
@@ -307,16 +283,12 @@ mod reduce_sum_of_or {
             let or_lo = _mm512_and_si512(or, mask_0);
             let or_hi = _mm512_and_si512(_mm512_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm512_shuffle_epi8(lut, or_lo);
-            or_0 = _mm512_add_epi16(or_0, _mm512_and_si512(or_res_lo, mask_1));
-            or_1 = _mm512_add_epi16(or_1, _mm512_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm512_shuffle_epi8(lut, or_hi);
-            or_2 = _mm512_add_epi16(or_2, _mm512_and_si512(or_res_hi, mask_1));
-            or_3 = _mm512_add_epi16(or_3, _mm512_srli_epi16(or_res_hi, 8));
+            let or_res = _mm512_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm512_sad_epu8(or_res, _mm512_setzero_si512());
+            sum_or = _mm512_add_epi64(sum_or, or_sad);
         }
-        emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-            _mm512_add_epi16(or_0, or_1),
-            _mm512_add_epi16(or_2, or_3),
-        )) as u32
+        _mm512_reduce_add_epi64(sum_or) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -340,16 +312,12 @@ mod reduce_sum_of_or {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_or_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm256_reduce_add_epi16;
+        use crate::emulate::emulate_mm256_reduce_add_epi64;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
-        let mask_1 = _mm256_set1_epi16(0x00ff);
-        let mut or_0 = _mm256_setzero_si256();
-        let mut or_1 = _mm256_setzero_si256();
-        let mut or_2 = _mm256_setzero_si256();
-        let mut or_3 = _mm256_setzero_si256();
+        let mut sum_or = _mm256_setzero_si256();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -364,16 +332,12 @@ mod reduce_sum_of_or {
             let or_lo = _mm256_and_si256(or, mask_0);
             let or_hi = _mm256_and_si256(_mm256_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm256_shuffle_epi8(lut, or_lo);
-            or_0 = _mm256_add_epi16(or_0, _mm256_and_si256(or_res_lo, mask_1));
-            or_1 = _mm256_add_epi16(or_1, _mm256_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm256_shuffle_epi8(lut, or_hi);
-            or_2 = _mm256_add_epi16(or_2, _mm256_and_si256(or_res_hi, mask_1));
-            or_3 = _mm256_add_epi16(or_3, _mm256_srli_epi16(or_res_hi, 8));
+            let or_res = _mm256_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm256_sad_epu8(or_res, _mm256_setzero_si256());
+            sum_or = _mm256_add_epi64(sum_or, or_sad);
         }
-        let mut or = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(or_0, or_1),
-            _mm256_add_epi16(or_2, or_3),
-        )) as u32;
+        let mut or = emulate_mm256_reduce_add_epi64(sum_or) as u32;
         // this hint is used to disable loop unrolling
         while std::hint::black_box(n) > 0 {
             let x = unsafe { a.read() };
@@ -469,16 +433,11 @@ mod reduce_sum_of_xor {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_xor_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm512_reduce_add_epi16;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
-        let mask_1 = _mm512_set1_epi16(0x00ff);
-        let mut xor_0 = _mm512_setzero_si512();
-        let mut xor_1 = _mm512_setzero_si512();
-        let mut xor_2 = _mm512_setzero_si512();
-        let mut xor_3 = _mm512_setzero_si512();
+        let mut sum_xor = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -493,11 +452,10 @@ mod reduce_sum_of_xor {
             let xor_lo = _mm512_and_si512(xor, mask_0);
             let xor_hi = _mm512_and_si512(_mm512_srli_epi16(xor, 4), mask_0);
             let xor_res_lo = _mm512_shuffle_epi8(lut, xor_lo);
-            xor_0 = _mm512_add_epi16(xor_0, _mm512_and_si512(xor_res_lo, mask_1));
-            xor_1 = _mm512_add_epi16(xor_1, _mm512_srli_epi16(xor_res_lo, 8));
             let xor_res_hi = _mm512_shuffle_epi8(lut, xor_hi);
-            xor_2 = _mm512_add_epi16(xor_2, _mm512_and_si512(xor_res_hi, mask_1));
-            xor_3 = _mm512_add_epi16(xor_3, _mm512_srli_epi16(xor_res_hi, 8));
+            let xor_res = _mm512_add_epi8(xor_res_lo, xor_res_hi);
+            let xor_sad = _mm512_sad_epu8(xor_res, _mm512_setzero_si512());
+            sum_xor = _mm512_add_epi64(sum_xor, xor_sad);
         }
         if n > 0 {
             let mask = _bzhi_u32(0xff, n as u32) as u8;
@@ -508,16 +466,12 @@ mod reduce_sum_of_xor {
             let xor_lo = _mm512_and_si512(xor, mask_0);
             let xor_hi = _mm512_and_si512(_mm512_srli_epi16(xor, 4), mask_0);
             let xor_res_lo = _mm512_shuffle_epi8(lut, xor_lo);
-            xor_0 = _mm512_add_epi16(xor_0, _mm512_and_si512(xor_res_lo, mask_1));
-            xor_1 = _mm512_add_epi16(xor_1, _mm512_srli_epi16(xor_res_lo, 8));
             let xor_res_hi = _mm512_shuffle_epi8(lut, xor_hi);
-            xor_2 = _mm512_add_epi16(xor_2, _mm512_and_si512(xor_res_hi, mask_1));
-            xor_3 = _mm512_add_epi16(xor_3, _mm512_srli_epi16(xor_res_hi, 8));
+            let xor_res = _mm512_add_epi8(xor_res_lo, xor_res_hi);
+            let xor_sad = _mm512_sad_epu8(xor_res, _mm512_setzero_si512());
+            sum_xor = _mm512_add_epi64(sum_xor, xor_sad);
         }
-        emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-            _mm512_add_epi16(xor_0, xor_1),
-            _mm512_add_epi16(xor_2, xor_3),
-        )) as u32
+        _mm512_reduce_add_epi64(sum_xor) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -541,16 +495,12 @@ mod reduce_sum_of_xor {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_xor_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm256_reduce_add_epi16;
+        use crate::emulate::emulate_mm256_reduce_add_epi64;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
-        let mask_1 = _mm256_set1_epi16(0x00ff);
-        let mut xor_0 = _mm256_setzero_si256();
-        let mut xor_1 = _mm256_setzero_si256();
-        let mut xor_2 = _mm256_setzero_si256();
-        let mut xor_3 = _mm256_setzero_si256();
+        let mut sum_xor = _mm256_setzero_si256();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -565,16 +515,12 @@ mod reduce_sum_of_xor {
             let xor_lo = _mm256_and_si256(xor, mask_0);
             let xor_hi = _mm256_and_si256(_mm256_srli_epi16(xor, 4), mask_0);
             let xor_res_lo = _mm256_shuffle_epi8(lut, xor_lo);
-            xor_0 = _mm256_add_epi16(xor_0, _mm256_and_si256(xor_res_lo, mask_1));
-            xor_1 = _mm256_add_epi16(xor_1, _mm256_srli_epi16(xor_res_lo, 8));
             let xor_res_hi = _mm256_shuffle_epi8(lut, xor_hi);
-            xor_2 = _mm256_add_epi16(xor_2, _mm256_and_si256(xor_res_hi, mask_1));
-            xor_3 = _mm256_add_epi16(xor_3, _mm256_srli_epi16(xor_res_hi, 8));
+            let xor_res = _mm256_add_epi8(xor_res_lo, xor_res_hi);
+            let xor_sad = _mm256_sad_epu8(xor_res, _mm256_setzero_si256());
+            sum_xor = _mm256_add_epi64(sum_xor, xor_sad);
         }
-        let mut xor = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(xor_0, xor_1),
-            _mm256_add_epi16(xor_2, xor_3),
-        )) as u32;
+        let mut xor = emulate_mm256_reduce_add_epi64(sum_xor) as u32;
         // this hint is used to disable loop unrolling
         while std::hint::black_box(n) > 0 {
             let x = unsafe { a.read() };
@@ -676,20 +622,12 @@ mod reduce_sum_of_and_or {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_and_or_v4(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm512_reduce_add_epi16;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
-        let mask_1 = _mm512_set1_epi16(0x00ff);
-        let mut and_0 = _mm512_setzero_si512();
-        let mut and_1 = _mm512_setzero_si512();
-        let mut and_2 = _mm512_setzero_si512();
-        let mut and_3 = _mm512_setzero_si512();
-        let mut or_0 = _mm512_setzero_si512();
-        let mut or_1 = _mm512_setzero_si512();
-        let mut or_2 = _mm512_setzero_si512();
-        let mut or_3 = _mm512_setzero_si512();
+        let mut sum_and = _mm512_setzero_si512();
+        let mut sum_or = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -704,21 +642,19 @@ mod reduce_sum_of_and_or {
             let and_lo = _mm512_and_si512(and, mask_0);
             let and_hi = _mm512_and_si512(_mm512_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm512_shuffle_epi8(lut, and_lo);
-            and_0 = _mm512_add_epi16(and_0, _mm512_and_si512(and_res_lo, mask_1));
-            and_1 = _mm512_add_epi16(and_1, _mm512_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm512_shuffle_epi8(lut, and_hi);
-            and_2 = _mm512_add_epi16(and_2, _mm512_and_si512(and_res_hi, mask_1));
-            and_3 = _mm512_add_epi16(and_3, _mm512_srli_epi16(and_res_hi, 8));
+            let and_res = _mm512_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm512_sad_epu8(and_res, _mm512_setzero_si512());
+            sum_and = _mm512_add_epi64(sum_and, and_sad);
             //
             let or = _mm512_or_si512(x, y);
             let or_lo = _mm512_and_si512(or, mask_0);
             let or_hi = _mm512_and_si512(_mm512_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm512_shuffle_epi8(lut, or_lo);
-            or_0 = _mm512_add_epi16(or_0, _mm512_and_si512(or_res_lo, mask_1));
-            or_1 = _mm512_add_epi16(or_1, _mm512_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm512_shuffle_epi8(lut, or_hi);
-            or_2 = _mm512_add_epi16(or_2, _mm512_and_si512(or_res_hi, mask_1));
-            or_3 = _mm512_add_epi16(or_3, _mm512_srli_epi16(or_res_hi, 8));
+            let or_res = _mm512_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm512_sad_epu8(or_res, _mm512_setzero_si512());
+            sum_or = _mm512_add_epi64(sum_or, or_sad);
         }
         if n > 0 {
             let mask = _bzhi_u32(0xff, n as u32) as u8;
@@ -729,31 +665,23 @@ mod reduce_sum_of_and_or {
             let and_lo = _mm512_and_si512(and, mask_0);
             let and_hi = _mm512_and_si512(_mm512_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm512_shuffle_epi8(lut, and_lo);
-            and_0 = _mm512_add_epi16(and_0, _mm512_and_si512(and_res_lo, mask_1));
-            and_1 = _mm512_add_epi16(and_1, _mm512_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm512_shuffle_epi8(lut, and_hi);
-            and_2 = _mm512_add_epi16(and_2, _mm512_and_si512(and_res_hi, mask_1));
-            and_3 = _mm512_add_epi16(and_3, _mm512_srli_epi16(and_res_hi, 8));
+            let and_res = _mm512_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm512_sad_epu8(and_res, _mm512_setzero_si512());
+            sum_and = _mm512_add_epi64(sum_and, and_sad);
             //
             let or = _mm512_or_si512(x, y);
             let or_lo = _mm512_and_si512(or, mask_0);
             let or_hi = _mm512_and_si512(_mm512_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm512_shuffle_epi8(lut, or_lo);
-            or_0 = _mm512_add_epi16(or_0, _mm512_and_si512(or_res_lo, mask_1));
-            or_1 = _mm512_add_epi16(or_1, _mm512_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm512_shuffle_epi8(lut, or_hi);
-            or_2 = _mm512_add_epi16(or_2, _mm512_and_si512(or_res_hi, mask_1));
-            or_3 = _mm512_add_epi16(or_3, _mm512_srli_epi16(or_res_hi, 8));
+            let or_res = _mm512_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm512_sad_epu8(or_res, _mm512_setzero_si512());
+            sum_or = _mm512_add_epi64(sum_or, or_sad);
         }
         (
-            emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-                _mm512_add_epi16(and_0, and_1),
-                _mm512_add_epi16(and_2, and_3),
-            )) as u32,
-            emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-                _mm512_add_epi16(or_0, or_1),
-                _mm512_add_epi16(or_2, or_3),
-            )) as u32,
+            _mm512_reduce_add_epi64(sum_and) as u32,
+            _mm512_reduce_add_epi64(sum_or) as u32,
         )
     }
 
@@ -778,20 +706,13 @@ mod reduce_sum_of_and_or {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_and_or_v3(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
-        use crate::emulate::emulate_mm256_reduce_add_epi16;
+        use crate::emulate::emulate_mm256_reduce_add_epi64;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
-        let mask_1 = _mm256_set1_epi16(0x00ff);
-        let mut and_0 = _mm256_setzero_si256();
-        let mut and_1 = _mm256_setzero_si256();
-        let mut and_2 = _mm256_setzero_si256();
-        let mut and_3 = _mm256_setzero_si256();
-        let mut or_0 = _mm256_setzero_si256();
-        let mut or_1 = _mm256_setzero_si256();
-        let mut or_2 = _mm256_setzero_si256();
-        let mut or_3 = _mm256_setzero_si256();
+        let mut sum_and = _mm256_setzero_si256();
+        let mut sum_or = _mm256_setzero_si256();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
         let mut n = lhs.len();
@@ -806,30 +727,22 @@ mod reduce_sum_of_and_or {
             let and_lo = _mm256_and_si256(and, mask_0);
             let and_hi = _mm256_and_si256(_mm256_srli_epi16(and, 4), mask_0);
             let and_res_lo = _mm256_shuffle_epi8(lut, and_lo);
-            and_0 = _mm256_add_epi16(and_0, _mm256_and_si256(and_res_lo, mask_1));
-            and_1 = _mm256_add_epi16(and_1, _mm256_srli_epi16(and_res_lo, 8));
             let and_res_hi = _mm256_shuffle_epi8(lut, and_hi);
-            and_2 = _mm256_add_epi16(and_2, _mm256_and_si256(and_res_hi, mask_1));
-            and_3 = _mm256_add_epi16(and_3, _mm256_srli_epi16(and_res_hi, 8));
+            let and_res = _mm256_add_epi8(and_res_lo, and_res_hi);
+            let and_sad = _mm256_sad_epu8(and_res, _mm256_setzero_si256());
+            sum_and = _mm256_add_epi64(sum_and, and_sad);
             //
             let or = _mm256_or_si256(x, y);
             let or_lo = _mm256_and_si256(or, mask_0);
             let or_hi = _mm256_and_si256(_mm256_srli_epi16(or, 4), mask_0);
             let or_res_lo = _mm256_shuffle_epi8(lut, or_lo);
-            or_0 = _mm256_add_epi16(or_0, _mm256_and_si256(or_res_lo, mask_1));
-            or_1 = _mm256_add_epi16(or_1, _mm256_srli_epi16(or_res_lo, 8));
             let or_res_hi = _mm256_shuffle_epi8(lut, or_hi);
-            or_2 = _mm256_add_epi16(or_2, _mm256_and_si256(or_res_hi, mask_1));
-            or_3 = _mm256_add_epi16(or_3, _mm256_srli_epi16(or_res_hi, 8));
+            let or_res = _mm256_add_epi8(or_res_lo, or_res_hi);
+            let or_sad = _mm256_sad_epu8(or_res, _mm256_setzero_si256());
+            sum_or = _mm256_add_epi64(sum_or, or_sad);
         }
-        let mut and = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(and_0, and_1),
-            _mm256_add_epi16(and_2, and_3),
-        )) as u32;
-        let mut or = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(or_0, or_1),
-            _mm256_add_epi16(or_2, or_3),
-        )) as u32;
+        let mut and = emulate_mm256_reduce_add_epi64(sum_and) as u32;
+        let mut or = emulate_mm256_reduce_add_epi64(sum_or) as u32;
         // this hint is used to disable loop unrolling
         while std::hint::black_box(n) > 0 {
             let x = unsafe { a.read() };
@@ -921,47 +834,37 @@ mod reduce_sum_of_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_x_v4(this: &[u64]) -> u32 {
-        use crate::emulate::emulate_mm512_reduce_add_epi16;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
-        let mask_1 = _mm512_set1_epi16(0x00ff);
-        let mut accu_0 = _mm512_setzero_si512();
-        let mut accu_1 = _mm512_setzero_si512();
-        let mut accu_2 = _mm512_setzero_si512();
-        let mut accu_3 = _mm512_setzero_si512();
+        let mut sum = _mm512_setzero_si512();
         let mut a = this.as_ptr();
         let mut n = this.len();
         while n >= 8 {
             let x = unsafe { _mm512_loadu_si512(a.cast()) };
             a = unsafe { a.add(8) };
             n -= 8;
-            let xlo = _mm512_and_si512(x, mask_0);
-            let xhi = _mm512_and_si512(_mm512_srli_epi16(x, 4), mask_0);
-            let res_lo = _mm512_shuffle_epi8(lut, xlo);
-            accu_0 = _mm512_add_epi16(accu_0, _mm512_and_si512(res_lo, mask_1));
-            accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
-            let res_hi = _mm512_shuffle_epi8(lut, xhi);
-            accu_2 = _mm512_add_epi16(accu_2, _mm512_and_si512(res_hi, mask_1));
-            accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
+            let lo = _mm512_and_si512(x, mask_0);
+            let hi = _mm512_and_si512(_mm512_srli_epi16(x, 4), mask_0);
+            let res_lo = _mm512_shuffle_epi8(lut, lo);
+            let res_hi = _mm512_shuffle_epi8(lut, hi);
+            let res = _mm512_add_epi8(res_lo, res_hi);
+            let sad = _mm512_sad_epu8(res, _mm512_setzero_si512());
+            sum = _mm512_add_epi64(sum, sad);
         }
         if n > 0 {
             let mask = _bzhi_u32(0xff, n as u32) as u8;
             let x = unsafe { _mm512_maskz_loadu_epi64(mask, a.cast()) };
-            let xlo = _mm512_and_si512(x, mask_0);
-            let xhi = _mm512_and_si512(_mm512_srli_epi16(x, 4), mask_0);
-            let res_lo = _mm512_shuffle_epi8(lut, xlo);
-            accu_0 = _mm512_add_epi16(accu_0, _mm512_and_si512(res_lo, mask_1));
-            accu_1 = _mm512_add_epi16(accu_1, _mm512_srli_epi16(res_lo, 8));
-            let res_hi = _mm512_shuffle_epi8(lut, xhi);
-            accu_2 = _mm512_add_epi16(accu_2, _mm512_and_si512(res_hi, mask_1));
-            accu_3 = _mm512_add_epi16(accu_3, _mm512_srli_epi16(res_hi, 8));
+            let lo = _mm512_and_si512(x, mask_0);
+            let hi = _mm512_and_si512(_mm512_srli_epi16(x, 4), mask_0);
+            let res_lo = _mm512_shuffle_epi8(lut, lo);
+            let res_hi = _mm512_shuffle_epi8(lut, hi);
+            let res = _mm512_add_epi8(res_lo, res_hi);
+            let sad = _mm512_sad_epu8(res, _mm512_setzero_si512());
+            sum = _mm512_add_epi64(sum, sad);
         }
-        emulate_mm512_reduce_add_epi16(_mm512_add_epi16(
-            _mm512_add_epi16(accu_0, accu_1),
-            _mm512_add_epi16(accu_2, accu_3),
-        )) as u32
+        _mm512_reduce_add_epi64(sum) as u32
     }
 
     #[cfg(all(target_arch = "x86_64", test, not(miri)))]
@@ -983,35 +886,27 @@ mod reduce_sum_of_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x_v3(this: &[u64]) -> u32 {
-        use crate::emulate::emulate_mm256_reduce_add_epi16;
+        use crate::emulate::emulate_mm256_reduce_add_epi64;
         use std::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
-        let mask_1 = _mm256_set1_epi16(0x00ff);
-        let mut accu_0 = _mm256_setzero_si256();
-        let mut accu_1 = _mm256_setzero_si256();
-        let mut accu_2 = _mm256_setzero_si256();
-        let mut accu_3 = _mm256_setzero_si256();
+        let mut sum = _mm256_setzero_si256();
         let mut a = this.as_ptr();
         let mut n = this.len();
         while n >= 4 {
             let x = unsafe { _mm256_loadu_si256(a.cast()) };
             a = unsafe { a.add(4) };
             n -= 4;
-            let xlo = _mm256_and_si256(x, mask_0);
-            let xhi = _mm256_and_si256(_mm256_srli_epi16(x, 4), mask_0);
-            let res_lo = _mm256_shuffle_epi8(lut, xlo);
-            accu_0 = _mm256_add_epi16(accu_0, _mm256_and_si256(res_lo, mask_1));
-            accu_1 = _mm256_add_epi16(accu_1, _mm256_srli_epi16(res_lo, 8));
-            let res_hi = _mm256_shuffle_epi8(lut, xhi);
-            accu_2 = _mm256_add_epi16(accu_2, _mm256_and_si256(res_hi, mask_1));
-            accu_3 = _mm256_add_epi16(accu_3, _mm256_srli_epi16(res_hi, 8));
+            let lo = _mm256_and_si256(x, mask_0);
+            let hi = _mm256_and_si256(_mm256_srli_epi16(x, 4), mask_0);
+            let res_lo = _mm256_shuffle_epi8(lut, lo);
+            let res_hi = _mm256_shuffle_epi8(lut, hi);
+            let res = _mm256_add_epi8(res_lo, res_hi);
+            let sad = _mm256_sad_epu8(res, _mm256_setzero_si256());
+            sum = _mm256_add_epi64(sum, sad);
         }
-        let mut sum = emulate_mm256_reduce_add_epi16(_mm256_add_epi16(
-            _mm256_add_epi16(accu_0, accu_1),
-            _mm256_add_epi16(accu_2, accu_3),
-        )) as u32;
+        let mut sum = emulate_mm256_reduce_add_epi64(sum) as u32;
         // this hint is used to disable loop unrolling
         while std::hint::black_box(n) > 0 {
             let x = unsafe { a.read() };
