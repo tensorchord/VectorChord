@@ -19,22 +19,28 @@ use vector::vect::{VectBorrowed, VectOwned};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-pub struct VamanaIndexOptions {
-    #[serde(default = "VamanaIndexOptions::default_m")]
+pub struct VchordgIndexOptions {
+    #[serde(default = "VchordgIndexOptions::default_bits")]
+    #[validate(range(min = 1, max = 2))]
+    pub bits: u8,
+    #[serde(default = "VchordgIndexOptions::default_m")]
     #[validate(range(min = 1, max = 512))]
     pub m: u32,
-    #[serde(default = "VamanaIndexOptions::default_max_alpha")]
+    #[serde(default = "VchordgIndexOptions::default_max_alpha")]
     #[validate(range(min = 1.0, max = 2.0))]
     pub max_alpha: f32,
-    #[serde(default = "VamanaIndexOptions::default_ef_construction")]
+    #[serde(default = "VchordgIndexOptions::default_ef_construction")]
     #[validate(range(min = 1, max = 65535))]
     pub ef_construction: u32,
-    #[serde(default = "VamanaIndexOptions::default_beam_construction")]
+    #[serde(default = "VchordgIndexOptions::default_beam_construction")]
     #[validate(range(min = 1, max = 65535))]
     pub beam_construction: u32,
 }
 
-impl VamanaIndexOptions {
+impl VchordgIndexOptions {
+    fn default_bits() -> u8 {
+        2
+    }
     fn default_m() -> u32 {
         32
     }
@@ -49,9 +55,10 @@ impl VamanaIndexOptions {
     }
 }
 
-impl Default for VamanaIndexOptions {
+impl Default for VchordgIndexOptions {
     fn default() -> Self {
         Self {
+            bits: Self::default_bits(),
             m: Self::default_m(),
             max_alpha: Self::default_max_alpha(),
             ef_construction: Self::default_ef_construction(),
@@ -111,7 +118,7 @@ pub struct VectorOptions {
 impl VectorOptions {
     pub fn validate_self(&self) -> Result<(), ValidationError> {
         match (self.v, self.d, self.dims) {
-            (_, _, 1..=60000) => Ok(()),
+            (_, _, 1..=30000) => Ok(()),
             _ => Err(ValidationError::new("invalid vector options")),
         }
     }

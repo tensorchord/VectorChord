@@ -15,9 +15,9 @@
 use algo::accessor::{Accessor1, Accessor2, DistanceAccessor, Dot, L2S, RAccess};
 use distance::Distance;
 use half::f16;
-use rabitq::original::CodeMetadata;
-use rabitq::original::binary::{BinaryLut, BinaryLutMetadata};
-use rabitq::original::block::{BlockLut, BlockLutMetadata, STEP};
+use rabitq::bit::CodeMetadata;
+use rabitq::bit::binary::{BinaryLut, BinaryLutMetadata};
+use rabitq::bit::block::{BlockLut, BlockLutMetadata, STEP};
 use simd::Floating;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -102,7 +102,7 @@ pub trait Vector: VectorOwned {
 
     fn preprocess(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut);
 
-    fn code(vector: Self::Borrowed<'_>) -> rabitq::original::Code;
+    fn code(vector: Self::Borrowed<'_>) -> rabitq::bit::Code;
 
     fn squared_norm(vector: Self::Borrowed<'_>) -> f32;
 }
@@ -143,15 +143,15 @@ impl Vector for VectOwned<f32> {
     }
 
     fn block_preprocess(vector: Self::Borrowed<'_>) -> BlockLut {
-        rabitq::original::block::preprocess(vector.slice())
+        rabitq::bit::block::preprocess(vector.slice())
     }
 
     fn preprocess(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
-        rabitq::original::preprocess(vector.slice())
+        rabitq::bit::preprocess(vector.slice())
     }
 
-    fn code(vector: Self::Borrowed<'_>) -> rabitq::original::Code {
-        rabitq::original::code(vector.slice())
+    fn code(vector: Self::Borrowed<'_>) -> rabitq::bit::Code {
+        rabitq::bit::code(vector.slice())
     }
 
     fn squared_norm(vector: Self::Borrowed<'_>) -> f32 {
@@ -195,15 +195,15 @@ impl Vector for VectOwned<f16> {
     }
 
     fn block_preprocess(vector: Self::Borrowed<'_>) -> BlockLut {
-        rabitq::original::block::preprocess(&f16::vector_to_f32(vector.slice()))
+        rabitq::bit::block::preprocess(&f16::vector_to_f32(vector.slice()))
     }
 
     fn preprocess(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
-        rabitq::original::preprocess(&f16::vector_to_f32(vector.slice()))
+        rabitq::bit::preprocess(&f16::vector_to_f32(vector.slice()))
     }
 
-    fn code(vector: Self::Borrowed<'_>) -> rabitq::original::Code {
-        rabitq::original::code(&f16::vector_to_f32(vector.slice()))
+    fn code(vector: Self::Borrowed<'_>) -> rabitq::bit::Code {
+        rabitq::bit::code(&f16::vector_to_f32(vector.slice()))
     }
 
     fn squared_norm(vector: Self::Borrowed<'_>) -> f32 {
@@ -256,7 +256,7 @@ pub trait Operator: 'static + Debug + Copy {
     fn build(
         vector: <Self::Vector as VectorOwned>::Borrowed<'_>,
         centroid: Option<Self::Vector>,
-    ) -> (rabitq::original::Code, f32);
+    ) -> (rabitq::bit::Code, f32);
 }
 
 #[derive(Debug)]
@@ -288,7 +288,7 @@ impl Operator for Op<VectOwned<f32>, L2S> {
         mut f: F,
     ) -> impl FnMut([f32; 4], &[u64], f32) -> F::Output {
         move |metadata: [f32; 4], elements: &[u64], delta: f32| {
-            let value = rabitq::original::binary::accumulate(elements, &lut.1);
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
             f.call(
                 value,
                 CodeMetadata {
@@ -313,9 +313,9 @@ impl Operator for Op<VectOwned<f32>, L2S> {
         _: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::block::half_process_l2(value, code, lut)
+            rabitq::bit::block::half_process_l2(value, code, lut)
         } else {
-            rabitq::original::block::half_process_l2_residual(value, code, lut, dis_f, delta)
+            rabitq::bit::block::half_process_l2_residual(value, code, lut, dis_f, delta)
         }
     }
 
@@ -329,16 +329,16 @@ impl Operator for Op<VectOwned<f32>, L2S> {
         _: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::binary::half_process_l2(value, code, lut)
+            rabitq::bit::binary::half_process_l2(value, code, lut)
         } else {
-            rabitq::original::binary::half_process_l2_residual(value, code, lut, dis_f, delta)
+            rabitq::bit::binary::half_process_l2_residual(value, code, lut, dis_f, delta)
         }
     }
 
     fn build(
         vector: VectBorrowed<'_, f32>,
         centroid: Option<Self::Vector>,
-    ) -> (rabitq::original::Code, f32) {
+    ) -> (rabitq::bit::Code, f32) {
         if let Some(centroid) = centroid {
             let residual = VectOwned::new(f32::vector_sub(vector.slice(), centroid.slice()));
             let code = Self::Vector::code(residual.as_borrowed());
@@ -382,7 +382,7 @@ impl Operator for Op<VectOwned<f32>, Dot> {
         mut f: F,
     ) -> impl FnMut([f32; 4], &[u64], f32) -> F::Output {
         move |metadata: [f32; 4], elements: &[u64], delta: f32| {
-            let value = rabitq::original::binary::accumulate(elements, &lut.1);
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
             f.call(
                 value,
                 CodeMetadata {
@@ -407,9 +407,9 @@ impl Operator for Op<VectOwned<f32>, Dot> {
         norm: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::block::half_process_dot(value, code, lut)
+            rabitq::bit::block::half_process_dot(value, code, lut)
         } else {
-            rabitq::original::block::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
+            rabitq::bit::block::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
         }
     }
 
@@ -423,18 +423,16 @@ impl Operator for Op<VectOwned<f32>, Dot> {
         norm: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::binary::half_process_dot(value, code, lut)
+            rabitq::bit::binary::half_process_dot(value, code, lut)
         } else {
-            rabitq::original::binary::half_process_dot_residual(
-                value, code, lut, dis_f, delta, norm,
-            )
+            rabitq::bit::binary::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
         }
     }
 
     fn build(
         vector: VectBorrowed<'_, f32>,
         centroid: Option<Self::Vector>,
-    ) -> (rabitq::original::Code, f32) {
+    ) -> (rabitq::bit::Code, f32) {
         if let Some(centroid) = centroid {
             let residual = VectOwned::new(f32::vector_sub(vector.slice(), centroid.slice()));
             let code = Self::Vector::code(residual.as_borrowed());
@@ -478,7 +476,7 @@ impl Operator for Op<VectOwned<f16>, L2S> {
         mut f: F,
     ) -> impl FnMut([f32; 4], &[u64], f32) -> F::Output {
         move |metadata: [f32; 4], elements: &[u64], delta: f32| {
-            let value = rabitq::original::binary::accumulate(elements, &lut.1);
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
             f.call(
                 value,
                 CodeMetadata {
@@ -503,9 +501,9 @@ impl Operator for Op<VectOwned<f16>, L2S> {
         _: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::block::half_process_l2(value, code, lut)
+            rabitq::bit::block::half_process_l2(value, code, lut)
         } else {
-            rabitq::original::block::half_process_l2_residual(value, code, lut, dis_f, delta)
+            rabitq::bit::block::half_process_l2_residual(value, code, lut, dis_f, delta)
         }
     }
 
@@ -519,16 +517,16 @@ impl Operator for Op<VectOwned<f16>, L2S> {
         _: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::binary::half_process_l2(value, code, lut)
+            rabitq::bit::binary::half_process_l2(value, code, lut)
         } else {
-            rabitq::original::binary::half_process_l2_residual(value, code, lut, dis_f, delta)
+            rabitq::bit::binary::half_process_l2_residual(value, code, lut, dis_f, delta)
         }
     }
 
     fn build(
         vector: VectBorrowed<'_, f16>,
         centroid: Option<Self::Vector>,
-    ) -> (rabitq::original::Code, f32) {
+    ) -> (rabitq::bit::Code, f32) {
         if let Some(centroid) = centroid {
             let residual = VectOwned::new(f16::vector_sub(vector.slice(), centroid.slice()));
             let code = Self::Vector::code(residual.as_borrowed());
@@ -572,7 +570,7 @@ impl Operator for Op<VectOwned<f16>, Dot> {
         mut f: F,
     ) -> impl FnMut([f32; 4], &[u64], f32) -> F::Output {
         move |metadata: [f32; 4], elements: &[u64], delta: f32| {
-            let value = rabitq::original::binary::accumulate(elements, &lut.1);
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
             f.call(
                 value,
                 CodeMetadata {
@@ -597,9 +595,9 @@ impl Operator for Op<VectOwned<f16>, Dot> {
         norm: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::block::half_process_dot(value, code, lut)
+            rabitq::bit::block::half_process_dot(value, code, lut)
         } else {
-            rabitq::original::block::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
+            rabitq::bit::block::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
         }
     }
 
@@ -613,18 +611,16 @@ impl Operator for Op<VectOwned<f16>, Dot> {
         norm: f32,
     ) -> (f32, f32) {
         if !is_residual {
-            rabitq::original::binary::half_process_dot(value, code, lut)
+            rabitq::bit::binary::half_process_dot(value, code, lut)
         } else {
-            rabitq::original::binary::half_process_dot_residual(
-                value, code, lut, dis_f, delta, norm,
-            )
+            rabitq::bit::binary::half_process_dot_residual(value, code, lut, dis_f, delta, norm)
         }
     }
 
     fn build(
         vector: VectBorrowed<'_, f16>,
         centroid: Option<Self::Vector>,
-    ) -> (rabitq::original::Code, f32) {
+    ) -> (rabitq::bit::Code, f32) {
         if let Some(centroid) = centroid {
             let residual = VectOwned::new(f16::vector_sub(vector.slice(), centroid.slice()));
             let code = Self::Vector::code(residual.as_borrowed());

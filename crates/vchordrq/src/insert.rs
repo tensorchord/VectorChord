@@ -174,7 +174,7 @@ pub fn insert<'r, 'b: 'r, R: RelationRead + RelationWrite, O: Operator>(
         payload: Some(payload),
         prefetch,
         head,
-        elements: rabitq::original::binary::pack_code(&code.1),
+        elements: rabitq::bit::binary::pack_code(&code.1),
     });
 
     tape::append(

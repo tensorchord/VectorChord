@@ -12,11 +12,9 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-pub mod b1;
-pub mod b2;
-pub mod b4;
-pub mod b8;
+pub mod bit;
+pub mod bits;
+pub mod byte;
 mod extended;
-pub mod original;
 pub mod packing;
 pub mod rotate;

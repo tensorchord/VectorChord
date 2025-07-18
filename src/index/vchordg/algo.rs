@@ -91,7 +91,7 @@ where
     }
 }
 
-pub fn build<R>(vector_options: VectorOptions, vchordg_options: VamanaIndexOptions, index: &R)
+pub fn build<R>(vector_options: VectorOptions, vchordg_options: VchordgIndexOptions, index: &R)
 where
     R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = Opaque>,

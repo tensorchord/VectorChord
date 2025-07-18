@@ -58,7 +58,7 @@ pub struct Opaque {
 unsafe impl algo::Opaque for Opaque {}
 
 pub(crate) struct Branch<T> {
-    pub code: rabitq::original::Code,
+    pub code: rabitq::bit::Code,
     pub delta: f32,
     pub prefetch: Vec<u32>,
     pub head: u16,

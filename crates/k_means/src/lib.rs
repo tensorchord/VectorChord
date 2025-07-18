@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use rabitq::original::block::BlockCode;
+use rabitq::bit::block::BlockCode;
 use rabitq::packing::{any_pack, padding_pack};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -120,7 +120,7 @@ fn rabitq_index(n: usize, c: usize, samples: &[Vec<f32>], centroids: &[Vec<f32>]
     let branches = {
         let mut branches = Vec::new();
         for centroid in centroids {
-            let code = rabitq::original::code(centroid);
+            let code = rabitq::bit::code(centroid);
             branches.push(code);
         }
         branches
@@ -156,10 +156,10 @@ fn rabitq_index(n: usize, c: usize, samples: &[Vec<f32>], centroids: &[Vec<f32>]
     (0..n)
         .into_par_iter()
         .map(|i| {
-            let lut = rabitq::original::block::preprocess(&samples[i]);
+            let lut = rabitq::bit::block::preprocess(&samples[i]);
             let mut result = (f32::INFINITY, 0);
             for block in 0..c.div_ceil(32) {
-                let returns = rabitq::original::block::full_process_l2(blocks[block].code(), &lut);
+                let returns = rabitq::bit::block::full_process_l2(blocks[block].code(), &lut);
                 let lowerbound = returns.map(|(rough, err)| rough - err * 1.9);
                 for j in block * 32..std::cmp::min(block * 32 + 32, c) {
                     if lowerbound[j - block * 32] < result.0 {

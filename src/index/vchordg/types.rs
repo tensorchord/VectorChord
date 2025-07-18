@@ -14,11 +14,11 @@
 
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use vchordg::types::VamanaIndexOptions;
+use vchordg::types::VchordgIndexOptions;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-pub struct VamanaIndexingOptions {
+pub struct VchordgIndexingOptions {
     #[serde(flatten)]
-    pub index: VamanaIndexOptions,
+    pub index: VchordgIndexOptions,
 }

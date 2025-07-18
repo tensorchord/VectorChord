@@ -149,7 +149,7 @@ where
                                 let signs = unpacked[i].iter().flat_map(f).collect::<Vec<_>>();
                                 (
                                     (
-                                        rabitq::original::CodeMetadata {
+                                        rabitq::bit::CodeMetadata {
                                             dis_u_2: metadata[0][i],
                                             factor_cnt: metadata[1][i],
                                             factor_ip: metadata[2][i],
@@ -178,7 +178,7 @@ where
                     .collect::<Vec<_>>();
                 (
                     (
-                        rabitq::original::CodeMetadata {
+                        rabitq::bit::CodeMetadata {
                             dis_u_2: metadata[0],
                             factor_cnt: metadata[1],
                             factor_ip: metadata[2],
@@ -204,7 +204,7 @@ where
                     branch.code.0.factor_ip,
                     branch.code.0.factor_err,
                 ],
-                elements: rabitq::original::binary::pack_code(&branch.code.1),
+                elements: rabitq::bit::binary::pack_code(&branch.code.1),
                 delta: branch.delta,
                 prefetch: branch.prefetch,
                 head: branch.head,

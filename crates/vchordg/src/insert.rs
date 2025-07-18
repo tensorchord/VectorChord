@@ -24,6 +24,7 @@ use algo::accessor::LAccess;
 use algo::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use algo::{Bump, Page, PageGuard, RelationRead, RelationWrite};
 use always_equal::AlwaysEqual;
+use rabitq::bits::Bits;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::num::{NonZero, Wrapping};
@@ -45,6 +46,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let dims = meta_tuple.dims();
     assert_eq!(dims, vector.dims(), "unmatched dimensions");
     let start = meta_tuple.start();
+    let bits = Bits::try_from(meta_tuple.bits()).expect("data corruption");
     let m = meta_tuple.m();
     let max_alpha = meta_tuple.max_alpha();
     let ef = meta_tuple.ef_construction();
@@ -72,11 +74,11 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
             left.chain(std::iter::once(right)).collect::<Vec<_>>()
         };
         let mut vertex_bytes = {
-            let code = O::Vector::code(vector);
+            let code = O::Vector::code(bits, vector);
             VertexTuple::serialize(&VertexTuple {
                 metadata: code.0.into_array(),
                 payload: Some(payload),
-                elements: rabitq::b2::binary::pack_code(&code.1),
+                elements: rabitq::bits::pack_code(bits, &code.1),
                 pointers: vec![Pointer::new((u32::MAX, 0)); list_of_vector_bytes.len()], // a sentinel value
             })
         };
@@ -145,6 +147,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
         let pointers_s = bump.alloc_slice(vertex_tuple.pointers());
         let score_s = O::process(
+            bits,
             dims,
             (vertex_tuple.metadata(), vertex_tuple.elements()),
             &lut,
@@ -183,6 +186,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
                 let pointers_v = bump.alloc_slice(vertex_tuple.pointers());
                 let score_v = O::process(
+                    bits,
                     dims,
                     (vertex_tuple.metadata(), vertex_tuple.elements()),
                     &lut,

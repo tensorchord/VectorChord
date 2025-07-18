@@ -16,7 +16,7 @@ use crate::datatype::typmod::Typmod;
 use crate::index::storage::PostgresRelation;
 use crate::index::vchordg::am::{Reloption, ctid_to_key, kv_to_pointer};
 use crate::index::vchordg::opclass::{Opfamily, opfamily};
-use crate::index::vchordg::types::VamanaIndexingOptions;
+use crate::index::vchordg::types::VchordgIndexingOptions;
 use pgrx::pg_sys::{Datum, ItemPointerData};
 use std::ffi::CStr;
 use vchordg::types::*;
@@ -198,9 +198,9 @@ pub unsafe extern "C-unwind" fn ambuild(
     let mut reporter = PostgresReporter {};
     crate::index::vchordg::algo::build(vector_options, vchordg_options.index, &index);
     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Inserting));
-    let cache = vchordg_cached::VamanaCached::_0 {};
+    let cache = vchordg_cached::VchordgCached::_0 {};
     if let Some(leader) = unsafe {
-        VamanaLeader::enter(
+        VchordgLeader::enter(
             heap_relation,
             index_relation,
             (*index_info).ii_Concurrent,
@@ -254,7 +254,7 @@ pub unsafe extern "C-unwind" fn ambuild(
     unsafe { pgrx::pgbox::PgBox::<pgrx::pg_sys::IndexBuildResult>::alloc0().into_pg() }
 }
 
-struct VamanaShared {
+struct VchordgShared {
     /* Immutable state */
     heaprelid: pgrx::pg_sys::Oid,
     indexrelid: pgrx::pg_sys::Oid,
@@ -279,21 +279,21 @@ fn is_mvcc_snapshot(snapshot: *mut pgrx::pg_sys::SnapshotData) -> bool {
     )
 }
 
-struct VamanaLeader {
+struct VchordgLeader {
     pcxt: *mut pgrx::pg_sys::ParallelContext,
     nparticipants: i32,
     snapshot: pgrx::pg_sys::Snapshot,
-    vchordgshared: *mut VamanaShared,
+    vchordgshared: *mut VchordgShared,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
     vchordgcached: *const u8,
 }
 
-impl VamanaLeader {
+impl VchordgLeader {
     pub unsafe fn enter(
         heap_relation: pgrx::pg_sys::Relation,
         index_relation: pgrx::pg_sys::Relation,
         isconcurrent: bool,
-        cache: vchordg_cached::VamanaCached,
+        cache: vchordg_cached::VchordgCached,
     ) -> Option<Self> {
         let _cache = cache.serialize();
         #[expect(clippy::drop_non_drop)]
@@ -357,7 +357,7 @@ impl VamanaLeader {
         let est_tablescandesc =
             unsafe { pgrx::pg_sys::table_parallelscan_estimate(heap_relation, snapshot) };
         unsafe {
-            estimate_chunk(&mut (*pcxt).estimator, size_of::<VamanaShared>());
+            estimate_chunk(&mut (*pcxt).estimator, size_of::<VchordgShared>());
             estimate_keys(&mut (*pcxt).estimator, 1);
             estimate_chunk(&mut (*pcxt).estimator, est_tablescandesc);
             estimate_keys(&mut (*pcxt).estimator, 1);
@@ -379,9 +379,9 @@ impl VamanaLeader {
 
         let vchordgshared = unsafe {
             let vchordgshared =
-                pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<VamanaShared>())
-                    .cast::<VamanaShared>();
-            vchordgshared.write(VamanaShared {
+                pgrx::pg_sys::shm_toc_allocate((*pcxt).toc, size_of::<VchordgShared>())
+                    .cast::<VchordgShared>();
+            vchordgshared.write(VchordgShared {
                 heaprelid: (*heap_relation).rd_id,
                 indexrelid: (*index_relation).rd_id,
                 isconcurrent,
@@ -450,7 +450,7 @@ impl VamanaLeader {
     }
 }
 
-impl Drop for VamanaLeader {
+impl Drop for VchordgLeader {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             unsafe {
@@ -472,7 +472,7 @@ pub unsafe extern "C-unwind" fn vchordg_parallel_build_main(
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
     let vchordgshared = unsafe {
-        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VamanaShared>()
+        pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordgShared>()
     };
     let tablescandesc = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000002, false)
@@ -522,12 +522,12 @@ unsafe fn parallel_build(
     heap_relation: pgrx::pg_sys::Relation,
     index_info: *mut pgrx::pg_sys::IndexInfo,
     tablescandesc: *mut pgrx::pg_sys::ParallelTableScanDescData,
-    vchordgshared: *mut VamanaShared,
+    vchordgshared: *mut VchordgShared,
     vchordgcached: *const u8,
     mut callback: impl FnMut(u64),
 ) {
-    use vchordg_cached::VamanaCachedReader;
-    let cached = VamanaCachedReader::deserialize_ref(unsafe {
+    use vchordg_cached::VchordgCachedReader;
+    let cached = VchordgCachedReader::deserialize_ref(unsafe {
         let bytes = (vchordgcached as *const u64).read_unaligned();
         std::slice::from_raw_parts(vchordgcached.add(8), bytes as _)
     });
@@ -544,7 +544,7 @@ unsafe fn parallel_build(
         scan,
     };
     match cached {
-        VamanaCachedReader::_0(_) => {
+        VchordgCachedReader::_0(_) => {
             heap.traverse(true, move |(ctid, store)| {
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
@@ -579,7 +579,7 @@ pub unsafe extern "C-unwind" fn ambuildempty(_index_relation: pgrx::pg_sys::Rela
 
 unsafe fn options(
     index_relation: pgrx::pg_sys::Relation,
-) -> (VectorOptions, VamanaIndexingOptions) {
+) -> (VectorOptions, VchordgIndexingOptions) {
     let att = unsafe { &mut *(*index_relation).rd_att };
     #[cfg(any(
         feature = "pg13",
@@ -627,7 +627,7 @@ unsafe fn options(
             break 'rabitq Default::default();
         }
         let s = unsafe { Reloption::options(reloption) }.to_string_lossy();
-        match toml::from_str::<VamanaIndexingOptions>(&s) {
+        match toml::from_str::<VchordgIndexingOptions>(&s) {
             Ok(p) => p,
             Err(e) => pgrx::error!("failed to parse options: {}", e),
         }
@@ -643,30 +643,30 @@ mod vchordg_cached {
 
     #[repr(C, align(8))]
     #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
-    struct VamanaCachedHeader0 {}
+    struct VchordgCachedHeader0 {}
 
     #[repr(C, align(8))]
     #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
-    struct VamanaCachedHeader1 {
+    struct VchordgCachedHeader1 {
         mapping_s: usize,
         mapping_e: usize,
         pages_s: usize,
         pages_e: usize,
     }
 
-    pub enum VamanaCached {
+    pub enum VchordgCached {
         _0 {},
     }
 
-    impl VamanaCached {
+    impl VchordgCached {
         pub fn serialize(&self) -> Vec<u8> {
             let mut buffer = Vec::new();
             match self {
-                VamanaCached::_0 {} => {
+                VchordgCached::_0 {} => {
                     buffer.extend((0 as Tag).to_ne_bytes());
-                    buffer.extend(std::iter::repeat_n(0, size_of::<VamanaCachedHeader0>()));
-                    buffer[size_of::<Tag>()..][..size_of::<VamanaCachedHeader0>()]
-                        .copy_from_slice(VamanaCachedHeader0 {}.as_bytes());
+                    buffer.extend(std::iter::repeat_n(0, size_of::<VchordgCachedHeader0>()));
+                    buffer[size_of::<Tag>()..][..size_of::<VchordgCachedHeader0>()]
+                        .copy_from_slice(VchordgCachedHeader0 {}.as_bytes());
                 }
             }
             buffer
@@ -674,25 +674,25 @@ mod vchordg_cached {
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub enum VamanaCachedReader<'a> {
+    pub enum VchordgCachedReader<'a> {
         #[allow(dead_code)]
-        _0(VamanaCachedReader0<'a>),
+        _0(VchordgCachedReader0<'a>),
     }
 
     #[derive(Debug, Clone, Copy)]
-    pub struct VamanaCachedReader0<'a> {
+    pub struct VchordgCachedReader0<'a> {
         #[allow(dead_code)]
-        header: &'a VamanaCachedHeader0,
+        header: &'a VchordgCachedHeader0,
     }
 
-    impl<'a> VamanaCachedReader<'a> {
+    impl<'a> VchordgCachedReader<'a> {
         pub fn deserialize_ref(source: &'a [u8]) -> Self {
             let tag = u64::from_ne_bytes(std::array::from_fn(|i| source[i]));
             match tag {
                 0 => {
                     let checker = RefChecker::new(source);
-                    let header: &VamanaCachedHeader0 = checker.prefix(size_of::<Tag>());
-                    Self::_0(VamanaCachedReader0 { header })
+                    let header: &VchordgCachedHeader0 = checker.prefix(size_of::<Tag>());
+                    Self::_0(VchordgCachedReader0 { header })
                 }
                 _ => panic!("bad bytes"),
             }

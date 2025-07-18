@@ -24,6 +24,7 @@ use algo::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use algo::{Bump, Page, RelationRead};
 use always_equal::AlwaysEqual;
 use distance::Distance;
+use rabitq::bits::Bits;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::num::NonZero;
@@ -46,6 +47,7 @@ where
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dims = meta_tuple.dims();
     let start = meta_tuple.start();
+    let bits = Bits::try_from(meta_tuple.bits()).expect("data corruption");
     assert_eq!(dims, vector.dims(), "unmatched dimensions");
     let ef = ef_search;
     let beam = beam_search;
@@ -66,6 +68,7 @@ where
         let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
         let pointers_s = bump.alloc_slice(vertex_tuple.pointers());
         let score_s = O::process(
+            bits,
             dims,
             (vertex_tuple.metadata(), vertex_tuple.elements()),
             &lut,
@@ -104,6 +107,7 @@ where
                 let vertex_tuple = VertexTuple::deserialize_ref(vertex_bytes);
                 let pointers_v = bump.alloc_slice(vertex_tuple.pointers());
                 let score_v = O::process(
+                    bits,
                     dims,
                     (vertex_tuple.metadata(), vertex_tuple.elements()),
                     &lut,

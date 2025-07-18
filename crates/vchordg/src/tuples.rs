@@ -42,6 +42,8 @@ pub trait WithWriter: Tuple {
 struct MetaTupleHeader {
     version: u64,
     dims: u32,
+    bits: u8,
+    _padding: [Padding; 7],
     m: u32,
     max_alpha: f32,
     ef_construction: u32,
@@ -52,6 +54,7 @@ struct MetaTupleHeader {
 
 pub struct MetaTuple {
     pub dims: u32,
+    pub bits: u8,
     pub m: u32,
     pub max_alpha: f32,
     pub ef_construction: u32,
@@ -67,6 +70,7 @@ impl Tuple for MetaTuple {
         match self {
             MetaTuple {
                 dims,
+                bits,
                 m,
                 max_alpha,
                 ef_construction,
@@ -81,12 +85,14 @@ impl Tuple for MetaTuple {
                     MetaTupleHeader {
                         version: VERSION,
                         dims: *dims,
+                        bits: *bits,
                         m: *m,
                         max_alpha: *max_alpha,
                         ef_construction: *ef_construction,
                         beam_construction: *beam_construction,
                         start: *start,
                         skip: *skip,
+                        _padding: Default::default(),
                     }
                     .as_bytes(),
                 );
@@ -122,6 +128,9 @@ pub struct MetaTupleReader<'a> {
 impl<'a> MetaTupleReader<'a> {
     pub fn dims(self) -> u32 {
         self.header.dims
+    }
+    pub fn bits(self) -> u8 {
+        self.header.bits
     }
     pub fn m(self) -> u32 {
         self.header.m
