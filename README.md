@@ -112,9 +112,17 @@ SELECT * FROM items ORDER BY embedding <-> '[3,1,2]' LIMIT 5;
 
 For more usage, please read:
 
-* [Indexing](https://docs.vectorchord.ai/vectorchord/usage/indexing.html)
-* [Performance Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
-* [Advanced Features](https://docs.vectorchord.ai/vectorchord/usage/advanced-features.html)
+- [Indexing](https://docs.vectorchord.ai/vectorchord/usage/indexing.html)
+- [Search](https://docs.vectorchord.ai/vectorchord/usage/search.html)
+- [Multi-Vector Retrieval](https://docs.vectorchord.ai/vectorchord/usage/indexing-with-maxsim-operators.html)
+- [Similarity Filter](https://docs.vectorchord.ai/vectorchord/usage/range-query.html)
+- [Performance Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
+- [Monitoring](https://docs.vectorchord.ai/vectorchord/usage/monitoring.html)
+- [Prewarm](https://docs.vectorchord.ai/vectorchord/usage/prewarm.html)
+- [Prefilter](https://docs.vectorchord.ai/vectorchord/usage/prefilter.html)
+- [Prefetch](https://docs.vectorchord.ai/vectorchord/usage/prefetch.html)
+- [Rerank In Table](https://docs.vectorchord.ai/vectorchord/usage/rerank-in-table.html)
+- [External Build](https://docs.vectorchord.ai/vectorchord/usage/external-index-precomputation.html)
 
 > [!NOTE]
 > The partition parameter, `lists`, should be configured based on the number of rows. The following table provides guidance for this selection. When searching, remember to set [`vchordrq.probes`](https://docs.vectorchord.ai/vectorchord/usage/search.html#vchordrq-probes) based on the value of lists.

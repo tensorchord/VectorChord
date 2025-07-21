@@ -44,10 +44,7 @@ toml = "0.9.2"
 validator.workspace = true
 zerocopy.workspace = true
 
-[target.'cfg(all(target_arch = "x86_64", target_os = "linux"))'.dependencies]
-jemallocator = { version = "0.5.4", features = ["disable_initial_exec_tls"] }
-
-[target.'cfg(all(target_arch = "aarch64", target_os = "linux"))'.dependencies]
+[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
 mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }
 
 [lints]
