@@ -48,7 +48,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let start = meta_tuple.start();
     let bits = Bits::try_from(meta_tuple.bits()).expect("data corruption");
     let m = meta_tuple.m();
-    let max_alpha = meta_tuple.max_alpha();
+    let alpha = meta_tuple.alpha().to_vec();
     let ef = meta_tuple.ef_construction();
     let beam = meta_tuple.beam_construction();
     let skip = meta_tuple.skip();
@@ -232,7 +232,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         (bump.alloc_slice(&pointers_t), t),
         trace.into_iter(),
         m,
-        max_alpha,
+        &alpha,
         |(_, u)| *u,
         O::DISTANCE == DistanceKind::L2S,
     );
@@ -284,7 +284,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 (pointers_u.to_vec(), u),
                 trace.into_iter(),
                 m,
-                max_alpha,
+                &alpha,
                 |(_, u)| *u,
                 O::DISTANCE == DistanceKind::L2S,
             );

@@ -109,6 +109,7 @@ impl Validate for VchordrqBuildSourceOptions {
 #[serde(rename_all = "snake_case")]
 pub struct VchordrqBuildOptions {
     #[serde(flatten)]
+    #[validate(nested)]
     pub source: VchordrqBuildSourceOptions,
     #[serde(default = "VchordrqBuildOptions::default_pin")]
     pub pin: bool,
@@ -124,6 +125,8 @@ impl VchordrqBuildOptions {
 #[serde(deny_unknown_fields)]
 pub struct VchordrqIndexingOptions {
     #[serde(flatten)]
+    #[validate(nested)]
     pub index: VchordrqIndexOptions,
+    #[validate(nested)]
     pub build: VchordrqBuildOptions,
 }

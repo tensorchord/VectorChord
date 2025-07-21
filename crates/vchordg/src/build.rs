@@ -55,7 +55,7 @@ pub fn build<R: RelationWrite, O: Operator>(
         dims: vector_options.dims,
         bits: index_options.bits,
         m: index_options.m,
-        max_alpha: index_options.max_alpha,
+        alpha: index_options.alpha,
         ef_construction: index_options.ef_construction,
         beam_construction: index_options.beam_construction,
         start: OptionPointer::NONE,

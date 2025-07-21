@@ -45,7 +45,8 @@ struct MetaTupleHeader {
     bits: u8,
     _padding: [Padding; 7],
     m: u32,
-    max_alpha: f32,
+    alpha_s: u16,
+    alpha_e: u16,
     ef_construction: u32,
     beam_construction: u32,
     start: OptionPointer,
@@ -56,7 +57,7 @@ pub struct MetaTuple {
     pub dims: u32,
     pub bits: u8,
     pub m: u32,
-    pub max_alpha: f32,
+    pub alpha: Vec<f32>,
     pub ef_construction: u32,
     pub beam_construction: u32,
     pub start: OptionPointer,
@@ -72,7 +73,7 @@ impl Tuple for MetaTuple {
                 dims,
                 bits,
                 m,
-                max_alpha,
+                alpha,
                 ef_construction,
                 beam_construction,
                 start,
@@ -80,6 +81,13 @@ impl Tuple for MetaTuple {
             } => {
                 buffer.extend((MAGIC as Tag).to_ne_bytes());
                 buffer.extend(std::iter::repeat_n(0, size_of::<MetaTupleHeader>()));
+                // elements
+                let alpha_s = buffer.len() as u16;
+                buffer.extend(alpha.as_bytes());
+                let alpha_e = buffer.len() as u16;
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
                 // header
                 buffer[size_of::<Tag>()..][..size_of::<MetaTupleHeader>()].copy_from_slice(
                     MetaTupleHeader {
@@ -87,7 +95,8 @@ impl Tuple for MetaTuple {
                         dims: *dims,
                         bits: *bits,
                         m: *m,
-                        max_alpha: *max_alpha,
+                        alpha_s,
+                        alpha_e,
                         ef_construction: *ef_construction,
                         beam_construction: *beam_construction,
                         start: *start,
@@ -113,7 +122,8 @@ impl WithReader for MetaTuple {
                     panic!("deserialization: bad version number");
                 }
                 let header: &MetaTupleHeader = checker.prefix(size_of::<Tag>());
-                MetaTupleReader { header }
+                let alpha = checker.bytes(header.alpha_s, header.alpha_e);
+                MetaTupleReader { header, alpha }
             }
             _ => panic!("deserialization: bad magic number"),
         }
@@ -123,6 +133,7 @@ impl WithReader for MetaTuple {
 #[derive(Debug, Clone, Copy)]
 pub struct MetaTupleReader<'a> {
     header: &'a MetaTupleHeader,
+    alpha: &'a [f32],
 }
 
 impl<'a> MetaTupleReader<'a> {
@@ -135,8 +146,8 @@ impl<'a> MetaTupleReader<'a> {
     pub fn m(self) -> u32 {
         self.header.m
     }
-    pub fn max_alpha(self) -> f32 {
-        self.header.max_alpha
+    pub fn alpha(self) -> &'a [f32] {
+        self.alpha
     }
     pub fn ef_construction(self) -> u32 {
         self.header.ef_construction

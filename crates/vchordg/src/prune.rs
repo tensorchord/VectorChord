@@ -21,7 +21,7 @@ pub fn prune<T, V, K: Ord>(
     u: T,
     outs: impl Iterator<Item = ((Reverse<Distance>, AlwaysEqual<T>), V)>,
     m: u32,
-    max_alpha: f32,
+    alpha: &[f32],
     key: impl Fn(&T) -> K,
     is_l2s: bool,
 ) -> Vec<(Reverse<Distance>, AlwaysEqual<T>)> {
@@ -32,15 +32,12 @@ pub fn prune<T, V, K: Ord>(
     trace.retain(|((_, AlwaysEqual(v)), _)| key(v) != key(&u));
     trace.sort_by_key(|&((Reverse(d), _), _)| d);
     // Nout(p) ← ∅
-    let max_alpha = if is_l2s { max_alpha } else { 1.0 };
-    let mut alpha = 1.0;
     let mut result = Vec::new();
-    while alpha <= max_alpha {
+    for &alpha in if is_l2s { alpha } else { &[1.0] } {
         if result.len() == m as usize {
             break;
         }
         trace = robust_prune(&mut d, m, alpha, &mut result, trace);
-        alpha *= 1.2;
     }
     if !(result.len() == m as usize) {
         result.extend(trace);

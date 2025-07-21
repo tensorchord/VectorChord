@@ -26,9 +26,9 @@ pub struct VchordgIndexOptions {
     #[serde(default = "VchordgIndexOptions::default_m")]
     #[validate(range(min = 1, max = 512))]
     pub m: u32,
-    #[serde(default = "VchordgIndexOptions::default_max_alpha")]
-    #[validate(range(min = 1.0, max = 2.0))]
-    pub max_alpha: f32,
+    #[serde(default = "VchordgIndexOptions::default_alpha")]
+    #[validate(length(min = 1, max = 8), custom(function = VchordgIndexOptions::validate_alpha))]
+    pub alpha: Vec<f32>,
     #[serde(default = "VchordgIndexOptions::default_ef_construction")]
     #[validate(range(min = 1, max = 65535))]
     pub ef_construction: u32,
@@ -44,8 +44,20 @@ impl VchordgIndexOptions {
     fn default_m() -> u32 {
         32
     }
-    fn default_max_alpha() -> f32 {
-        1.0
+    fn default_alpha() -> Vec<f32> {
+        vec![1.0, 1.2]
+    }
+    fn validate_alpha(alpha: &[f32]) -> Result<(), ValidationError> {
+        if !alpha.is_sorted() {
+            return Err(ValidationError::new("`alpha` should be in ascending order"));
+        }
+        if !alpha.iter().all(|x| (1.0..2.0).contains(x)) {
+            return Err(ValidationError::new("alpha is too large or too small"));
+        }
+        if alpha[0] != 1.0 {
+            return Err(ValidationError::new("`alpha` should contain `1.0`"));
+        }
+        Ok(())
     }
     fn default_ef_construction() -> u32 {
         64
@@ -60,7 +72,7 @@ impl Default for VchordgIndexOptions {
         Self {
             bits: Self::default_bits(),
             m: Self::default_m(),
-            max_alpha: Self::default_max_alpha(),
+            alpha: Self::default_alpha(),
             ef_construction: Self::default_ef_construction(),
             beam_construction: Self::default_beam_construction(),
         }

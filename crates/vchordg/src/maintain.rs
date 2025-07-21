@@ -30,7 +30,7 @@ where
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let m = meta_tuple.m();
-    let max_alpha = meta_tuple.max_alpha();
+    let alpha = meta_tuple.alpha().to_vec();
     let start = meta_tuple.start();
     let link = meta_guard.get_opaque().link;
     drop(meta_guard);
@@ -128,7 +128,7 @@ where
                         (pointers_u.to_vec(), u),
                         trace.into_iter(),
                         m,
-                        max_alpha,
+                        &alpha,
                         |(_, u)| *u,
                         O::DISTANCE == DistanceKind::L2S,
                     );

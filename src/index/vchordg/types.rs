@@ -20,5 +20,6 @@ use vchordg::types::VchordgIndexOptions;
 #[serde(deny_unknown_fields)]
 pub struct VchordgIndexingOptions {
     #[serde(flatten)]
+    #[validate(nested)]
     pub index: VchordgIndexOptions,
 }
