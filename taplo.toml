@@ -9,9 +9,7 @@ keys = [
     "build-dependencies",
     "target.*.dependencies",
     "lints",
-    "patch.*",
-    "profile.*",
     "workspace.dependencies",
-    "lints.dependencies",
+    "workspace.lints",
 ]
 formatting = { reorder_keys = true, reorder_arrays = true, align_comments = true }

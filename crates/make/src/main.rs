@@ -178,7 +178,11 @@ fn build(
     }
     let mut result = PathBuf::from("./target");
     result.push(target);
-    result.push(if profile != "dev" { profile } else { "debug" });
+    result.push(match profile {
+        "dev" | "test" => "debug",
+        "release" | "bench" => "release",
+        profile => profile,
+    });
     result.push(format!("{}vchord{}", tsi.dll_prefix()?, tsi.dll_suffix()?));
     Ok(result)
 }
@@ -239,7 +243,11 @@ fn generate(
     }
     let mut result = PathBuf::from("./target");
     result.push(target);
-    result.push(if profile != "dev" { profile } else { "debug" });
+    result.push(match profile {
+        "dev" | "test" => "debug",
+        "release" | "bench" => "release",
+        profile => profile,
+    });
     result.push(format!("pgrx_embed_vchord{}", tsi.exe_suffix()?));
     let mut command;
     if !(tsi.is_unix && tsi.is_emscripten) {

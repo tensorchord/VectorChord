@@ -61,11 +61,11 @@ edition = "2024"
 [workspace.dependencies]
 bumpalo = "3.19.0"
 half = { version = "2.6.0", features = ["zerocopy"] }
-paste = "1"
-rand = "0.9.1"
+paste = "1.0.15"
+rand = "0.9.2"
 rand_chacha = "0.9.0"
 seq-macro = "0.3.6"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
 zerocopy = { version = "0.8.26", features = ["derive"] }
 
@@ -91,10 +91,20 @@ rust.unused_macro_rules = "warn"
 rust.unused_qualifications = "warn"
 
 [profile.dev]
-lto = false
+codegen-units = 256
+lto = "off"
 opt-level = 1
+debug = "full"
+strip = "none"
 
 [profile.release]
 codegen-units = 1
-debug = true
 lto = "fat"
+opt-level = 3
+debug = "none"
+strip = "debuginfo"
+
+[profile.prof]
+inherits = "release"
+debug = "full"
+strip = "none"
