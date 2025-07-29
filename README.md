@@ -96,46 +96,27 @@ INSERT INTO items (embedding) SELECT ARRAY[random(), random(), random()]::real[]
 With VectorChord, you can create `vchordrq` indexes.
 
 ```SQL
-CREATE INDEX ON items USING vchordrq (embedding vector_l2_ops) WITH (options = $$
-residual_quantization = true
-[build.internal]
-lists = []
-$$);
+CREATE INDEX ON items USING vchordrq (embedding vector_l2_ops);
 ```
 
 And then perform a vector search using `SELECT ... ORDER BY ... LIMIT ...`.
 
 ```SQL
-SET vchordrq.probes TO '';
 SELECT * FROM items ORDER BY embedding <-> '[3,1,2]' LIMIT 5;
 ```
 
 For more usage, please read:
 
 - [Indexing](https://docs.vectorchord.ai/vectorchord/usage/indexing.html)
-- [Search](https://docs.vectorchord.ai/vectorchord/usage/search.html)
 - [Multi-Vector Retrieval](https://docs.vectorchord.ai/vectorchord/usage/indexing-with-maxsim-operators.html)
 - [Similarity Filter](https://docs.vectorchord.ai/vectorchord/usage/range-query.html)
-- [Performance Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
+- [PostgreSQL Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
 - [Monitoring](https://docs.vectorchord.ai/vectorchord/usage/monitoring.html)
 - [Prewarm](https://docs.vectorchord.ai/vectorchord/usage/prewarm.html)
 - [Prefilter](https://docs.vectorchord.ai/vectorchord/usage/prefilter.html)
 - [Prefetch](https://docs.vectorchord.ai/vectorchord/usage/prefetch.html)
 - [Rerank In Table](https://docs.vectorchord.ai/vectorchord/usage/rerank-in-table.html)
 - [External Build](https://docs.vectorchord.ai/vectorchord/usage/external-index-precomputation.html)
-
-> [!NOTE]
-> The partition parameter, `lists`, should be configured based on the number of rows. The following table provides guidance for this selection. When searching, remember to set [`vchordrq.probes`](https://docs.vectorchord.ai/vectorchord/usage/search.html#vchordrq-probes) based on the value of lists.
-
-
-
-| Number of Rows $N$                     | Recommended Number of Partitions $L$ | Example `lists` |
-| -------------------------------------- | ------------------------------------ | --------------- |
-| $N \in [0, 10^5)$                      | N/A                                  | `[]`            |
-| $N \in [10^5, 2 \times 10^6)$          | $L = \frac{N}{500}$                  | `[2000]`        |
-| $N \in [2 \times 10^6, 5 \times 10^7)$ | $L \in [4 \sqrt{N}, 8 \sqrt{N}]$     | `[10000]`       |
-| $N \in [5 \times 10^7, \infty)$        | $L \in [8 \sqrt{N}, 16\sqrt{N}]$     | `[80000]`       |
-
 
 ## License
 
