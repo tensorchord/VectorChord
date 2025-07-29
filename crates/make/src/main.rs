@@ -195,19 +195,32 @@ fn parse(
     eprintln!("Reading {obj:?}");
     let contents = std::fs::read(obj)?;
     let object = object::File::parse(contents.as_slice())?;
-    let exports = object
-        .symbols()
-        .flat_map(|x| x.name().ok())
-        .flat_map(|x| {
-            if !tsi.is_macos {
-                Some(x)
-            } else {
-                x.strip_prefix("_")
-            }
-        })
-        .filter(|x| x.starts_with("__pgrx_internals"))
-        .map(str::to_string)
-        .collect();
+    let exports;
+    if tsi.is_macos {
+        exports = object
+            .exports()?
+            .into_iter()
+            .flat_map(|x| std::str::from_utf8(x.name()))
+            .flat_map(|x| x.strip_prefix("_"))
+            .filter(|x| x.starts_with("__pgrx_internals"))
+            .map(str::to_string)
+            .collect();
+    } else if tsi.is_emscripten {
+        exports = object
+            .symbols()
+            .flat_map(|x| x.name().ok())
+            .filter(|x| x.starts_with("__pgrx_internals"))
+            .map(str::to_string)
+            .collect();
+    } else {
+        exports = object
+            .exports()?
+            .into_iter()
+            .flat_map(|x| std::str::from_utf8(x.name()))
+            .filter(|x| x.starts_with("__pgrx_internals"))
+            .map(str::to_string)
+            .collect();
+    }
     Ok(exports)
 }
 

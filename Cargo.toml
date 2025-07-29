@@ -40,7 +40,7 @@ pgrx-catalog = "0.3.0"
 rand.workspace = true
 seq-macro.workspace = true
 serde.workspace = true
-toml = "0.9.2"
+toml = "0.9.4"
 validator.workspace = true
 zerocopy.workspace = true
 
