@@ -149,7 +149,7 @@ pub fn multiversion(
                 #cold
             }
             #[cfg(feature = "init")]
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux", target_env = "gnu"))]
             {
                 #[used]
                 #[unsafe(link_section = ".init_array")]

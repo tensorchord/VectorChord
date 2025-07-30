@@ -46,13 +46,12 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
-      RUSTFLAGS: "-Dwarnings"
 
     steps:
       - name: Set up Environment
         run: |
-          rustup set profile
           rustup default 1.89-beta
+          rustup component add rustfmt clippy
 
           sudo apt-get update
 

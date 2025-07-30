@@ -12,26 +12,16 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use pgrx::PostgresGucEnum;
-use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting};
+use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting, PostgresGucEnum};
 use std::ffi::CString;
 
-#[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
 #[derive(Debug, Clone, Copy, PostgresGucEnum)]
 pub enum PostgresIo {
     #[name = c"read_buffer"]
     ReadBuffer,
     #[name = c"prefetch_buffer"]
     PrefetchBuffer,
-}
-
-#[cfg(any(feature = "pg17", feature = "pg18"))]
-#[derive(Debug, Clone, Copy, PostgresGucEnum)]
-pub enum PostgresIo {
-    #[name = c"read_buffer"]
-    ReadBuffer,
-    #[name = c"prefetch_buffer"]
-    PrefetchBuffer,
+    #[cfg(any(feature = "pg17", feature = "pg18"))]
     #[name = c"read_stream"]
     ReadStream,
 }

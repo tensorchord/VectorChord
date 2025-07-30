@@ -18,7 +18,7 @@ zerocopy.workspace = true
 rand.workspace = true
 
 [build-dependencies]
-cc = "1.2.30"
+cc = "1.2.31"
 which = "8.0.0"
 
 [lints]

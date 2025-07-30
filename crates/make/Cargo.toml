@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 clap = { version = "4.5.42", features = ["derive"] }
-object = { version = "0.37.1", default-features = false, features = [
+object = { version = "0.37.2", default-features = false, features = [
     "read",
     "wasm",
 ] }

@@ -13,7 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use crate::datatype::memory_halfvec::{HalfvecInput, HalfvecOutput};
-use pgrx::Array;
+use pgrx::datum::Array;
 use std::num::NonZero;
 use vector::VectorBorrowed;
 use vector::vect::VectBorrowed;

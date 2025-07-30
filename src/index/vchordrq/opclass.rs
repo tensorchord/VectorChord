@@ -64,7 +64,7 @@ impl Opfamily {
             }
             Self::VectorMaxsim => {
                 let vectors =
-                    unsafe { pgrx::Array::<VectorInput>::from_datum(datum, false).unwrap() };
+                    unsafe { pgrx::datum::Array::<VectorInput>::from_datum(datum, false).unwrap() };
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -75,8 +75,9 @@ impl Opfamily {
                 result
             }
             Self::HalfvecMaxsim => {
-                let vectors =
-                    unsafe { pgrx::Array::<HalfvecInput>::from_datum(datum, false).unwrap() };
+                let vectors = unsafe {
+                    pgrx::datum::Array::<HalfvecInput>::from_datum(datum, false).unwrap()
+                };
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -132,7 +133,7 @@ impl Opfamily {
         let vectors = match self {
             Self::VectorL2 | Self::VectorIp | Self::VectorCosine | Self::VectorMaxsim => {
                 let vectors =
-                    unsafe { pgrx::Array::<VectorInput>::from_datum(datum, false).unwrap() };
+                    unsafe { pgrx::datum::Array::<VectorInput>::from_datum(datum, false).unwrap() };
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Vecf32(vector.as_borrowed())));
@@ -140,8 +141,9 @@ impl Opfamily {
                 result
             }
             Self::HalfvecL2 | Self::HalfvecIp | Self::HalfvecCosine | Self::HalfvecMaxsim => {
-                let vectors =
-                    unsafe { pgrx::Array::<HalfvecInput>::from_datum(datum, false).unwrap() };
+                let vectors = unsafe {
+                    pgrx::datum::Array::<HalfvecInput>::from_datum(datum, false).unwrap()
+                };
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Vecf16(vector.as_borrowed())));

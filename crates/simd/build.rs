@@ -15,25 +15,41 @@
 use std::env::var;
 use std::error::Error;
 use std::ffi::OsString;
+use std::path::Path;
 
-fn compiler(host: &str, target: &str) -> Option<OsString> {
-    if let Some(cc) = std::env::var_os("CC") {
-        return Some(cc);
+fn compiler_version(cc: impl AsRef<Path>) -> Option<u16> {
+    let cc = cc.as_ref();
+    if let Ok(r) = std::process::Command::new(cc).arg("-dumpversion").output()
+        && r.status.success()
+        && let Some(major) = r.stdout.split(|c| !c.is_ascii_digit()).next()
+        && let Ok(major) = std::str::from_utf8(major)
+        && let Ok(major) = major.parse::<u16>()
+    {
+        return Some(major);
     }
-    if let Some(cc) = std::env::var_os(format!("CC_{target}")) {
-        return Some(cc);
-    }
-    if let Some(cc) = std::env::var_os(format!("CC_{}", target.replace("-", "_"))) {
-        return Some(cc);
+    None
+}
+
+fn compiler(host: &str, target: &str, clang_version: u16, gcc_version: u16) -> Option<OsString> {
+    let keys = [
+        &format!("CC_{target}"),
+        &format!("CC_{}", target.replace("-", "_")),
+        "TARGET_CC",
+        "CC",
+    ];
+    if keys.iter().any(|key| std::env::var_os(key).is_some()) {
+        return None;
     }
     if host == target {
-        if let Ok(cc) = which::which("clang") {
+        if let Ok(cc) = which::which("clang")
+            && compiler_version(&cc) >= Some(clang_version)
+        {
             return Some(cc.into());
         }
-        for i in (16..=99).rev() {
-            if let Ok(cc) = which::which(format!("clang-{i}")) {
-                return Some(cc.into());
-            }
+        if let Ok(cc) = which::which("gcc")
+            && compiler_version(&cc) >= Some(gcc_version)
+        {
+            return Some(cc.into());
         }
     }
     None
@@ -47,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     match target_arch.as_str() {
         "aarch64" => {
             let mut build = cc::Build::new();
-            if let Some(compiler) = compiler(&host, &target) {
+            if let Some(compiler) = compiler(&host, &target, 16, 14) {
                 build.compiler(compiler);
             }
             build.file("./cshim/aarch64.c");
@@ -56,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         "x86_64" => {
             let mut build = cc::Build::new();
-            if let Some(compiler) = compiler(&host, &target) {
+            if let Some(compiler) = compiler(&host, &target, 16, 12) {
                 build.compiler(compiler);
             }
             build.file("./cshim/x86_64.c");

@@ -78,6 +78,6 @@ compile_error!("Target architecture is not supported.");
 
 #[cfg(not(miri))]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;

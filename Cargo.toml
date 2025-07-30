@@ -35,8 +35,8 @@ vector = { path = "./crates/vector" }
 bumpalo.workspace = true
 half.workspace = true
 paste.workspace = true
-pgrx = { version = "=0.15.0", default-features = false, features = ["cshim"] }
-pgrx-catalog = "0.3.0"
+pgrx = { version = "=0.16.0", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.3.1"
 rand.workspace = true
 seq-macro.workspace = true
 serde.workspace = true
@@ -44,7 +44,7 @@ toml = "0.9.4"
 validator.workspace = true
 zerocopy.workspace = true
 
-[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "linux"))'.dependencies]
+[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), any(target_os = "linux", target_os = "macos")))'.dependencies]
 mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }
 
 [lints]
