@@ -15,9 +15,9 @@
 mod default;
 mod maxsim;
 
-use crate::index::fetcher::Fetcher;
-
 use super::opclass::Opfamily;
+use crate::index::collector::CollectorSender;
+use crate::index::fetcher::Fetcher;
 use algo::{Bump, Page, RelationPrefetch, RelationRead, RelationReadStream, Sequence};
 use pgrx::pg_sys::Datum;
 
@@ -45,6 +45,8 @@ pub struct SearchOptions {
     pub io_search: Io,
     pub io_rerank: Io,
     pub prefilter: bool,
+    pub collect_enable: bool,
+    pub collect_rate: f64,
 }
 
 pub trait SearchBuilder: 'static {
@@ -60,6 +62,7 @@ pub trait SearchBuilder: 'static {
         options: SearchOptions,
         fetcher: impl Fetcher + 'a,
         bump: &'a impl Bump,
+        sender: impl CollectorSender,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'a>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,
