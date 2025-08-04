@@ -93,15 +93,25 @@ where
             let jump_guard = index.read(first);
             let jump_bytes = jump_guard.get(1).expect("data corruption");
             let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
-            let directory =
-                tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
-            tape::read_frozen_tape::<R, _, _>(
-                by_directory(&mut prefetch_h0_tuples, directory).inspect(|_| counter += 1),
-                || FunctionalAccessor::new((), id_0(|_, _| ()), id_1(|_, _| [(); 32])),
-                id_2(|_, _, _, _| {
-                    results.push(());
-                }),
-            );
+            if prefetch_h0_tuples.is_not_plain() {
+                let directory =
+                    tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
+                tape::read_frozen_tape::<R, _, _>(
+                    by_directory(&mut prefetch_h0_tuples, directory).inspect(|_| counter += 1),
+                    || FunctionalAccessor::new((), id_0(|_, _| ()), id_1(|_, _| [(); 32])),
+                    id_2(|_, _, _, _| {
+                        results.push(());
+                    }),
+                );
+            } else {
+                tape::read_frozen_tape::<R, _, _>(
+                    by_next(index, jump_tuple.frozen_first()).inspect(|_| counter += 1),
+                    || FunctionalAccessor::new((), id_0(|_, _| ()), id_1(|_, _| [(); 32])),
+                    id_2(|_, _, _, _| {
+                        results.push(());
+                    }),
+                );
+            }
             tape::read_appendable_tape::<R, _>(
                 by_next(index, jump_tuple.appendable_first()).inspect(|_| counter += 1),
                 |_, _, _| (),

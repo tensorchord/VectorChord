@@ -224,6 +224,7 @@ where
         let directory_tape = directory_tape.into_inner();
 
         *jump_tuple.directory_first() = { directory_tape }.first();
+        *jump_tuple.frozen_first() = frozen_first;
         *jump_tuple.appendable_first() = { appendable_tape }.first();
         *jump_tuple.tuples() = tuples;
 

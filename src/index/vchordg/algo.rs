@@ -219,6 +219,10 @@ impl<'r, R: RelationRead> PrefetcherSequenceFamily<'r, R> for MakePlainPrefetche
     {
         PlainPrefetcher::new(self.index, seq)
     }
+
+    fn is_not_plain(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug)]
@@ -245,6 +249,10 @@ impl<'r, R: RelationRead + RelationPrefetch> PrefetcherSequenceFamily<'r, R>
         S::Item: Fetch,
     {
         SimplePrefetcher::new(self.index, seq)
+    }
+
+    fn is_not_plain(&self) -> bool {
+        true
     }
 }
 
@@ -276,5 +284,9 @@ impl<'r, R: RelationRead + RelationReadStream> PrefetcherSequenceFamily<'r, R>
         S::Item: Fetch,
     {
         StreamPrefetcher::new(self.index, seq, self.hints.clone())
+    }
+
+    fn is_not_plain(&self) -> bool {
+        true
     }
 }

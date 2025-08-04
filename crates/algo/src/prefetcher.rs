@@ -279,6 +279,8 @@ pub trait PrefetcherSequenceFamily<'r, R> {
     fn prefetch<S: Sequence>(&mut self, seq: S) -> Self::P<S>
     where
         S::Item: Fetch;
+
+    fn is_not_plain(&self) -> bool;
 }
 
 pub trait PrefetcherHeapFamily<'r, R> {
@@ -289,6 +291,8 @@ pub trait PrefetcherHeapFamily<'r, R> {
     fn prefetch<T>(&mut self, seq: Vec<T>) -> Self::P<T>
     where
         T: Ord + Fetch + 'r;
+
+    fn is_not_plain(&self) -> bool;
 }
 
 // Emulate unstable library feature `vec_deque_pop_if`.

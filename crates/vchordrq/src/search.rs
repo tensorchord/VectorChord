@@ -132,8 +132,6 @@ where
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
         let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
-        let directory =
-            tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
         let mut callback = id_2(|(rough, err), head, payload, prefetch| {
             let lowerbound = Distance::from_f32(rough - err * epsilon);
             results.push((
@@ -141,11 +139,21 @@ where
                 AlwaysEqual(bump.alloc((payload, head, bump.alloc_slice(prefetch)))),
             ));
         });
-        tape::read_frozen_tape::<R, _, _>(
-            by_directory(&mut prefetch_h0_tuples, directory),
-            || O::block_access(&lut.0, block_process),
-            &mut callback,
-        );
+        if prefetch_h0_tuples.is_not_plain() {
+            let directory =
+                tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
+            tape::read_frozen_tape::<R, _, _>(
+                by_directory(&mut prefetch_h0_tuples, directory),
+                || O::block_access(&lut.0, block_process),
+                &mut callback,
+            );
+        } else {
+            tape::read_frozen_tape::<R, _, _>(
+                by_next(index, jump_tuple.frozen_first()),
+                || O::block_access(&lut.0, block_process),
+                &mut callback,
+            );
+        }
         tape::read_appendable_tape::<R, _>(
             by_next(index, jump_tuple.appendable_first()),
             O::binary_access(&lut.1, binary_process),
@@ -266,8 +274,6 @@ where
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
         let jump_tuple = JumpTuple::deserialize_ref(jump_bytes);
-        let directory =
-            tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
         let mut callback = id_2(|(rough, err), head, payload, prefetch| {
             let lowerbound = Distance::from_f32(rough - err * epsilon);
             let rough = Distance::from_f32(rough);
@@ -276,11 +282,21 @@ where
                 AlwaysEqual(bump.alloc((payload, head, bump.alloc_slice(prefetch)))),
             ));
         });
-        tape::read_frozen_tape::<R, _, _>(
-            by_directory(&mut prefetch_h0_tuples, directory),
-            || O::block_access(&lut.0, block_process),
-            &mut callback,
-        );
+        if prefetch_h0_tuples.is_not_plain() {
+            let directory =
+                tape::read_directory_tape::<R>(by_next(index, jump_tuple.directory_first()));
+            tape::read_frozen_tape::<R, _, _>(
+                by_directory(&mut prefetch_h0_tuples, directory),
+                || O::block_access(&lut.0, block_process),
+                &mut callback,
+            );
+        } else {
+            tape::read_frozen_tape::<R, _, _>(
+                by_next(index, jump_tuple.frozen_first()),
+                || O::block_access(&lut.0, block_process),
+                &mut callback,
+            );
+        }
         tape::read_appendable_tape::<R, _>(
             by_next(index, jump_tuple.appendable_first()),
             O::binary_access(&lut.1, binary_process),

@@ -14,7 +14,7 @@
 
 use crate::operator::{Operator, Vector};
 use crate::tape::TapeWriter;
-use crate::tape_writer::H1TapeWriter;
+use crate::tape_writer::{DirectoryTapeWriter, H1TapeWriter};
 use crate::tuples::*;
 use crate::types::*;
 use crate::{Branch, Opaque};
@@ -73,12 +73,19 @@ pub fn build<R: RelationWrite, O: Operator>(
         let mut level = Vec::new();
         for j in 0..structures[i].len() {
             if i == 0 {
-                let directory_tape = TapeWriter::<_, DirectoryTuple>::create(index, false);
+                let frozen_tape = TapeWriter::<_, FrozenTuple>::create(index, false);
                 let appendable_tape = TapeWriter::<_, AppendableTuple>::create(index, false);
+                let frozen_first = { frozen_tape }.first();
+
+                let mut directory_tape = DirectoryTapeWriter::create(index, false);
+                directory_tape.push(&[frozen_first]);
+                let directory_tape = directory_tape.into_inner();
+
                 let mut jump = TapeWriter::<_, JumpTuple>::create(index, false);
                 jump.push(JumpTuple {
-                    directory_first: directory_tape.first(),
-                    appendable_first: appendable_tape.first(),
+                    directory_first: { directory_tape }.first(),
+                    frozen_first,
+                    appendable_first: { appendable_tape }.first(),
                     centroid_prefetch: pointer_of_centroids[i][j].0.clone(),
                     centroid_head: pointer_of_centroids[i][j].1,
                     tuples: 0,
