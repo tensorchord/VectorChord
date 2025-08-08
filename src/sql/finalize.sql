@@ -151,11 +151,11 @@ STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_prewarm_wrapper';
 CREATE FUNCTION vchordrq_evaluate_query_recall(
     query text,
     exact_search boolean default false,
+    accu_probes TEXT default NULL,
     accu_epsilon real default 1.9
 )
 RETURNS real
 LANGUAGE plpgsql
-STRICT
 AS $$
 DECLARE
     rough tid[];
@@ -164,8 +164,10 @@ DECLARE
     accu_k integer;
     recall real;
     rough_probes text;
-    accu_probes text;
 BEGIN
+    IF query IS NULL OR exact_search IS NULL OR accu_epsilon IS NULL THEN
+        RETURN NULL;
+    END IF;
     IF query LIKE '%@#%' AND NOT exact_search THEN
         RAISE EXCEPTION 'MaxSim operator cannot be used for estimated recall evaluation. Please use exact_search => true.';
     END IF;
@@ -188,12 +190,14 @@ BEGIN
         IF exact_search THEN
             SET LOCAL vchordrq.enable_scan = off;
         ELSE
-            IF rough_probes = '' THEN
-                accu_probes := '';
-            ELSIF position(',' in rough_probes) > 0 THEN
-                accu_probes := '65535,65535';
-            ELSE
-                accu_probes := '65535';
+            IF accu_probes IS NULL THEN
+                IF rough_probes = '' THEN
+                    accu_probes := '';
+                ELSIF position(',' in rough_probes) > 0 THEN
+                    accu_probes := '65535,65535';
+                ELSE
+                    accu_probes := '65535';
+                END IF;
             END IF;
             EXECUTE format('SET LOCAL "vchordrq.probes" = %L', accu_probes);
             EXECUTE format('SET LOCAL "vchordrq.epsilon" = %L', accu_epsilon);
