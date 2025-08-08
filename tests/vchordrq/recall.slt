@@ -17,17 +17,20 @@ SET vchordrq.probes = '1';
 statement error MaxSim operator cannot be used for estimated recall
 SELECT * from vchordrq_evaluate_query_recall(query=>'@#');
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) need 0 probes, but 1 probes provided
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
 
 statement ok
 SET vchordrq.probes = '';
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT val FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
 
-statement error Error executing ANN query
+statement error Error executing ANN query (.+) could not convert type
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT * FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
+
+statement error Error executing Ground Truth query (.+) need 0 probes, but 1 probes provided
+SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$, accu_probes=>'1');
 
 query I
 SELECT * from vchordrq_evaluate_query_recall(query=>$$SELECT ctid FROM t ORDER BY val <-> '[0.5, 0.25, 1.0]' LIMIT 10$$);
