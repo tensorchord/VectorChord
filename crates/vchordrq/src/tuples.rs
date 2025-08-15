@@ -22,6 +22,15 @@ pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordrq");
 const VERSION: u64 = 11;
 
+#[inline(always)]
+fn tag(source: &[u8]) -> Tag {
+    assert!(source.len() >= size_of::<Tag>());
+    #[allow(unsafe_code)]
+    unsafe {
+        source.as_ptr().cast::<Tag>().read_unaligned()
+    }
+}
+
 pub trait Tuple: 'static {
     fn serialize(&self) -> Vec<u8>;
 }
@@ -137,7 +146,7 @@ impl Tuple for MetaTuple {
 impl WithReader for MetaTuple {
     type Reader<'a> = MetaTupleReader<'a>;
     fn deserialize_ref(source: &[u8]) -> MetaTupleReader<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             MAGIC => {
                 let checker = RefChecker::new(source);
@@ -351,7 +360,7 @@ impl<V: Vector> WithReader for VectorTuple<V> {
     type Reader<'a> = VectorTupleReader<'a, V>;
 
     fn deserialize_ref(source: &[u8]) -> VectorTupleReader<'_, V> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let checker = RefChecker::new(source);
@@ -519,7 +528,7 @@ impl WithReader for DirectoryTuple {
     type Reader<'a> = DirectoryTupleReader<'a>;
 
     fn deserialize_ref(source: &[u8]) -> DirectoryTupleReader<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let checker = RefChecker::new(source);
@@ -713,7 +722,7 @@ impl WithReader for H1Tuple {
     type Reader<'a> = H1TupleReader<'a>;
 
     fn deserialize_ref(source: &[u8]) -> H1TupleReader<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let checker = RefChecker::new(source);
@@ -1047,7 +1056,7 @@ impl WithReader for FrozenTuple {
     type Reader<'a> = FrozenTupleReader<'a>;
 
     fn deserialize_ref(source: &[u8]) -> FrozenTupleReader<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let checker = RefChecker::new(source);
@@ -1075,7 +1084,7 @@ impl WithWriter for FrozenTuple {
     type Writer<'a> = FrozenTupleWriter<'a>;
 
     fn deserialize_mut(source: &mut [u8]) -> FrozenTupleWriter<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let mut checker = MutChecker::new(source);

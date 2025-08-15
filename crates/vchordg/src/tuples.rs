@@ -23,6 +23,15 @@ pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordg\0");
 const VERSION: u64 = 10;
 
+#[inline(always)]
+fn tag(source: &[u8]) -> Tag {
+    assert!(source.len() >= size_of::<Tag>());
+    #[allow(unsafe_code)]
+    unsafe {
+        source.as_ptr().cast::<Tag>().read_unaligned()
+    }
+}
+
 pub trait Tuple: 'static {
     fn serialize(&self) -> Vec<u8>;
 }
@@ -114,7 +123,7 @@ impl Tuple for MetaTuple {
 impl WithReader for MetaTuple {
     type Reader<'a> = MetaTupleReader<'a>;
     fn deserialize_ref(source: &[u8]) -> MetaTupleReader<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             MAGIC => {
                 let checker = RefChecker::new(source);
@@ -166,7 +175,7 @@ impl<'a> MetaTupleReader<'a> {
 impl WithWriter for MetaTuple {
     type Writer<'a> = MetaTupleWriter<'a>;
     fn deserialize_mut(source: &mut [u8]) -> MetaTupleWriter<'_> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             MAGIC => {
                 let checker = RefChecker::new(source);
@@ -449,7 +458,7 @@ impl<V: Vector> WithReader for VectorTuple<V> {
     type Reader<'a> = VectorTupleReader<'a, V>;
 
     fn deserialize_ref(source: &[u8]) -> VectorTupleReader<'_, V> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let checker = RefChecker::new(source);
@@ -479,7 +488,7 @@ impl<V: Vector> WithWriter for VectorTuple<V> {
     type Writer<'a> = VectorTupleWriter<'a, V>;
 
     fn deserialize_mut(source: &mut [u8]) -> VectorTupleWriter<'_, V> {
-        let tag = Tag::from_ne_bytes(std::array::from_fn(|i| source[i]));
+        let tag = tag(source);
         match tag {
             0 => {
                 let mut checker = MutChecker::new(source);

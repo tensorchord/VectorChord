@@ -17,6 +17,7 @@ pub mod prefetcher;
 pub mod tuples;
 
 use always_equal::AlwaysEqual;
+use dary_heap::DaryHeap;
 use std::collections::{BinaryHeap, VecDeque};
 use std::iter::Peekable;
 use std::ops::{Deref, DerefMut};
@@ -169,11 +170,13 @@ impl Fetch<'_> for u32 {
     }
 }
 
-impl<'b, T, A, B> Fetch<'b> for (T, AlwaysEqual<&mut (A, B, BorrowedIter<'b>)>) {
+impl<'b, T, A, B, W: 'b + PackedRefMut<T = (A, B, BorrowedIter<'b>)>> Fetch<'b>
+    for (T, AlwaysEqual<W>)
+{
     type Iter = BorrowedIter<'b>;
     #[inline(always)]
     fn fetch(&self) -> BorrowedIter<'b> {
-        let (_, AlwaysEqual((.., list))) = self;
+        let (.., list) = self.1.0.get();
         *list
     }
 }
@@ -289,6 +292,23 @@ impl<T: Ord> Sequence for BinaryHeap<T> {
     }
 }
 
+impl<const N: usize, T: Ord> Sequence for DaryHeap<T, N> {
+    type Item = T;
+    type Inner = std::vec::IntoIter<T>;
+    #[inline]
+    fn next(&mut self) -> Option<T> {
+        self.pop()
+    }
+    #[inline]
+    fn peek(&mut self) -> Option<&T> {
+        (self as &Self).peek()
+    }
+    #[inline]
+    fn into_inner(self) -> Self::Inner {
+        self.into_vec().into_iter()
+    }
+}
+
 impl<I: Iterator> Sequence for Peekable<I> {
     type Item = I::Item;
     type Inner = Peekable<I>;
@@ -328,3 +348,51 @@ impl<T> Sequence for VecDeque<T> {
 /// * `Opaque` must aligned to 8 bytes.
 #[allow(unsafe_code)]
 pub unsafe trait Opaque: Copy + Send + Sync + FromBytes + IntoBytes + 'static {}
+
+pub trait PackedRefMut {
+    type T;
+    fn get(&self) -> &Self::T;
+    fn get_mut(&mut self) -> &mut Self::T;
+}
+
+impl<T> PackedRefMut for &mut T {
+    type T = T;
+    #[inline(always)]
+    fn get(&self) -> &T {
+        self
+    }
+    #[inline(always)]
+    fn get_mut(&mut self) -> &mut T {
+        self
+    }
+}
+
+#[repr(Rust, packed(4))]
+pub struct PackedRefMut4<'b, T>(pub &'b mut T);
+
+impl<'b, T> PackedRefMut for PackedRefMut4<'b, T> {
+    type T = T;
+    #[inline(always)]
+    fn get(&self) -> &T {
+        self.0
+    }
+    #[inline(always)]
+    fn get_mut(&mut self) -> &mut T {
+        self.0
+    }
+}
+
+#[repr(Rust, packed(8))]
+pub struct PackedRefMut8<'b, T>(pub &'b mut T);
+
+impl<'a, T> PackedRefMut for PackedRefMut8<'a, T> {
+    type T = T;
+    #[inline(always)]
+    fn get(&self) -> &T {
+        self.0
+    }
+    #[inline(always)]
+    fn get_mut(&mut self) -> &mut T {
+        self.0
+    }
+}

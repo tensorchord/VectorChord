@@ -17,6 +17,7 @@ version = "0.0.0"
 dependencies = [
  "always_equal",
  "bumpalo",
+ "dary_heap",
  "distance",
  "half 2.6.0",
  "simd",
@@ -328,6 +329,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "dary_heap"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d2cd9c18b9f454ed67da600630b021a8a80bf33f8c95896ab33aaf1c26b728"
 
 [[package]]
 name = "displaydoc"
@@ -1576,6 +1583,7 @@ dependencies = [
  "algo",
  "always_equal",
  "bumpalo",
+ "dary_heap",
  "distance",
  "half 2.6.0",
  "k_means",

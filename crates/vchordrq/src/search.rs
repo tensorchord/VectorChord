@@ -20,7 +20,7 @@ use crate::tuples::*;
 use crate::{Opaque, Page, tape, vectors};
 use algo::accessor::LAccess;
 use algo::prefetcher::{Prefetcher, PrefetcherHeapFamily, PrefetcherSequenceFamily};
-use algo::{BorrowedIter, Bump, RelationRead};
+use algo::{BorrowedIter, Bump, PackedRefMut4, PackedRefMut8, RelationRead};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
@@ -29,7 +29,6 @@ use std::num::NonZero;
 use vector::{VectorBorrowed, VectorOwned};
 
 type Extra1<'b> = &'b mut (u32, f32, u16, BorrowedIter<'b>);
-type Extra0<'b> = &'b mut (NonZero<u64>, u16, BorrowedIter<'b>);
 
 pub fn default_search<'b, R: RelationRead, O: Operator>(
     index: &'b R,
@@ -41,7 +40,7 @@ pub fn default_search<'b, R: RelationRead, O: Operator>(
     mut prefetch_h0_tuples: impl PrefetcherSequenceFamily<'b, R>,
 ) -> Vec<(
     (Reverse<Distance>, AlwaysEqual<()>),
-    AlwaysEqual<Extra0<'b>>,
+    AlwaysEqual<PackedRefMut4<'b, (NonZero<u64>, u16, BorrowedIter<'b>)>>,
 )>
 where
     R::Page: Page<Opaque = Opaque>,
@@ -128,7 +127,7 @@ where
         state = step(state).take(probes[i as usize - 1] as _).collect();
     }
 
-    let mut results = LinkedVec::<(_, AlwaysEqual<Extra0<'b>>)>::new();
+    let mut results = LinkedVec::<(_, AlwaysEqual<_>)>::new();
     for (Reverse(dis_f), AlwaysEqual(norm), AlwaysEqual(first)) in state {
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
@@ -137,11 +136,11 @@ where
             let lowerbound = Distance::from_f32(rough - err * epsilon);
             results.push((
                 (Reverse(lowerbound), AlwaysEqual(())),
-                AlwaysEqual(bump.alloc((
+                AlwaysEqual(PackedRefMut4(bump.alloc((
                     payload,
                     head,
                     BorrowedIter::from_slice(prefetch, |x| bump.alloc_slice(x)),
-                ))),
+                )))),
             ));
         });
         if prefetch_h0_tuples.is_not_plain() {
@@ -180,7 +179,7 @@ pub fn maxsim_search<'b, R: RelationRead, O: Operator>(
 ) -> (
     Vec<(
         (Reverse<Distance>, AlwaysEqual<Distance>),
-        AlwaysEqual<Extra0<'b>>,
+        AlwaysEqual<PackedRefMut8<'b, (NonZero<u64>, u16, BorrowedIter<'b>)>>,
     )>,
     Distance,
 )
@@ -271,7 +270,7 @@ where
         state = it.take(probes[i as usize - 1] as _).collect();
     }
 
-    let mut results = LinkedVec::<(_, AlwaysEqual<Extra0<'b>>)>::new();
+    let mut results = LinkedVec::<(_, AlwaysEqual<_>)>::new();
     for (Reverse(dis_f), AlwaysEqual(norm), AlwaysEqual(first)) in state {
         let jump_guard = index.read(first);
         let jump_bytes = jump_guard.get(1).expect("data corruption");
@@ -281,11 +280,11 @@ where
             let rough = Distance::from_f32(rough);
             results.push((
                 (Reverse(lowerbound), AlwaysEqual(rough)),
-                AlwaysEqual(bump.alloc((
+                AlwaysEqual(PackedRefMut8(bump.alloc((
                     payload,
                     head,
                     BorrowedIter::from_slice(prefetch, |x| bump.alloc_slice(x)),
-                ))),
+                )))),
             ));
         });
         if prefetch_h0_tuples.is_not_plain() {

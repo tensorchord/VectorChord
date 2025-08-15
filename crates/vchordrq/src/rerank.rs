@@ -18,7 +18,7 @@ use crate::tuples::{MetaTuple, WithReader};
 use crate::{Page, vectors};
 use algo::accessor::{Accessor2, LTryAccess};
 use algo::prefetcher::Prefetcher;
-use algo::{RelationRead, RerankMethod};
+use algo::{PackedRefMut, RelationRead, RerankMethod};
 use always_equal::AlwaysEqual;
 use distance::Distance;
 use std::cmp::Reverse;
@@ -26,8 +26,6 @@ use std::collections::BinaryHeap;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use vector::VectorOwned;
-
-type Extra0<'b> = &'b mut (NonZero<u64>, u16, algo::BorrowedIter<'b>);
 
 type Result = (Reverse<Distance>, AlwaysEqual<NonZero<u64>>);
 
@@ -43,25 +41,27 @@ pub fn how(index: &impl RelationRead) -> RerankMethod {
     }
 }
 
-pub struct Reranker<T, F, P> {
+pub struct Reranker<T, F, P, W> {
     prefetcher: P,
     cache: BinaryHeap<Result>,
     f: F,
-    _phantom: PhantomData<fn(T) -> T>,
+    _phantom: PhantomData<fn(T, W) -> (T, W)>,
 }
 
-impl<'b, T, F, P> Iterator for Reranker<T, F, P>
+impl<'b, T, F, P, W> Iterator for Reranker<T, F, P, W>
 where
     F: FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>,
-    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<Extra0<'b>>)>,
+    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<W>)>,
+    W: 'b + PackedRefMut<T = (NonZero<u64>, u16, algo::BorrowedIter<'b>)>,
 {
     type Item = (Distance, NonZero<u64>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(((_, AlwaysEqual(&mut (payload, head, ..))), prefetch)) = self
+        while let Some(((_, AlwaysEqual(mut w)), prefetch)) = self
             .prefetcher
             .next_if(|((d, _), ..)| Some(*d) > self.cache.peek().map(|(d, ..)| *d))
         {
+            let &mut (payload, head, ..) = w.get_mut();
             if let Some(distance) = (self.f)(payload, prefetch, head) {
                 self.cache.push((Reverse(distance), AlwaysEqual(payload)));
             };
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<T, F, P> Reranker<T, F, P> {
+impl<T, F, P, W> Reranker<T, F, P, W> {
     pub fn finish(self) -> (P, impl Iterator<Item = Result>) {
         (self.prefetcher, self.cache.into_iter())
     }
@@ -81,11 +81,12 @@ pub fn rerank_index<
     'b,
     O: Operator,
     T,
-    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<Extra0<'b>>)>,
+    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<W>)>,
+    W: 'b + PackedRefMut<T = (NonZero<u64>, u16, algo::BorrowedIter<'b>)>,
 >(
     vector: O::Vector,
     prefetcher: P,
-) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P> {
+) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P, W> {
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
@@ -108,12 +109,13 @@ pub fn rerank_heap<
     'b,
     O: Operator,
     T,
-    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<Extra0<'b>>)>,
+    P: Prefetcher<'b, Item = ((Reverse<Distance>, AlwaysEqual<T>), AlwaysEqual<W>)>,
+    W: 'b + PackedRefMut<T = (NonZero<u64>, u16, algo::BorrowedIter<'b>)>,
 >(
     vector: O::Vector,
     prefetcher: P,
     mut fetch: impl FnMut(NonZero<u64>) -> Option<O::Vector> + 'b,
-) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P> {
+) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P, W> {
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),

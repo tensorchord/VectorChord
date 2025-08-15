@@ -89,7 +89,7 @@ impl<O: Opaque> Page for PostgresPage<O> {
         let iid = unsafe { self.header.pd_linp.as_ptr().add((i - 1) as _).read() };
         let lp_off = iid.lp_off() as usize;
         let lp_len = iid.lp_len() as usize;
-        match iid.lp_flags() {
+        match lp_flags(iid) {
             pgrx::pg_sys::LP_UNUSED => return None,
             pgrx::pg_sys::LP_NORMAL => (),
             pgrx::pg_sys::LP_REDIRECT => unimplemented!(),
@@ -119,7 +119,7 @@ impl<O: Opaque> Page for PostgresPage<O> {
         let iid = unsafe { self.header.pd_linp.as_ptr().add((i - 1) as _).read() };
         let lp_off = iid.lp_off() as usize;
         let lp_len = iid.lp_len() as usize;
-        match iid.lp_flags() {
+        match lp_flags(iid) {
             pgrx::pg_sys::LP_UNUSED => return None,
             pgrx::pg_sys::LP_NORMAL => (),
             pgrx::pg_sys::LP_REDIRECT => unimplemented!(),
@@ -672,6 +672,12 @@ impl<O: Opaque> RelationLength for PostgresRelation<O> {
         use pgrx::pg_sys::{ForkNumber, RelationGetNumberOfBlocksInFork};
         unsafe { RelationGetNumberOfBlocksInFork(self.raw, ForkNumber::MAIN_FORKNUM) }
     }
+}
+
+#[inline(always)]
+fn lp_flags(x: pgrx::pg_sys::ItemIdData) -> u32 {
+    let x: u32 = unsafe { std::mem::transmute(x) };
+    (x >> 15) & 0b11
 }
 
 // Emulate unstable library feature `vec_deque_pop_if`.

@@ -656,15 +656,6 @@ mod vchordg_cached {
     #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
     struct VchordgCachedHeader0 {}
 
-    #[repr(C, align(8))]
-    #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
-    struct VchordgCachedHeader1 {
-        mapping_s: usize,
-        mapping_e: usize,
-        pages_s: usize,
-        pages_e: usize,
-    }
-
     pub enum VchordgCached {
         _0 {},
     }
