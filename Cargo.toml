@@ -45,6 +45,8 @@ serde.workspace = true
 toml = "0.9.5"
 validator.workspace = true
 zerocopy.workspace = true
+bincode = "2.0.1"
+byteorder = "1.5.0"
 
 [target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), any(target_os = "linux", target_os = "macos")))'.dependencies]
 mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }

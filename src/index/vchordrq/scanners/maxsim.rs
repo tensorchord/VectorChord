@@ -12,6 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+use crate::index::collector::CollectorSender;
 use crate::index::fetcher::*;
 use crate::index::scanners::{Io, SearchBuilder};
 use crate::index::vchordrq::algo::*;
@@ -72,6 +73,7 @@ impl SearchBuilder for MaxsimBuilder {
         options: SearchOptions,
         mut fetcher: impl Fetcher + 'b,
         bump: &'b impl Bump,
+        _sender: impl CollectorSender,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'b>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,

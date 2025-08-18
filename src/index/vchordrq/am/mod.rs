@@ -14,6 +14,7 @@
 
 pub mod am_build;
 
+use crate::index::collector::{DefaultSender, UniOp};
 use crate::index::fetcher::*;
 use crate::index::gucs;
 use crate::index::scanners::SearchBuilder;
@@ -430,6 +431,7 @@ pub unsafe extern "C-unwind" fn amrescan(
         scanner.bump.reset();
         let opfamily = opfamily((*scan).indexRelation);
         let index = PostgresRelation::new((*scan).indexRelation);
+
         let options = SearchOptions {
             epsilon: gucs::vchordrq_epsilon(),
             probes: gucs::vchordrq_probes(),
@@ -454,6 +456,17 @@ pub unsafe extern "C-unwind" fn amrescan(
                     },
                 )
             })
+        };
+        let send_prob = match gucs::vchordrq_log_queries_sample_rate() {
+            0.0 => None,
+            rate => Some(rate),
+        };
+        let sender = DefaultSender {
+            send_prob,
+            database_oid: pgrx::pg_sys::MyDatabaseId.to_u32(),
+            table_oid: (*(*scan).heapRelation).rd_id.to_u32(),
+            index_oid: (*(*scan).indexRelation).rd_id.to_u32(),
+            opfamily: UniOp::RQ(opfamily),
         };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.
         let bump = scanner.bump.as_ref();
@@ -480,7 +493,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, sender)
                 }))
             }
             Opfamily::VectorMaxsim | Opfamily::HalfvecMaxsim => {
@@ -500,7 +513,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, sender)
                 }))
             }
         };

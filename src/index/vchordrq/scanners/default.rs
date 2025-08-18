@@ -12,6 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+use crate::index::collector::{CollectorSender, UniVec};
 use crate::index::fetcher::*;
 use crate::index::opclass::Sphere;
 use crate::index::scanners::{Io, SearchBuilder};
@@ -82,6 +83,7 @@ impl SearchBuilder for DefaultBuilder {
         options: SearchOptions,
         mut fetcher: impl Fetcher + 'b,
         bump: &'b impl Bump,
+        sender: impl CollectorSender,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'b>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,
@@ -108,6 +110,7 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
+        sender.send(UniVec::RQ(vector.clone()));
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };

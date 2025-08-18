@@ -142,6 +142,36 @@ IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_
 CREATE FUNCTION quantize_to_scalar8(halfvec) RETURNS scalar8
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_halfvec_quantize_to_scalar8_wrapper';
 
+CREATE FUNCTION vchordrq_logged_queries(regclass)
+RETURNS TABLE(
+    schema_name TEXT,
+    table_name TEXT,
+    column_name TEXT,
+    operator TEXT,
+    vector_text TEXT,
+    simplified_query TEXT
+)
+STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_logged_queries_wrapper';
+
+CREATE VIEW vchordrq_logged_queries AS
+SELECT
+    record.schema_name,
+    record.table_name,
+    record.column_name,
+    record.operator,
+    record.vector_text,
+    record.simplified_query
+FROM
+    (
+        SELECT i.oid
+        FROM pg_class AS i
+        JOIN pg_index AS ix ON i.oid = ix.indexrelid
+        JOIN pg_opclass AS opc ON ix.indclass[0] = opc.oid
+        JOIN pg_am AS am ON opc.opcmethod = am.oid
+        WHERE am.amname = 'vchordrq'
+    ) AS index_oids
+CROSS JOIN LATERAL vchordrq_logged_queries(index_oids.oid::regclass) AS record;
+
 CREATE FUNCTION vchordrq_amhandler(internal) RETURNS index_am_handler
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_amhandler_wrapper';
 

@@ -14,6 +14,7 @@
 
 pub mod am_build;
 
+use crate::index::collector::{DefaultSender, UniOp};
 use crate::index::fetcher::*;
 use crate::index::gucs;
 use crate::index::scanners::SearchBuilder;
@@ -372,6 +373,14 @@ pub unsafe extern "C-unwind" fn amrescan(
                 )
             })
         };
+        let sender = DefaultSender {
+            // PAY ATTENTATION: The collector is disable for vchordg index for now.
+            send_prob: None,
+            database_oid: pgrx::pg_sys::MyDatabaseId.to_u32(),
+            table_oid: (*(*scan).heapRelation).rd_id.to_u32(),
+            index_oid: (*(*scan).indexRelation).rd_id.to_u32(),
+            opfamily: UniOp::G(opfamily),
+        };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.
         let bump = scanner.bump.as_ref();
         scanner.scanning = match opfamily {
@@ -397,7 +406,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, sender)
                 }))
             }
         };
