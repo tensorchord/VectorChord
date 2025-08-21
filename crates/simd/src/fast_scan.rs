@@ -435,6 +435,9 @@ mod scan {
         fn shuffle(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
             std::array::from_fn(|i| a[b[i] as usize])
         }
+        fn transmute(x: [u8; 16]) -> [u16; 8] {
+            std::array::from_fn(|i| u16::from_le_bytes([x[i << 1 | 0], x[i << 1 | 1]]))
+        }
 
         assert_eq!(code.len(), lut.len());
         let n = code.len();
@@ -451,10 +454,10 @@ mod scan {
             let chi = code.map(|x| x >> 4);
 
             let lut = lut[i];
-            let res_lo = zerocopy::transmute!(shuffle(lut, clo));
+            let res_lo = transmute(shuffle(lut, clo));
             a_0 = binary(u16::wrapping_add, a_0, res_lo);
             a_1 = binary(u16::wrapping_add, a_1, res_lo.map(|x| x >> 8));
-            let res_hi = zerocopy::transmute!(shuffle(lut, chi));
+            let res_hi = transmute(shuffle(lut, chi));
             a_2 = binary(u16::wrapping_add, a_2, res_hi);
             a_3 = binary(u16::wrapping_add, a_3, res_hi.map(|x| x >> 8));
         }

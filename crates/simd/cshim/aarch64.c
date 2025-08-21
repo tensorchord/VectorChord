@@ -25,7 +25,9 @@
 #endif
 
 #include <arm_neon.h>
+#if defined(__AARCH64EL__)
 #include <arm_sve.h>
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -81,6 +83,7 @@ fp16_reduce_sum_of_xy_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t xy = svdup_f16(0.0);
@@ -92,6 +95,7 @@ fp16_reduce_sum_of_xy_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   }
   return svaddv_f16(svptrue_b16(), xy);
 }
+#endif
 
 __attribute__((target("+fp16"))) float
 fp16_reduce_sum_of_d2_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
@@ -150,6 +154,7 @@ fp16_reduce_sum_of_d2_a2_fp16(f16 *restrict a, f16 *restrict b, size_t n) {
   return vaddvq_f32(lo) + vaddvq_f32(hi);
 }
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   svfloat16_t d2 = svdup_f16(0.0);
@@ -162,7 +167,9 @@ fp16_reduce_sum_of_d2_a3_512(f16 *restrict a, f16 *restrict b, size_t n) {
   }
   return svaddv_f16(svptrue_b16(), d2);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
@@ -173,7 +180,9 @@ fp32_reduce_sum_of_x_a3_256(float *restrict this, size_t n) {
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
@@ -184,7 +193,9 @@ fp32_reduce_sum_of_abs_x_a3_256(float *restrict this, size_t n) {
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   svfloat32_t sum = svdup_f32(0.0);
@@ -195,7 +206,9 @@ fp32_reduce_sum_of_x2_a3_256(float *restrict this, size_t n) {
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) void
 fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
                                 float *out_max) {
@@ -210,7 +223,9 @@ fp32_reduce_min_max_of_x_a3_256(float *restrict this, size_t n, float *out_min,
   *out_min = svminv_f32(svptrue_b32(), min);
   *out_max = svmaxv_f32(svptrue_b32(), max);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
@@ -223,7 +238,9 @@ fp32_reduce_sum_of_xy_a3_256(float *restrict lhs, float *restrict rhs,
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
+#endif
 
+#if defined(__AARCH64EL__)
 __attribute__((target("+sve"))) float
 fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
                              size_t n) {
@@ -237,3 +254,4 @@ fp32_reduce_sum_of_d2_a3_256(float *restrict lhs, float *restrict rhs,
   }
   return svaddv_f32(svptrue_b32(), sum);
 }
+#endif

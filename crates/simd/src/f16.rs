@@ -458,9 +458,8 @@ mod reduce_sum_of_xy {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.512")]
     pub fn reduce_sum_of_xy_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
@@ -472,7 +471,7 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_xy_a3_512_test() {
         use rand::Rng;
@@ -503,7 +502,7 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_xy(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
@@ -742,9 +741,8 @@ mod reduce_sum_of_d2 {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.512")]
     pub fn reduce_sum_of_d2_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
@@ -756,7 +754,7 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_d2_a3_512_test() {
         use rand::Rng;
@@ -787,7 +785,7 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", @"a3.512", @"a2:fp16")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16")]
     pub fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();

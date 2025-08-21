@@ -15,27 +15,30 @@
 mod target;
 
 struct MultiversionVersion {
+    attrs: Vec<syn::Attribute>,
     target: String,
     import: bool,
 }
 
 impl syn::parse::Parse for MultiversionVersion {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let lookahead1 = input.lookahead1();
-        if lookahead1.peek(syn::Token![@]) {
-            let _: syn::Token![@] = input.parse()?;
-            let target: syn::LitStr = input.parse()?;
-            Ok(Self {
-                target: target.value(),
-                import: true,
-            })
+        let attrs = if input.lookahead1().peek(syn::Token![#]) {
+            syn::Attribute::parse_outer(input)?
         } else {
-            let target: syn::LitStr = input.parse()?;
-            Ok(Self {
-                target: target.value(),
-                import: false,
-            })
-        }
+            Vec::new()
+        };
+        let import = if input.lookahead1().peek(syn::Token![@]) {
+            let _: syn::Token![@] = input.parse()?;
+            true
+        } else {
+            false
+        };
+        let target = input.parse::<syn::LitStr>()?.value();
+        Ok(Self {
+            attrs,
+            target,
+            import,
+        })
     }
 }
 
@@ -101,6 +104,7 @@ pub fn multiversion(
     let mut versions = quote::quote! {};
     let mut cold = quote::quote! {};
     for version in attr.versions {
+        let attrs = version.attrs.clone();
         let target = version.target.clone();
         let name = syn::Ident::new(
             &format!("{name}_{}", target.replace(":", "_").replace(".", "_")),
@@ -116,14 +120,16 @@ pub fn multiversion(
         let target_cpu = target_cpu.target_cpu;
         if !version.import {
             versions.extend(quote::quote! {
+                #(#attrs)*
                 #[inline]
-                #[cfg(any(target_arch = #target_arch))]
+                #[cfg(target_arch = #target_arch)]
                 #[crate::target_cpu(enable = #target_cpu)]
                 #(#[target_feature(enable = #additional_target_features)])*
                 fn #name < #generics_params > (#inputs) #output #generics_where { #block }
             });
         }
         cold.extend(quote::quote! {
+            #(#attrs)*
             #[cfg(target_arch = #target_arch)]
             if crate::is_cpu_detected!(#target_cpu) #(&& crate::is_feature_detected!(#additional_target_features))* {
                 let ptr = unsafe { std::mem::transmute::<unsafe fn(#inputs) #output, fn(#inputs) #output>(#name) };

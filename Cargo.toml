@@ -53,7 +53,7 @@ mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }
 workspace = true
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]

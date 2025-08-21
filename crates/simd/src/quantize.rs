@@ -216,8 +216,14 @@ mod mul_add_round {
     fn mul_add_round_a2(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let mut r = Vec::<u8>::with_capacity(this.len());
         use std::arch::aarch64::*;
+        #[cfg(target_endian = "little")]
         const CONS: [u8; 16] = [
             0, 4, 8, 12, 0xff, 0xff, 0xff, 0xff, // 0..8
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // 8..15
+        ];
+        #[cfg(target_endian = "big")]
+        const CONS: [u8; 16] = [
+            12, 8, 4, 0, 0xff, 0xff, 0xff, 0xff, // 0..8
             0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // 8..15
         ];
         let cons = unsafe { vld1q_u8(CONS.as_ptr()) };

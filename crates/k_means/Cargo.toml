@@ -9,7 +9,7 @@ rabitq = { path = "../rabitq" }
 simd = { path = "../simd" }
 
 rand.workspace = true
-rayon = "1.10.0"
+rayon = "1.11.0"
 
 [lints]
 workspace = true

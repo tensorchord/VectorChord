@@ -73,9 +73,6 @@ fn is_main() -> bool {
 #[cfg(not(panic = "unwind"))]
 compile_error!("This crate must be compiled with `-Cpanic=unwind`.");
 
-#[cfg(not(target_endian = "little"))]
-compile_error!("Target architecture is not supported.");
-
 #[cfg(not(miri))]
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 #[cfg(any(target_os = "linux", target_os = "macos"))]

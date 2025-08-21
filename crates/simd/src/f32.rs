@@ -373,9 +373,8 @@ mod reduce_sum_of_x {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_sum_of_x_a3_256(this: &[f32]) -> f32 {
         unsafe {
             unsafe extern "C" {
@@ -385,7 +384,7 @@ mod reduce_sum_of_x {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_x_a3_256_test() {
         use rand::Rng;
@@ -412,7 +411,7 @@ mod reduce_sum_of_x {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_sum_of_x(this: &[f32]) -> f32 {
         let n = this.len();
         let mut sum = 0.0f32;
@@ -649,9 +648,8 @@ mod reduce_sum_of_abs_x {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_sum_of_abs_x_a3_256(this: &[f32]) -> f32 {
         unsafe {
             unsafe extern "C" {
@@ -661,7 +659,7 @@ mod reduce_sum_of_abs_x {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_abs_x_a3_256_test() {
         use rand::Rng;
@@ -688,7 +686,7 @@ mod reduce_sum_of_abs_x {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_sum_of_abs_x(this: &[f32]) -> f32 {
         let n = this.len();
         let mut sum = 0.0f32;
@@ -915,9 +913,8 @@ mod reduce_sum_of_x2 {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_sum_of_x2_a3_256(this: &[f32]) -> f32 {
         unsafe {
             unsafe extern "C" {
@@ -927,7 +924,7 @@ mod reduce_sum_of_x2 {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_x2_a3_256_test() {
         use rand::Rng;
@@ -954,7 +951,7 @@ mod reduce_sum_of_x2 {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2:fma", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_sum_of_x2(this: &[f32]) -> f32 {
         let n = this.len();
         let mut x2 = 0.0f32;
@@ -1182,9 +1179,8 @@ mod reduce_min_max_of_x {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_min_max_of_x_a3_256(this: &[f32]) -> (f32, f32) {
         let mut min = f32::INFINITY;
         let mut max = -f32::INFINITY;
@@ -1202,7 +1198,7 @@ mod reduce_min_max_of_x {
         (min, max)
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_min_max_of_x_a3_256_test() {
         use rand::Rng;
@@ -1226,7 +1222,7 @@ mod reduce_min_max_of_x {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_min_max_of_x(this: &[f32]) -> (f32, f32) {
         let mut min = f32::INFINITY;
         let mut max = f32::NEG_INFINITY;
@@ -1496,9 +1492,8 @@ mod reduce_sum_of_xy {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_sum_of_xy_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
@@ -1513,7 +1508,7 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_xy_a3_256_test() {
         use rand::Rng;
@@ -1544,7 +1539,7 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2:fma", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_sum_of_xy(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
@@ -1822,9 +1817,8 @@ mod reduce_sum_of_d2 {
     }
 
     #[inline]
-    #[cfg(target_arch = "aarch64")]
-    #[crate::target_cpu(enable = "a2")]
-    #[target_feature(enable = "sve")]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little"))]
+    #[crate::target_cpu(enable = "a3.256")]
     fn reduce_sum_of_d2_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         unsafe {
@@ -1839,7 +1833,7 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", target_endian = "little", test, not(miri)))]
     #[test]
     fn reduce_sum_of_d2_a3_256_test() {
         use rand::Rng;
@@ -1870,7 +1864,7 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"a3.256", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2:fma", #[cfg(target_endian = "little")] @"a3.256", @"a2")]
     pub fn reduce_sum_of_d2(lhs: &[f32], rhs: &[f32]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();

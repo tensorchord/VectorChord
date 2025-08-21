@@ -40,6 +40,8 @@ struct BuildArgs {
     profile: String,
     #[arg(long, default_value = target_triple::TARGET)]
     target: String,
+    #[arg(long)]
+    runner: Option<String>,
 }
 
 struct TargetSpecificInformation {
@@ -225,6 +227,7 @@ fn parse(
 }
 
 fn generate(
+    runner: &Option<Vec<String>>,
     pg_config: impl AsRef<Path>,
     pg_version: &str,
     tsi: &TargetSpecificInformation,
@@ -263,11 +266,14 @@ fn generate(
     });
     result.push(format!("pgrx_embed_vchord{}", tsi.exe_suffix()?));
     let mut command;
-    if !(tsi.is_unix && tsi.is_emscripten) {
-        command = Command::new(result);
-    } else {
-        command = Command::new("node");
+    if let Some(runner) = runner {
+        command = Command::new(&runner[0]);
+        for arg in runner[1..].iter() {
+            command.arg(arg);
+        }
         command.arg(result);
+    } else {
+        command = Command::new(result);
     }
     command.stderr(Stdio::inherit());
     eprintln!("Running {command:?}");
@@ -315,31 +321,35 @@ fn main() -> Result<(), Box<dyn Error>> {
     if !std::fs::exists("./vchord.control")? {
         return Err("The script must be run from the VectorChord source directory.".into());
     }
-    let path = if let Some(value) = var_os("PGRX_PG_CONFIG_PATH") {
-        PathBuf::from(value)
-    } else {
-        return Err("Environment variable `PGRX_PG_CONFIG_PATH` is not set.".into());
-    };
-    let pg_config = pg_config(&path)?;
-    let pg_version = {
-        let version = pg_config["VERSION"].clone();
-        if let Some(prefix_stripped) = version.strip_prefix("PostgreSQL ") {
-            if let Some((stripped, _)) = prefix_stripped.split_once(|c: char| !c.is_ascii_digit()) {
-                format!("pg{stripped}",)
-            } else {
-                format!("pg{prefix_stripped}",)
-            }
-        } else {
-            return Err("PostgreSQL version is invalid.".into());
-        }
-    };
     let vchord_version = control_file("./vchord.control")?["default_version"].clone();
     match cli.command {
         Commands::Build(BuildArgs {
             output,
             profile,
             target,
+            runner,
         }) => {
+            let runner = runner.and_then(|runner| shlex::split(&runner));
+            let path = if let Some(value) = var_os("PGRX_PG_CONFIG_PATH") {
+                PathBuf::from(value)
+            } else {
+                return Err("Environment variable `PGRX_PG_CONFIG_PATH` is not set.".into());
+            };
+            let pg_config = pg_config(&path)?;
+            let pg_version = {
+                let version = pg_config["VERSION"].clone();
+                if let Some(prefix_stripped) = version.strip_prefix("PostgreSQL ") {
+                    if let Some((stripped, _)) =
+                        prefix_stripped.split_once(|c: char| !c.is_ascii_digit())
+                    {
+                        format!("pg{stripped}",)
+                    } else {
+                        format!("pg{prefix_stripped}",)
+                    }
+                } else {
+                    return Err("PostgreSQL version is invalid.".into());
+                }
+            };
             let tsi = target_specific_information(&target)?;
             let obj = build(&path, &pg_version, &tsi, &profile, &target)?;
             let pkglibdir = format!("{output}/pkglibdir");
@@ -378,7 +388,15 @@ fn main() -> Result<(), Box<dyn Error>> {
             } else {
                 let exports = parse(&tsi, obj)?;
                 install_by_writing(
-                    generate(&path, &pg_version, &tsi, &profile, &target, exports)?,
+                    generate(
+                        &runner,
+                        &path,
+                        &pg_version,
+                        &tsi,
+                        &profile,
+                        &target,
+                        exports,
+                    )?,
                     format!("{sharedir_extension}/vchord--0.0.0.sql"),
                     false,
                 )?;
