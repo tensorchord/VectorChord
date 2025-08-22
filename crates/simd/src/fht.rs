@@ -33,7 +33,7 @@ mod step_1 {
     seq_macro::seq!(
         Q in 0..16 {
             mod dispatch_~Q {
-                #[crate::multiversion("v4", "v3", "v2", "a2")]
+                #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
                 pub fn f(x: &mut [f32]) {
                     crate::fht::basic_1::<Q>(x);
                 }
@@ -48,7 +48,7 @@ mod step_2 {
     seq_macro::seq!(
         Q in 0..16 {
             mod dispatch_~Q {
-                #[crate::multiversion("v4", "v3", "v2", "a2")]
+                #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
                 pub fn f(x: &mut [f32]) {
                     crate::fht::basic_2::<Q>(x);
                 }
@@ -62,7 +62,7 @@ mod step_2 {
 macro_rules! fht {
     ($p:literal, 0) => {
         {
-            #[crate::multiversion("v4", "v3", "v2", "a2")]
+            #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
             fn walk(x: &mut [f32]) {
                 assert!(x.len() == (1 << $p));
                 seq_macro::seq!(

@@ -47,7 +47,7 @@ validator.workspace = true
 zerocopy.workspace = true
 
 [target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), any(target_os = "linux", target_os = "macos")))'.dependencies]
-mimalloc = { version = "0.1.47", features = ["local_dynamic_tls"] }
+mimalloc = { version = "0.1.48", features = ["local_dynamic_tls"] }
 
 [lints]
 workspace = true

@@ -46,29 +46,82 @@ pub const TARGET_CPUS: &[TargetCpu] = &[
     TargetCpu {
         target_cpu: "a3.512",
         target_arch: "aarch64",
-        target_features: &[
-            "sve", // simd
-        ],
+        target_features: &["sve"],
     },
     TargetCpu {
         target_cpu: "a3.256",
         target_arch: "aarch64",
-        target_features: &[
-            "sve", // simd
-        ],
+        target_features: &["sve"],
     },
     TargetCpu {
         target_cpu: "a3.128",
         target_arch: "aarch64",
-        target_features: &[
-            "sve", // simd
-        ],
+        target_features: &["sve"],
     },
     TargetCpu {
         target_cpu: "a2",
         target_arch: "aarch64",
+        target_features: &["neon"],
+    },
+    TargetCpu {
+        target_cpu: "z17",
+        target_arch: "s390x",
         target_features: &[
-            "neon", // simd
+            "vector",
+            "vector-enhancements-1",
+            "vector-enhancements-2",
+            "vector-enhancements-3",
+            "vector-packed-decimal",
+            "vector-packed-decimal-enhancement",
+            "vector-packed-decimal-enhancement-2",
+            "vector-packed-decimal-enhancement-3",
+            "nnp-assist",
+            "miscellaneous-extensions-2",
+            "miscellaneous-extensions-3",
+            "miscellaneous-extensions-4",
         ],
+    },
+    TargetCpu {
+        target_cpu: "z16",
+        target_arch: "s390x",
+        target_features: &[
+            "vector",
+            "vector-enhancements-1",
+            "vector-enhancements-2",
+            "vector-packed-decimal",
+            "vector-packed-decimal-enhancement",
+            "vector-packed-decimal-enhancement-2",
+            "nnp-assist",
+            "miscellaneous-extensions-2",
+            "miscellaneous-extensions-3",
+        ],
+    },
+    TargetCpu {
+        target_cpu: "z15",
+        target_arch: "s390x",
+        target_features: &[
+            "vector",
+            "vector-enhancements-1",
+            "vector-enhancements-2",
+            "vector-packed-decimal",
+            "vector-packed-decimal-enhancement",
+            "miscellaneous-extensions-2",
+            "miscellaneous-extensions-3",
+        ],
+    },
+    TargetCpu {
+        target_cpu: "z14",
+        target_arch: "s390x",
+        target_features: &[
+            "vector",
+            "vector-enhancements-1",
+            "vector-packed-decimal",
+            "miscellaneous-extensions-2",
+        ],
+    },
+    TargetCpu {
+        target_cpu: "z13",
+        target_arch: "s390x",
+        target_features: &["vector"],
     },
 ];

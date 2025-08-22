@@ -13,7 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 pub mod givens {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn givens(lhs: &mut [f32], rhs: &mut [f32]) {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
@@ -29,10 +29,10 @@ pub fn givens(lhs: &mut [f32], rhs: &mut [f32]) {
 }
 
 pub mod flip {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn flip(bits: &[u64; 1024], result: &mut [f32]) {
         use std::hint::select_unpredictable;
-        let result: &mut [u32] = unsafe { std::mem::transmute(result) };
+        let result: &mut [u32] = zerocopy::transmute_mut!(result);
         let (arrays, remainder) = result.as_chunks_mut::<64>();
         let n = arrays.len();
         assert!(n <= 1024);

@@ -283,7 +283,7 @@ mod mul_add_round {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"a2")]
+    #[crate::multiversion(@"v4", @"v3", @"v2:fma", @"a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn mul_add_round(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let n = this.len();
         let mut r = Vec::<u8>::with_capacity(n);

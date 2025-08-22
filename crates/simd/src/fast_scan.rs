@@ -427,45 +427,133 @@ mod scan {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2")]
-    pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
-        fn binary(op: impl Fn(u16, u16) -> u16, a: [u16; 8], b: [u16; 8]) -> [u16; 8] {
-            std::array::from_fn(|i| op(a[i], b[i]))
-        }
-        fn shuffle(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
-            std::array::from_fn(|i| a[b[i] as usize])
-        }
-        fn transmute(x: [u8; 16]) -> [u16; 8] {
-            std::array::from_fn(|i| u16::from_le_bytes([x[i << 1 | 0], x[i << 1 | 1]]))
-        }
+    #[cfg(target_arch = "s390x")]
+    #[crate::target_cpu(enable = "z13")]
+    fn scan_z13(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
+        unsafe {
+            // bounds checking is not enforced by compiler, so check it manually
+            assert_eq!(code.len(), lut.len());
+            let n = code.len();
 
+            use std::arch::s390x::*;
+            use std::mem::transmute;
+            use {vector_unsigned_char as u8x16, vector_unsigned_short as u16x8};
+
+            let _0001_u16x8 = vec_splat_u16::<0x0001>();
+            let _00ff_u16x8 = vec_splat_u16::<0x00ff>();
+            let _ff00_u16x8 = vec_splat_u16::<{ 0xff00u16 as i16 }>();
+
+            let mut accu_0 = vec_splat_u16::<0>();
+            let mut accu_1 = vec_splat_u16::<0>();
+            let mut accu_2 = vec_splat_u16::<0>();
+            let mut accu_3 = vec_splat_u16::<0>();
+
+            let mut i = 0_usize;
+            while i < n {
+                let code: u8x16 = vec_xl((i as isize) * 16, code.as_ptr().cast());
+
+                let clo = vec_and(code, vec_splat_u8::<0xf>());
+                let chi = vec_srl(code, vec_splat_u8::<4>());
+
+                let lut: u8x16 = vec_xl((i as isize) * 16, lut.as_ptr().cast());
+                let res_lo = vec_revb(transmute::<u8x16, u16x8>(vec_perm(lut, lut, clo)));
+                accu_0 = vec_add(accu_0, res_lo);
+                accu_1 = vec_add(accu_1, vec_and(vec_rli(res_lo, 8), _00ff_u16x8));
+                let res_hi = vec_revb(transmute::<u8x16, u16x8>(vec_perm(lut, lut, chi)));
+                accu_2 = vec_add(accu_2, res_hi);
+                accu_3 = vec_add(accu_3, vec_and(vec_rli(res_hi, 8), _00ff_u16x8));
+
+                i += 1;
+            }
+            debug_assert_eq!(i, n);
+
+            let mut result = [0_u16; 32];
+
+            accu_0 = vec_sub(accu_0, vec_and(vec_rli(accu_1, 120), _ff00_u16x8));
+            vec_xst(accu_0, 0, result.as_mut_ptr().cast());
+            vec_xst(accu_1, 16, result.as_mut_ptr().cast());
+
+            accu_2 = vec_sub(accu_2, vec_and(vec_rli(accu_3, 120), _ff00_u16x8));
+            vec_xst(accu_2, 32, result.as_mut_ptr().cast());
+            vec_xst(accu_3, 48, result.as_mut_ptr().cast());
+
+            result
+        }
+    }
+
+    #[cfg(all(target_arch = "s390x", test, not(miri)))]
+    #[test]
+    fn scan_z13_test() {
+        if !crate::is_cpu_detected!("z13") {
+            println!("test {} ... skipped (z13)", module_path!());
+            return;
+        }
+        for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            for n in 90..110 {
+                let code = (0..n)
+                    .map(|_| std::array::from_fn(|_| rand::random()))
+                    .collect::<Vec<[u8; 16]>>();
+                let lut = (0..n)
+                    .map(|_| std::array::from_fn(|_| rand::random()))
+                    .collect::<Vec<[u8; 16]>>();
+                unsafe {
+                    assert_eq!(scan_z13(&code, &lut), fallback(&code, &lut));
+                }
+            }
+        }
+    }
+
+    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", @"z13")]
+    pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
-        let mut a_0 = [0u16; 8];
-        let mut a_1 = [0u16; 8];
-        let mut a_2 = [0u16; 8];
-        let mut a_3 = [0u16; 8];
+        let mut result = [0u16; 32];
 
         for i in 0..n {
             let code = code[i];
-
             let clo = code.map(|x| x & 0xf);
             let chi = code.map(|x| x >> 4);
-
             let lut = lut[i];
-            let res_lo = transmute(shuffle(lut, clo));
-            a_0 = binary(u16::wrapping_add, a_0, res_lo);
-            a_1 = binary(u16::wrapping_add, a_1, res_lo.map(|x| x >> 8));
-            let res_hi = transmute(shuffle(lut, chi));
-            a_2 = binary(u16::wrapping_add, a_2, res_hi);
-            a_3 = binary(u16::wrapping_add, a_3, res_hi.map(|x| x >> 8));
+
+            let res_lo: [u8; 16] = std::array::from_fn(|i| lut[clo[i] as usize]);
+            let res_hi: [u8; 16] = std::array::from_fn(|i| lut[chi[i] as usize]);
+
+            result[0x00] += res_lo[0x0] as u16;
+            result[0x01] += res_lo[0x2] as u16;
+            result[0x02] += res_lo[0x4] as u16;
+            result[0x03] += res_lo[0x6] as u16;
+            result[0x04] += res_lo[0x8] as u16;
+            result[0x05] += res_lo[0xa] as u16;
+            result[0x06] += res_lo[0xc] as u16;
+            result[0x07] += res_lo[0xe] as u16;
+            result[0x08] += res_lo[0x1] as u16;
+            result[0x09] += res_lo[0x3] as u16;
+            result[0x0a] += res_lo[0x5] as u16;
+            result[0x0b] += res_lo[0x7] as u16;
+            result[0x0c] += res_lo[0x9] as u16;
+            result[0x0d] += res_lo[0xb] as u16;
+            result[0x0e] += res_lo[0xd] as u16;
+            result[0x0f] += res_lo[0xf] as u16;
+            result[0x10] += res_hi[0x0] as u16;
+            result[0x11] += res_hi[0x2] as u16;
+            result[0x12] += res_hi[0x4] as u16;
+            result[0x13] += res_hi[0x6] as u16;
+            result[0x14] += res_hi[0x8] as u16;
+            result[0x15] += res_hi[0xa] as u16;
+            result[0x16] += res_hi[0xc] as u16;
+            result[0x17] += res_hi[0xe] as u16;
+            result[0x18] += res_hi[0x1] as u16;
+            result[0x19] += res_hi[0x3] as u16;
+            result[0x1a] += res_hi[0x5] as u16;
+            result[0x1b] += res_hi[0x7] as u16;
+            result[0x1c] += res_hi[0x9] as u16;
+            result[0x1d] += res_hi[0xb] as u16;
+            result[0x1e] += res_hi[0xd] as u16;
+            result[0x1f] += res_hi[0xf] as u16;
         }
 
-        a_0 = binary(u16::wrapping_sub, a_0, a_1.map(|x| x << 8));
-        a_2 = binary(u16::wrapping_sub, a_2, a_3.map(|x| x << 8));
-
-        zerocopy::transmute!([a_0, a_1, a_2, a_3])
+        result
     }
 }
 
@@ -475,7 +563,7 @@ pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
 }
 
 mod accu {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {
         for i in 0..32 {
             sum[i] += delta[i] as u32;

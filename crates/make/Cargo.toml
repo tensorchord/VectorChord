@@ -5,7 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-clap = { version = "4.5.45", features = ["derive"] }
+clap = { version = "4.5.46", features = ["derive"] }
 object = { version = "0.37.3", default-features = false, features = [
     "read",
     "wasm",

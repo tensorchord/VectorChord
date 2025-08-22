@@ -44,9 +44,10 @@ jobs:
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 
     env:
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
+      RUSTUP_AUTO_INSTALL: "0"
       RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Set up Environment

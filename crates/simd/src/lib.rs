@@ -13,6 +13,9 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 #![allow(unsafe_code)]
+#![cfg_attr(target_arch = "s390x", feature(stdarch_s390x_feature_detection))]
+#![cfg_attr(target_arch = "s390x", feature(s390x_target_feature))]
+#![cfg_attr(target_arch = "s390x", feature(stdarch_s390x))]
 
 mod aligned;
 mod emulate;
@@ -67,6 +70,9 @@ mod internal {
     #[cfg(target_arch = "aarch64")]
     simd_macros::define_is_cpu_detected!("aarch64");
 
+    #[cfg(target_arch = "s390x")]
+    simd_macros::define_is_cpu_detected!("s390x");
+
     #[cfg(target_arch = "x86_64")]
     #[allow(unused_imports)]
     pub use is_x86_64_cpu_detected;
@@ -74,6 +80,10 @@ mod internal {
     #[cfg(target_arch = "aarch64")]
     #[allow(unused_imports)]
     pub use is_aarch64_cpu_detected;
+
+    #[cfg(target_arch = "s390x")]
+    #[allow(unused_imports)]
+    pub use is_s390x_cpu_detected;
 
     #[cfg(target_arch = "x86_64")]
     pub fn is_v4_detected() -> bool {
@@ -150,6 +160,59 @@ mod internal {
     pub fn is_a2_detected() -> bool {
         std::arch::is_aarch64_feature_detected!("neon")
     }
+
+    #[cfg(target_arch = "s390x")]
+    pub fn is_z17_detected() -> bool {
+        std::arch::is_s390x_feature_detected!("vector")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-1")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-2")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-3")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement-2")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement-3")
+            && std::arch::is_s390x_feature_detected!("nnp-assist")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-2")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-3")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-4")
+    }
+
+    #[cfg(target_arch = "s390x")]
+    pub fn is_z16_detected() -> bool {
+        std::arch::is_s390x_feature_detected!("vector")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-1")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-2")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement-2")
+            && std::arch::is_s390x_feature_detected!("nnp-assist")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-2")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-3")
+    }
+
+    #[cfg(target_arch = "s390x")]
+    pub fn is_z15_detected() -> bool {
+        std::arch::is_s390x_feature_detected!("vector")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-1")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-2")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal-enhancement")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-2")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-3")
+    }
+
+    #[cfg(target_arch = "s390x")]
+    pub fn is_z14_detected() -> bool {
+        std::arch::is_s390x_feature_detected!("vector")
+            && std::arch::is_s390x_feature_detected!("vector-enhancements-1")
+            && std::arch::is_s390x_feature_detected!("vector-packed-decimal")
+            && std::arch::is_s390x_feature_detected!("miscellaneous-extensions-2")
+    }
+
+    #[cfg(target_arch = "s390x")]
+    pub fn is_z13_detected() -> bool {
+        std::arch::is_s390x_feature_detected!("vector")
+    }
 }
 
 pub use simd_macros::{multiversion, target_cpu};
@@ -162,6 +225,10 @@ pub use std::arch::is_x86_feature_detected as is_feature_detected;
 #[allow(unused_imports)]
 pub use std::arch::is_aarch64_feature_detected as is_feature_detected;
 
+#[cfg(target_arch = "s390x")]
+#[allow(unused_imports)]
+pub use std::arch::is_s390x_feature_detected as is_feature_detected;
+
 #[cfg(target_arch = "x86_64")]
 #[allow(unused_imports)]
 pub use internal::is_x86_64_cpu_detected as is_cpu_detected;
@@ -169,3 +236,7 @@ pub use internal::is_x86_64_cpu_detected as is_cpu_detected;
 #[cfg(target_arch = "aarch64")]
 #[allow(unused_imports)]
 pub use internal::is_aarch64_cpu_detected as is_cpu_detected;
+
+#[cfg(target_arch = "s390x")]
+#[allow(unused_imports)]
+pub use internal::is_s390x_cpu_detected as is_cpu_detected;

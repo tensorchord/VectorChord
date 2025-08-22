@@ -183,7 +183,7 @@ mod reduce_sum_of_and {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2")]
+    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn reduce_sum_of_and(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -366,7 +366,7 @@ mod reduce_sum_of_or {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2")]
+    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn reduce_sum_of_or(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -549,7 +549,7 @@ mod reduce_sum_of_xor {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2")]
+    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn reduce_sum_of_xor(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -772,7 +772,7 @@ mod reduce_sum_of_and_or {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2")]
+    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn reduce_sum_of_and_or(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -933,7 +933,7 @@ mod reduce_sum_of_x {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2")]
+    #[crate::multiversion(@"v4:avx512vpopcntdq", @"v4", @"v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn reduce_sum_of_x(this: &[u64]) -> u32 {
         let n = this.len();
         let mut sum = 0;
@@ -950,7 +950,7 @@ pub fn vector_and(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
 }
 
 mod vector_and {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn vector_and(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -973,7 +973,7 @@ pub fn vector_or(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
 }
 
 mod vector_or {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn vector_or(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();
@@ -996,7 +996,7 @@ pub fn vector_xor(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
 }
 
 mod vector_xor {
-    #[crate::multiversion("v4", "v3", "v2", "a2")]
+    #[crate::multiversion("v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13")]
     pub fn vector_xor(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {
         assert_eq!(lhs.len(), rhs.len());
         let n = lhs.len();

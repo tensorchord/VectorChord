@@ -106,11 +106,12 @@ jobs:
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
 
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: true
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
       RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Set up Environment
@@ -173,11 +174,12 @@ jobs:
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: true
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
-      RUSTFLAGS: -Dwarnings
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
+      RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Set up Environment
@@ -259,11 +261,12 @@ jobs:
     runs-on: "macos-15"
 
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: true
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
-      RUSTFLAGS: -Dwarnings
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
+      RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Set up Environment
@@ -343,11 +346,12 @@ jobs:
     runs-on: "windows-2022"
 
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: true
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
-      RUSTFLAGS: -Dwarnings
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
+      RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
 
     steps:
       - name: Set up Environment
@@ -452,11 +456,13 @@ jobs:
         - /opt:/__e/node20:ro,rshared
 
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: true
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: 1
-      USER: root
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
+      # RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
+      USER: "root"
 
     steps:
       - name: Set up Environment
