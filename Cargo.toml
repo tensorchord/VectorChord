@@ -86,7 +86,7 @@ clippy.needless_range_loop = "allow"
 rust.unsafe_code = "deny"
 rust.unsafe_op_in_unsafe_fn = "deny"
 # unused
-rust.unused_crate_dependencies = "warn"
+rust.unused_crate_dependencies = "allow"
 rust.unused_extern_crates = "warn"
 rust.unused_import_braces = "warn"
 rust.unused_lifetimes = "warn"

@@ -231,7 +231,9 @@ pub fn target_cpu(
 #[proc_macro]
 pub fn define_is_cpu_detected(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let target_arch = syn::parse_macro_input!(input as syn::LitStr).value();
-    let mut arms = quote::quote! {};
+    let mut arms = quote::quote! {
+        () => { compile_error!("cpu is not provided") };
+    };
     for target_cpu in target::TARGET_CPUS {
         if target_cpu.target_arch != target_arch {
             continue;

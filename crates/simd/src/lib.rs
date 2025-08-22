@@ -67,9 +67,6 @@ mod internal {
     #[cfg(target_arch = "aarch64")]
     simd_macros::define_is_cpu_detected!("aarch64");
 
-    #[cfg(target_arch = "riscv64")]
-    simd_macros::define_is_cpu_detected!("riscv64");
-
     #[cfg(target_arch = "x86_64")]
     #[allow(unused_imports)]
     pub use is_x86_64_cpu_detected;
@@ -77,10 +74,6 @@ mod internal {
     #[cfg(target_arch = "aarch64")]
     #[allow(unused_imports)]
     pub use is_aarch64_cpu_detected;
-
-    #[cfg(target_arch = "riscv64")]
-    #[allow(unused_imports)]
-    pub use is_riscv64_cpu_detected;
 
     #[cfg(target_arch = "x86_64")]
     pub fn is_v4_detected() -> bool {
@@ -114,6 +107,7 @@ mod internal {
     }
 
     #[cfg(target_arch = "aarch64")]
+    #[cfg_attr(target_endian = "big", expect(dead_code))]
     pub fn is_a3_512_detected() -> bool {
         #[target_feature(enable = "sve")]
         fn is_512_detected() -> bool {
@@ -130,6 +124,7 @@ mod internal {
     }
 
     #[cfg(target_arch = "aarch64")]
+    #[cfg_attr(target_endian = "big", expect(dead_code))]
     pub fn is_a3_256_detected() -> bool {
         #[target_feature(enable = "sve")]
         fn is_256_detected() -> bool {
@@ -145,8 +140,8 @@ mod internal {
         std::arch::is_aarch64_feature_detected!("sve") && unsafe { is_256_detected() }
     }
 
-    #[expect(dead_code)]
     #[cfg(target_arch = "aarch64")]
+    #[expect(dead_code)]
     pub fn is_a3_128_detected() -> bool {
         std::arch::is_aarch64_feature_detected!("sve")
     }
@@ -167,10 +162,6 @@ pub use std::arch::is_x86_feature_detected as is_feature_detected;
 #[allow(unused_imports)]
 pub use std::arch::is_aarch64_feature_detected as is_feature_detected;
 
-#[cfg(target_arch = "riscv64")]
-#[allow(unused_imports)]
-pub use std::arch::is_riscv_feature_detected as is_feature_detected;
-
 #[cfg(target_arch = "x86_64")]
 #[allow(unused_imports)]
 pub use internal::is_x86_64_cpu_detected as is_cpu_detected;
@@ -178,7 +169,3 @@ pub use internal::is_x86_64_cpu_detected as is_cpu_detected;
 #[cfg(target_arch = "aarch64")]
 #[allow(unused_imports)]
 pub use internal::is_aarch64_cpu_detected as is_cpu_detected;
-
-#[cfg(target_arch = "riscv64")]
-#[allow(unused_imports)]
-pub use internal::is_riscv64_cpu_detected as is_cpu_detected;
