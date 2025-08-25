@@ -29,7 +29,7 @@ from faiss import Kmeans
 import numpy as np
 
 DEFAULT_LISTS = 4096
-N_ITER = 25
+N_ITER = 10
 CHUNKS = 10
 SEED = 42
 MAX_POINTS_PER_CLUSTER = 256
