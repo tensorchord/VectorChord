@@ -19,6 +19,7 @@ use crate::index::vchordrq::algo::*;
 use crate::index::vchordrq::filter::filter;
 use crate::index::vchordrq::opclass::Opfamily;
 use crate::index::vchordrq::scanners::SearchOptions;
+use crate::recorder::{Recorder, halfvec_out, vector_out};
 use algo::accessor::{Dot, L2S};
 use algo::prefetcher::*;
 use algo::*;
@@ -82,6 +83,7 @@ impl SearchBuilder for DefaultBuilder {
         options: SearchOptions,
         mut fetcher: impl Fetcher + 'b,
         bump: &'b impl Bump,
+        recorder: impl Recorder,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'b>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,
@@ -120,7 +122,7 @@ impl SearchBuilder for DefaultBuilder {
             match (opfamily.vector_kind(), opfamily.distance_kind()) {
                 (VectorKind::Vecf32, DistanceKind::L2S) => {
                     type Op = operator::Op<VectOwned<f32>, L2S>;
-                    let unprojected = if let OwnedVector::Vecf32(vector) = vector {
+                    let unprojected = if let OwnedVector::Vecf32(vector) = vector.clone() {
                         vector
                     } else {
                         unreachable!()
@@ -260,7 +262,7 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf32, DistanceKind::Dot) => {
                     type Op = operator::Op<VectOwned<f32>, Dot>;
-                    let unprojected = if let OwnedVector::Vecf32(vector) = vector {
+                    let unprojected = if let OwnedVector::Vecf32(vector) = vector.clone() {
                         vector
                     } else {
                         unreachable!()
@@ -400,7 +402,7 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf16, DistanceKind::L2S) => {
                     type Op = operator::Op<VectOwned<f16>, L2S>;
-                    let unprojected = if let OwnedVector::Vecf16(vector) = vector {
+                    let unprojected = if let OwnedVector::Vecf16(vector) = vector.clone() {
                         vector
                     } else {
                         unreachable!()
@@ -540,7 +542,7 @@ impl SearchBuilder for DefaultBuilder {
                 }
                 (VectorKind::Vecf16, DistanceKind::Dot) => {
                     type Op = operator::Op<VectOwned<f16>, Dot>;
-                    let unprojected = if let OwnedVector::Vecf16(vector) = vector {
+                    let unprojected = if let OwnedVector::Vecf16(vector) = vector.clone() {
                         vector
                     } else {
                         unreachable!()
@@ -689,6 +691,16 @@ impl SearchBuilder for DefaultBuilder {
         } else {
             iter
         };
+        if recorder.is_enabled() {
+            match &vector {
+                OwnedVector::Vecf32(v) => {
+                    recorder.send(&vector_out(v.as_borrowed()));
+                }
+                OwnedVector::Vecf16(v) => {
+                    recorder.send(&halfvec_out(v.as_borrowed()));
+                }
+            }
+        }
         Box::new(iter.map(move |(distance, pointer)| {
             let (key, _) = pointer_to_kv(pointer);
             (distance, key, recheck)

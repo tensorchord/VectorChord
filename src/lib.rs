@@ -18,6 +18,7 @@
 
 mod datatype;
 mod index;
+mod recorder;
 mod upgrade;
 
 pgrx::pg_module_magic!(
@@ -53,6 +54,7 @@ unsafe extern "C-unwind" fn _pg_init() {
     }
     IS_MAIN.set(true);
     index::init();
+    recorder::init();
     unsafe {
         #[cfg(any(feature = "pg13", feature = "pg14"))]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchord".as_ptr());

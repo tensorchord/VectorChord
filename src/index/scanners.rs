@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use crate::index::fetcher::Fetcher;
+use crate::recorder::Recorder;
 use algo::{Bump, Page, RelationPrefetch, RelationRead, RelationReadStream};
 use pgrx::pg_sys::Datum;
 
@@ -44,6 +45,7 @@ pub trait SearchBuilder: 'static {
         options: Self::Options,
         fetcher: impl Fetcher + 'b,
         bump: &'b impl Bump,
+        recorder: impl Recorder,
     ) -> Box<dyn Iterator<Item = (f32, [u16; 3], bool)> + 'b>
     where
         R: RelationRead + RelationPrefetch + RelationReadStream,

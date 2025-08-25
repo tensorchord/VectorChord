@@ -39,6 +39,7 @@ paste.workspace = true
 pgrx = { version = "=0.16.0", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.3.1"
 rand.workspace = true
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 seq-macro.workspace = true
 serde.workspace = true
 toml = "0.9.5"

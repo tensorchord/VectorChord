@@ -20,6 +20,7 @@ use crate::index::scanners::SearchBuilder;
 use crate::index::storage::PostgresRelation;
 use crate::index::vchordg::opclass::opfamily;
 use crate::index::vchordg::scanners::*;
+use crate::recorder::DefaultRecorder;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
 use std::cell::LazyCell;
@@ -372,6 +373,13 @@ pub unsafe extern "C-unwind" fn amrescan(
                 )
             })
         };
+        // Query recorde is disable for vchordg indexes for now.
+        let recorder = DefaultRecorder {
+            enable: false,
+            rate: None,
+            max_records: 0,
+            index: (*(*scan).indexRelation).rd_id.to_u32(),
+        };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.
         let bump = scanner.bump.as_ref();
         scanner.scanning = match opfamily {
@@ -397,7 +405,7 @@ pub unsafe extern "C-unwind" fn amrescan(
                 LazyCell::new(Box::new(move || {
                     // only do this since `PostgresRelation` has no destructor
                     let index = bump.alloc(index.clone());
-                    builder.build(index, options, fetcher, bump)
+                    builder.build(index, options, fetcher, bump, recorder)
                 }))
             }
         };

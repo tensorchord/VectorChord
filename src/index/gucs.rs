@@ -27,6 +27,12 @@ pub enum PostgresIo {
     ReadStream,
 }
 
+static VCHORDRQ_QUERY_SAMPLING_ENABLE: GucSetting<bool> = GucSetting::<bool>::new(false);
+
+static VCHORDRQ_QUERY_SAMPLING_MAX_RECORDS: GucSetting<i32> = GucSetting::<i32>::new(0);
+
+static VCHORDRQ_QUERY_SAMPLING_RATE: GucSetting<f64> = GucSetting::<f64>::new(0.0);
+
 static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
@@ -155,6 +161,34 @@ pub fn init() {
         c"`io_rerank` argument of vchordrq.",
         c"`io_rerank` argument of vchordrq.",
         &VCHORDRQ_IO_RERANK,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_bool_guc(
+        c"vchordrq.query_sampling_enable",
+        c"`query_sampling_enable` argument of vchordrq.",
+        c"`query_sampling_enable` argument of vchordrq.",
+        &VCHORDRQ_QUERY_SAMPLING_ENABLE,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.query_sampling_max_records",
+        c"`query_sampling_max_records` argument of vchordrq.",
+        c"`query_sampling_max_records` argument of vchordrq.",
+        &VCHORDRQ_QUERY_SAMPLING_MAX_RECORDS,
+        0,
+        10000,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_float_guc(
+        c"vchordrq.query_sampling_rate",
+        c"`query_sampling_rate` argument of vchordrq.",
+        c"`query_sampling_rate` argument of vchordrq.",
+        &VCHORDRQ_QUERY_SAMPLING_RATE,
+        0.0,
+        1.0,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -330,4 +364,16 @@ pub fn vchordrq_io_rerank() -> Io {
         #[cfg(any(feature = "pg17", feature = "pg18"))]
         PostgresIo::ReadStream => Io::Stream,
     }
+}
+
+pub fn vchordrq_query_sampling_enable() -> bool {
+    VCHORDRQ_QUERY_SAMPLING_ENABLE.get()
+}
+
+pub fn vchordrq_query_sampling_max_records() -> u32 {
+    VCHORDRQ_QUERY_SAMPLING_MAX_RECORDS.get() as u32
+}
+
+pub fn vchordrq_query_sampling_rate() -> f64 {
+    VCHORDRQ_QUERY_SAMPLING_RATE.get()
 }
