@@ -17,7 +17,7 @@ use crate::index::vchordrq::opclass::Opfamily;
 use algo::accessor::{Dot, L2S};
 use algo::prefetcher::*;
 use algo::*;
-use half::f16;
+use simd::f16;
 use std::collections::BinaryHeap;
 use std::num::NonZero;
 use vchordrq::operator::Op;

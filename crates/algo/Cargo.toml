@@ -13,7 +13,6 @@ vector = { path = "../vector" }
 
 bumpalo.workspace = true
 dary_heap.workspace = true
-half.workspace = true
 zerocopy.workspace = true
 
 [lints]

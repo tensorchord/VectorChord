@@ -14,11 +14,10 @@
 
 use algo::accessor::{Accessor1, Accessor2, DistanceAccessor, Dot, L2S, RAccess};
 use distance::Distance;
-use half::f16;
 use rabitq::bit::CodeMetadata;
 use rabitq::bit::binary::BinaryLut;
 use rabitq::bit::block::{BlockLut, STEP};
-use simd::Floating;
+use simd::{Floating, f16};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use vector::vect::{VectBorrowed, VectOwned};
@@ -464,7 +463,8 @@ impl Operator for Op<VectOwned<f16>, L2S> {
                 use std::iter::zip;
                 let dims = vector.dims();
                 let t = zip(&code.1, centroid.slice())
-                    .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num).to_f32())
+                    .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
+                    .map(simd::F16::_to_f32)
                     .sum::<f32>()
                     / (dims as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;
@@ -543,7 +543,8 @@ impl Operator for Op<VectOwned<f16>, Dot> {
                 use std::iter::zip;
                 let dims = vector.dims();
                 let t = zip(&code.1, centroid.slice())
-                    .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num).to_f32())
+                    .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
+                    .map(simd::F16::_to_f32)
                     .sum::<f32>()
                     / (dims as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;

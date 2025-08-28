@@ -24,7 +24,7 @@ use algo::prefetcher::*;
 use algo::*;
 use always_equal::AlwaysEqual;
 use dary_heap::QuaternaryHeap as Heap;
-use half::f16;
+use simd::f16;
 use std::num::NonZero;
 use vchordrq::operator::{self};
 use vchordrq::types::{DistanceKind, OwnedVector, VectorKind};

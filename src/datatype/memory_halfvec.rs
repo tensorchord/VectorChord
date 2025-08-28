@@ -12,10 +12,10 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use half::f16;
 use pgrx::datum::{FromDatum, IntoDatum};
 use pgrx::pg_sys::{Datum, Oid};
 use pgrx::pgrx_sql_entity_graph::metadata::*;
+use simd::f16;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use vector::VectorBorrowed;

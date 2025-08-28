@@ -42,6 +42,8 @@ struct BuildArgs {
     target: String,
     #[arg(long)]
     runner: Option<String>,
+    #[arg(long, action = clap::ArgAction::SetTrue, env = "EXPERIMENTAL", value_parser = clap::builder::FalseyValueParser::new())]
+    experimental: bool,
 }
 
 struct TargetSpecificInformation {
@@ -163,13 +165,20 @@ fn build(
     tsi: &TargetSpecificInformation,
     profile: &str,
     target: &str,
+    experimental: bool,
 ) -> Result<PathBuf, Box<dyn Error>> {
     let mut command = Command::new("cargo");
     command
         .args(["build", "-p", "vchord", "--lib"])
         .args(["--profile", profile])
         .args(["--target", target])
-        .args(["--features", pg_version])
+        .args(["--features".into(), {
+            let mut features = vec![pg_version];
+            if experimental {
+                features.push("simd/experimental");
+            }
+            features.join(",")
+        }])
         .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -234,6 +243,7 @@ fn generate(
     profile: &str,
     target: &str,
     exports: Vec<String>,
+    experimental: bool,
 ) -> Result<String, Box<dyn Error>> {
     let pgrx_embed = std::env::temp_dir().join("VCHORD_PGRX_EMBED");
     eprintln!("Writing {pgrx_embed:?}");
@@ -246,7 +256,13 @@ fn generate(
         .args(["rustc", "-p", "vchord", "--bin", "pgrx_embed_vchord"])
         .args(["--profile", profile])
         .args(["--target", target])
-        .args(["--features", pg_version])
+        .args(["--features".into(), {
+            let mut features = vec![pg_version];
+            if experimental {
+                features.push("simd/experimental");
+            }
+            features.join(",")
+        }])
         .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
         .args(["--", "--cfg", "pgrx_embed"])
         .env("PGRX_EMBED", &pgrx_embed)
@@ -328,6 +344,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             profile,
             target,
             runner,
+            experimental,
         }) => {
             let runner = runner.and_then(|runner| shlex::split(&runner));
             let path = if let Some(value) = var_os("PGRX_PG_CONFIG_PATH") {
@@ -351,7 +368,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             };
             let tsi = target_specific_information(&target)?;
-            let obj = build(&path, &pg_version, &tsi, &profile, &target)?;
+            let obj = build(&path, &pg_version, &tsi, &profile, &target, experimental)?;
             let pkglibdir = format!("{output}/pkglibdir");
             let sharedir = format!("{output}/sharedir");
             let sharedir_extension = format!("{sharedir}/extension");
@@ -396,6 +413,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         &profile,
                         &target,
                         exports,
+                        experimental,
                     )?,
                     format!("{sharedir_extension}/vchord--0.0.0.sql"),
                     false,

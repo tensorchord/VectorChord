@@ -12,8 +12,8 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use half::f16;
 use serde::{Deserialize, Serialize};
+use simd::f16;
 use validator::{Validate, ValidationError};
 use vector::vect::{VectBorrowed, VectOwned};
 

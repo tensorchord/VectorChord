@@ -13,8 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use distance::Distance;
-use half::f16;
-use simd::Floating;
+use simd::{Floating, f16};
 use std::marker::PhantomData;
 use vector::vect::VectOwned;
 

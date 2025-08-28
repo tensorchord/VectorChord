@@ -15,9 +15,8 @@
 use crate::types::DistanceKind;
 use algo::accessor::{Accessor1, Accessor2, DistanceAccessor, Dot, L2S};
 use distance::Distance;
-use half::f16;
 use rabitq::bits::Bits;
-use simd::Floating;
+use simd::{Floating, f16};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use vector::vect::VectOwned;

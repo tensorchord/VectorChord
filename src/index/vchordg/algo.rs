@@ -16,7 +16,7 @@ use crate::index::vchordg::opclass::Opfamily;
 use algo::accessor::{Dot, L2S};
 use algo::prefetcher::*;
 use algo::*;
-use half::f16;
+use simd::f16;
 use std::num::NonZero;
 use vchordg::Opaque;
 use vchordg::operator::Op;

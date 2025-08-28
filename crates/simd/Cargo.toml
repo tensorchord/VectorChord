@@ -6,11 +6,12 @@ publish = false
 
 [features]
 init = []
+experimental = ["zerocopy/float-nightly"]
 
 [dependencies]
 simd_macros = { path = "../simd_macros" }
 
-half.workspace = true
+half = { version = "2.6.0", features = ["zerocopy"] }
 seq-macro.workspace = true
 zerocopy.workspace = true
 

@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use std::env::var;
+use std::env::{VarError, var};
 use std::error::Error;
 use std::ffi::OsString;
 use std::path::Path;
@@ -70,6 +70,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             build.opt_level(3);
             build.compile("simd_cshim");
         }
+        "powerpc64" => {
+            if let Err(VarError::NotPresent) = var("CARGO_FEATURE_EXPERIMENTAL") {
+                println!("cargo::error=`experimental` should be enabled on this platform");
+            }
+        }
+        "s390x" => {
+            if let Err(VarError::NotPresent) = var("CARGO_FEATURE_EXPERIMENTAL") {
+                println!("cargo::error=`experimental` should be enabled on this platform");
+            }
+        }
         "x86_64" => {
             let mut build = cc::Build::new();
             if let Some(compiler) = compiler(&host, &target, 16, 12) {
@@ -79,7 +89,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             build.opt_level(3);
             build.compile("simd_cshim");
         }
-        _ => (),
+        _ => {
+            if let Err(VarError::NotPresent) = var("CARGO_FEATURE_EXPERIMENTAL") {
+                println!("cargo::error=`experimental` should be enabled on this platform");
+            }
+            let messages = [
+                "This platform has poor SIMD implementation.",
+                "Please submit a feature request on https://github.com/tensorchord/VectorChord/issues.",
+            ];
+            for message in messages {
+                println!("cargo::warning={message}");
+            }
+        }
     }
     Ok(())
 }

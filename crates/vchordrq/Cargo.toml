@@ -12,7 +12,6 @@ rabitq = { path = "../rabitq" }
 simd = { path = "../simd" }
 vector = { path = "../vector" }
 
-half.workspace = true
 pin-project = "1.1"
 serde.workspace = true
 validator.workspace = true

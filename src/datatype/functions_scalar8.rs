@@ -15,8 +15,7 @@
 use crate::datatype::memory_halfvec::HalfvecInput;
 use crate::datatype::memory_scalar8::Scalar8Output;
 use crate::datatype::memory_vector::VectorInput;
-use half::f16;
-use simd::Floating;
+use simd::{Floating, f16};
 use vector::scalar8::Scalar8Borrowed;
 
 #[pgrx::pg_extern(sql = "")]

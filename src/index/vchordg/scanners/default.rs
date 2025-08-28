@@ -21,7 +21,7 @@ use crate::index::vchordg::scanners::SearchOptions;
 use algo::accessor::{Dot, L2S};
 use algo::*;
 use distance::Distance;
-use half::f16;
+use simd::f16;
 use std::num::NonZero;
 use vchordg::operator::{self};
 use vchordg::types::{DistanceKind, OwnedVector, VectorKind};

@@ -24,7 +24,7 @@ use algo::*;
 use always_equal::AlwaysEqual;
 use dary_heap::QuaternaryHeap as Heap;
 use distance::Distance;
-use half::f16;
+use simd::f16;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::num::NonZero;

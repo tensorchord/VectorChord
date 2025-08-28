@@ -21,10 +21,9 @@ use crate::index::vchordrq::types::*;
 use algo::{
     Page, PageGuard, Relation, RelationRead, RelationReadTypes, RelationWrite, RelationWriteTypes,
 };
-use half::f16;
 use pgrx::pg_sys::{Datum, ItemPointerData};
 use rand::Rng;
-use simd::Floating;
+use simd::{Floating, f16};
 use std::ffi::CStr;
 use std::ops::Deref;
 use vchordrq::types::*;

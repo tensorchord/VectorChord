@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 #![allow(unsafe_code)]
+#![cfg_attr(feature = "experimental", feature(float_algebraic, f16))]
 #![cfg_attr(target_arch = "s390x", feature(stdarch_s390x_feature_detection))]
 #![cfg_attr(target_arch = "s390x", feature(s390x_target_feature))]
 #![cfg_attr(target_arch = "s390x", feature(stdarch_s390x))]
@@ -22,8 +23,8 @@
 
 mod aligned;
 mod emulate;
-mod f16;
-mod f32;
+mod floating_f16;
+mod floating_f32;
 
 pub mod bit;
 pub mod fast_scan;
@@ -31,6 +32,46 @@ pub mod fht;
 pub mod quantize;
 pub mod rotate;
 pub mod u8;
+
+#[cfg(not(feature = "experimental"))]
+pub use half::f16;
+
+#[cfg(feature = "experimental")]
+pub use f16;
+
+pub trait F16: Sized {
+    const _ZERO: Self;
+
+    fn _from_f32(x: f32) -> Self;
+
+    fn _to_f32(self) -> f32;
+}
+
+#[cfg(not(feature = "experimental"))]
+impl F16 for f16 {
+    const _ZERO: Self = f16::ZERO;
+
+    fn _from_f32(x: f32) -> Self {
+        f16::from_f32(x)
+    }
+
+    fn _to_f32(self) -> f32 {
+        self.to_f32()
+    }
+}
+
+#[cfg(feature = "experimental")]
+impl F16 for f16 {
+    const _ZERO: Self = 0.0;
+
+    fn _from_f32(x: f32) -> Self {
+        x as _
+    }
+
+    fn _to_f32(self) -> f32 {
+        self as _
+    }
+}
 
 pub trait Floating:
     Copy + Send + Sync + std::fmt::Debug + Default + 'static + PartialEq + PartialOrd
