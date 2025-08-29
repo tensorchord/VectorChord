@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::collector::CollectorSender;
+use crate::collector::{CollectorSender, SendVector};
 use crate::index::fetcher::*;
 use crate::index::opclass::Sphere;
 use crate::index::scanners::{Io, SearchBuilder};
@@ -110,7 +110,7 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
-        sender.send_vchordrq(opfamily, vector.clone());
+        let vector_send = SendVector::Vchordrq(vector.clone());
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };
@@ -692,6 +692,7 @@ impl SearchBuilder for DefaultBuilder {
         } else {
             iter
         };
+        sender.send(&(vector_send.to_string()));
         Box::new(iter.map(move |(distance, pointer)| {
             let (key, _) = pointer_to_kv(pointer);
             (distance, key, recheck)

@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::collector::QueryCollector;
+use crate::collector::worker::{delete_database, delete_index};
 
 static mut PREV_OBJECT_ACCESS: pgrx::pg_sys::object_access_hook_type = None;
 
@@ -33,9 +33,13 @@ unsafe extern "C-unwind" fn collector_object_access(
             });
         }
         if access == pgrx::pg_sys::ObjectAccessType::OAT_DROP
+            && class_id == pgrx::pg_sys::DatabaseRelationId
+        {
+            let _ = delete_database(object_id.to_u32());
+        } else if access == pgrx::pg_sys::ObjectAccessType::OAT_DROP
             && class_id == pgrx::pg_sys::RelationRelationId
         {
-            QueryCollector::delete(pgrx::pg_sys::MyDatabaseId.to_u32(), object_id.to_u32());
+            let _ = delete_index(pgrx::pg_sys::MyDatabaseId.to_u32(), object_id.to_u32());
         }
     }
 }

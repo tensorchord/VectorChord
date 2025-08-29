@@ -461,10 +461,10 @@ pub unsafe extern "C-unwind" fn amrescan(
             rate => Some(rate),
         };
         let sender = DefaultSender {
+            enable: gucs::vchordrq_log_queries_enable(),
             send_prob,
-            max_records: gucs::vchordrq_max_logged_queries_per_index(),
+            max_records: gucs::vchordrq_log_queries_max_per_index(),
             database_oid: pgrx::pg_sys::MyDatabaseId.to_u32(),
-            table_oid: (*(*scan).heapRelation).rd_id.to_u32(),
             index_oid: (*(*scan).indexRelation).rd_id.to_u32(),
         };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.

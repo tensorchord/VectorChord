@@ -12,8 +12,8 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-pub use types::{CollectorSender, DefaultSender, Query};
-pub use worker::QueryCollector;
+pub use types::{CollectorSender, DefaultSender, SendVector};
+pub use worker::load_all;
 
 mod hook;
 mod types;
@@ -21,5 +21,4 @@ mod worker;
 
 pub fn init() {
     hook::init();
-    QueryCollector::init();
 }

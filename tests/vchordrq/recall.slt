@@ -63,16 +63,21 @@ statement ok
 CREATE INDEX idx2 ON t_dim4 USING vchordrq (val vector_l2_ops);
 
 statement ok
-ALTER SYSTEM SET vchordrq.max_logged_queries_per_index = 1;
+ALTER SYSTEM SET vchordrq.log_queries_max_per_index = 1;
 
 statement ok
 ALTER SYSTEM SET vchordrq.log_queries_sample_rate = 1;
 
 statement ok
-SELECT pg_reload_conf();
+ALTER SYSTEM SET vchordrq.log_queries_enable = on;
 
 statement ok
-SELECT pg_sleep(1);
+SELECT pg_reload_conf();
+
+query I retry 5 backoff 1s
+SHOW vchordrq.log_queries_enable;
+----
+on
 
 statement ok
 SELECT * from t ORDER BY val <-> '[0.50, 0.25, 1.00]';
@@ -81,14 +86,14 @@ statement ok
 SELECT * from t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0]';
 
 query I
-SELECT simplified_query from vchordrq_logged_queries('idx1');
+SELECT vector_text from vchordrq_logged_queries('idx1');
 ----
-SELECT ctid from public.t ORDER BY val <-> '[0.5000, 0.2500, 1.0000]'
+'[0.5000, 0.2500, 1.0000]'
 
 query I
-SELECT simplified_query from vchordrq_logged_queries('idx2');
+SELECT vector_text from vchordrq_logged_queries('idx2');
 ----
-SELECT ctid from public.t_dim4 ORDER BY val <-> '[1.0000, 0.5000, 0.2500, 0.0000]'
+'[1.0000, 0.5000, 0.2500, 0.0000]'
 
 query I
 SELECT COUNT(*) from vchordrq_logged_queries;
@@ -99,15 +104,26 @@ statement ok
 SELECT * from t_dim4 ORDER BY val <-> '[2.00, 1, 0.5, 0]';
 
 query I
-SELECT simplified_query from vchordrq_logged_queries('idx2');
+SELECT vector_text from vchordrq_logged_queries('idx2');
 ----
-SELECT ctid from public.t_dim4 ORDER BY val <-> '[2.0000, 1.0000, 0.5000, 0.0000]'
+'[2.0000, 1.0000, 0.5000, 0.0000]'
 
 query I
 SELECT AVG(recall_value)
-FROM vchordrq_logged_queries('idx2') AS lq,
-LATERAL (
-    SELECT vchordrq_evaluate_query_recall(query=>lq.simplified_query) AS recall_value
+FROM (
+    SELECT
+        vchordrq_evaluate_query_recall(
+            query => format(
+                'SELECT ctid FROM %I.%I ORDER BY %I %s %s LIMIT 10',
+                lq.schema_name,
+                lq.table_name,
+                lq.column_name,
+                lq.operator,
+                lq.vector_text
+            )
+        ) AS recall_value
+    FROM
+        vchordrq_logged_queries('idx2') AS lq
 ) AS eval_results;
 ----
 1
@@ -125,9 +141,9 @@ statement ok
 SELECT id FROM t_expr ORDER BY ARRAY[id::real, id::real, id::real]::vector(3) <-> '[1.0000, 0.5000, 0.2500]' limit 1;
 
 query I
-SELECT column_name, simplified_query from vchordrq_logged_queries('idx3');
+SELECT column_name from vchordrq_logged_queries('idx3');
 ----
-NULL NULL
+NULL
 
 query I
 SELECT vector_text from vchordrq_logged_queries('idx3');
@@ -142,11 +158,19 @@ SELECT vector_text from public.vchordrq_logged_queries('public.idx3');
 ----
 '[1.0000, 0.5000, 0.2500]'
 
+query I
+SELECT COUNT(*) from public.vchordrq_logged_queries;
+----
+3
+
 statement ok
 RESET search_path;
 
 statement ok
-ALTER SYSTEM RESET vchordrq.max_logged_queries_per_index;
+ALTER SYSTEM RESET vchordrq.log_queries_enable;
+
+statement ok
+ALTER SYSTEM RESET vchordrq.log_queries_max_per_index;
 
 statement ok
 ALTER SYSTEM RESET vchordrq.log_queries_sample_rate;

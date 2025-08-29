@@ -11,259 +11,129 @@
 // vectorchord-inquiry@tensorchord.ai
 //
 // Copyright (c) 2025 TensorChord Inc.
-use crate::collector::Query;
-use rusqlite::Connection;
-use std::ffi::CStr;
+use crate::collector::types::{PGLockGuard, Result};
+use std::cell::OnceCell;
+use std::ffi::{CStr, CString};
 use std::fs;
 use std::path::Path;
-use std::sync::Mutex;
 
-const SQLITE_DB_PATH: &str = "vectorchord/collector.db";
 const SQLITE_DATABASE: Option<&CStr> = Some(c"main");
-const SQLITE_TABLE: &CStr = c"collector";
+const COLLECTOR_DIR: &str = "pg_vchord_sample";
+const COLLECTOR_VERSION_PATH: &str = "pg_vchord_sample/VERSION";
+const COLLECTOR_VERSION: u32 = 1;
 
-pub static COLLECTOR: Mutex<Option<Connection>> = Mutex::new(None);
+const MULTI_ACCESS_LOCK: u32 = 0;
 
-pub struct QueryCollector {}
+thread_local! {
+    static GLOBAL_INIT: OnceCell<bool> = const { OnceCell::new() };
+}
 
-impl QueryCollector {
-    pub fn init() {
-        let init_statement = "
-            CREATE TABLE IF NOT EXISTS collector (
-                database_oid INTEGER,
-                table_oid INTEGER,
-                index_oid INTEGER,
-                operator TEXT,
-                vector TEXT,
-                create_at REAL
-            )";
-        let path = Path::new(SQLITE_DB_PATH);
-        if let Some(parent_dir) = path.parent() {
-            let _ = fs::create_dir_all(parent_dir);
-        }
-        let connection = match Connection::open(SQLITE_DB_PATH) {
-            Ok(conn) => conn,
-            Err(e) => {
-                pgrx::warning!("Collector: Error opening database: {}", e);
-                return;
-            }
-        };
-        verify_or_destroy(&connection);
-        match connection.execute(init_statement, ()) {
-            Ok(_) => COLLECTOR.lock().unwrap().replace(connection),
-            Err(e) => {
-                pgrx::warning!("Collector: Error initializing database: {}", e);
-                None
-            }
-        };
-    }
-    pub fn push(query: Query, max_length: u32) {
-        let maintain_statement = "DELETE FROM collector
-            WHERE rowid NOT IN (SELECT rowid FROM collector WHERE database_oid = ?1 AND index_oid = ?2
-            ORDER BY create_at DESC LIMIT ?3) AND database_oid = ?1 AND index_oid = ?2";
-        let insert_statement = "INSERT INTO collector
-            (database_oid, table_oid, index_oid, operator, vector, create_at) VALUES (?1, ?2, ?3, ?4, ?5, unixepoch('subsec'))";
-        let mut lock = match COLLECTOR.try_lock() {
-            Ok(lock) => lock,
-            Err(e) => {
-                pgrx::warning!(
-                    "Collector: Failed to acquire lock on collector connection: {}",
-                    e
-                );
-                return;
-            }
-        };
-        let connection = match lock.as_mut() {
-            Some(conn) => conn,
-            None => {
-                pgrx::warning!("Collector: No collector connection available");
-                return;
-            }
-        };
-        let tx = match connection.transaction() {
-            Ok(t) => t,
-            Err(e) => {
-                pgrx::warning!("Collector: Error starting transaction: {}", e);
-                return;
-            }
-        };
-        let insert = tx.execute(
-            insert_statement,
-            (
-                query.database_oid,
-                query.table_oid,
-                query.index_oid,
-                query.operator.to_string(),
-                query.vector_text,
-            ),
-        );
-        if let Err(e) = insert {
-            pgrx::warning!("Collector: Error inserting query: {}", e);
-            return;
-        }
-        let maintain = tx.execute(
-            maintain_statement,
-            (query.database_oid, query.index_oid, max_length),
-        );
-        if let Err(e) = maintain {
-            pgrx::warning!("Collector: Error maintaining queries: {}", e);
-            return;
-        }
-        if let Err(e) = tx.commit() {
-            pgrx::warning!("Collector: Error committing transaction: {}", e);
+fn init() -> Result<bool> {
+    let path = Path::new(COLLECTOR_VERSION_PATH);
+    if path.exists() && path.is_file() {
+        let content = fs::read_to_string(path)?;
+        if content.trim().parse::<u32>()? == COLLECTOR_VERSION {
+            return Ok(true);
         }
     }
-    pub fn delete(database_oid: u32, index_oid: u32) {
-        let lock = COLLECTOR.lock().unwrap();
-        let connection = match lock.as_ref() {
-            Some(conn) => conn,
-            None => {
-                pgrx::warning!("Collector: No collector connection available");
-                return;
-            }
-        };
-        let drop_statement = "DELETE FROM collector WHERE database_oid = ?1 AND index_oid = ?2";
-        let _ = connection
-            .execute(drop_statement, (database_oid, index_oid))
-            .map_err(|e| {
-                pgrx::warning!("Collector: Error dropping queries: {}", e);
-                e
-            });
+    match fs::remove_dir_all(COLLECTOR_DIR) {
+        Ok(_) => (),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+        Err(e) => return Err(e.into()),
+    };
+    fs::create_dir_all(COLLECTOR_DIR)?;
+    fs::write(path, format!("{COLLECTOR_VERSION}"))?;
+    Ok(true)
+}
+
+fn sqlite_connect(
+    create: bool,
+    database_oid: u32,
+    index_oid: u32,
+) -> Result<Option<rusqlite::Connection>> {
+    if !GLOBAL_INIT.with(|c| *c.get_or_init(|| init().unwrap_or(false))) {
+        return Ok(None);
     }
-    pub fn load_all(database_oid: u32, index_oid: u32) -> Vec<Query> {
-        let lock = COLLECTOR.lock().unwrap();
-        let connection = match lock.as_ref() {
-            Some(conn) => conn,
-            None => {
-                pgrx::warning!("Collector: No collector connection available");
-                return Vec::new();
-            }
-        };
-        let load_statement =
-            "SELECT database_oid, table_oid, index_oid, operator, vector FROM collector
-            WHERE database_oid = ?1 AND index_oid = ?2";
-        let mut stmt = match connection.prepare_cached(load_statement) {
-            Ok(s) => s,
-            Err(e) => {
-                pgrx::warning!("Collector: Error preparing statement: {}", e);
-                return Vec::new();
-            }
-        };
-        let mut rows = match stmt.query([database_oid, index_oid]) {
-            Ok(r) => r,
-            Err(e) => {
-                pgrx::warning!("Collector: Error executing query: {}", e);
-                return Vec::new();
-            }
-        };
-        let mut result = Vec::new();
-        while let Some(row) = rows.next().unwrap_or(None) {
-            let database_oid = match row.get(0) {
-                Ok(oid) => oid,
-                Err(e) => {
-                    pgrx::warning!("Collector: Error getting database_oid: {}", e);
-                    continue;
-                }
-            };
-            let table_oid = match row.get::<usize, u32>(1) {
-                Ok(oid) => oid,
-                Err(e) => {
-                    pgrx::warning!("Collector: Error getting table_oid: {}", e);
-                    continue;
-                }
-            };
-            let index_oid = match row.get::<usize, u32>(2) {
-                Ok(oid) => oid,
-                Err(e) => {
-                    pgrx::warning!("Collector: Error getting index_oid: {}", e);
-                    continue;
-                }
-            };
-            let operator = match row.get::<usize, String>(3).map(|op| op.as_str().try_into()) {
-                Ok(Ok(op)) => op,
-                Ok(Err(e)) => {
-                    pgrx::warning!("Collector: Error converting operator: {}", e);
-                    continue;
-                }
-                Err(e) => {
-                    pgrx::warning!("Collector: Error getting index_oid: {}", e);
-                    continue;
-                }
-            };
-            let vector_text = match row.get::<usize, String>(4) {
-                Ok(text) => text,
-                Err(e) => {
-                    pgrx::warning!("Collector: Error getting vector_text: {}", e);
-                    continue;
-                }
-            };
-            result.push(Query {
-                database_oid,
-                table_oid,
-                index_oid,
-                operator,
-                vector_text,
-            });
-        }
-        result
+    let p = format!("pg_vchord_sample/database_{database_oid}.sqlite");
+    let path = Path::new(&p);
+    if !create && !path.exists() {
+        return Ok(None);
+    }
+    let connection = rusqlite::Connection::open(path)?;
+    let table_name = CString::new(format!("index_{index_oid}")).unwrap();
+    let table_exists = connection
+        .table_exists(SQLITE_DATABASE, &table_name)
+        .unwrap_or(false);
+    if table_exists {
+        return Ok(Some(connection));
+    }
+    if !create {
+        return Ok(None);
+    }
+    let init_statement = format!(
+        "CREATE TABLE IF NOT EXISTS index_{index_oid} (
+            sample TEXT,
+            create_at REAL
+        )"
+    );
+    connection.execute(&init_statement, ())?;
+    Ok(Some(connection))
+}
+
+pub fn push(database_oid: u32, index_oid: u32, sample: &str, max_length: u32) -> Result<()> {
+    let multi_access_lock = PGLockGuard::new(MULTI_ACCESS_LOCK, false);
+    if !multi_access_lock.is_success() {
+        return Ok(());
+    }
+    let mut conn = match sqlite_connect(true, database_oid, index_oid)? {
+        Some(c) => c,
+        None => return Ok(()),
+    };
+    let maintain_statement = format!("DELETE FROM index_{index_oid}
+                WHERE rowid NOT IN (SELECT rowid FROM index_{index_oid} ORDER BY create_at DESC LIMIT ?1)");
+    let insert_statement = format!(
+        "INSERT INTO index_{index_oid} (sample, create_at) VALUES (?1, unixepoch('subsec'))"
+    );
+    let tx = conn.transaction()?;
+    tx.execute(&insert_statement, (sample,))?;
+    tx.execute(&maintain_statement, (max_length,))?;
+    tx.commit()?;
+    Ok(())
+}
+
+pub fn delete_index(database_oid: u32, index_oid: u32) -> Result<()> {
+    let _multi_access_lock = PGLockGuard::new(MULTI_ACCESS_LOCK, true);
+    let conn = match sqlite_connect(false, database_oid, index_oid)? {
+        Some(c) => c,
+        None => return Ok(()),
+    };
+    let drop_statement = format!("DROP TABLE IF EXISTS index_{index_oid}");
+    conn.execute(&drop_statement, ())?;
+    Ok(())
+}
+
+pub fn delete_database(database_oid: u32) -> Result<()> {
+    let _multi_access_lock = PGLockGuard::new(MULTI_ACCESS_LOCK, true);
+    match fs::remove_file(format!("pg_vchord_sample/database_{database_oid}.sqlite")) {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
     }
 }
 
-fn verify_or_destroy(connection: &Connection) {
-    if connection.table_exists(SQLITE_DATABASE, SQLITE_TABLE) != Ok(true) {
-        return;
+pub fn load_all(database_oid: u32, index_oid: u32) -> Result<Vec<String>> {
+    let _multi_access_lock = PGLockGuard::new(MULTI_ACCESS_LOCK, true);
+    let conn = match sqlite_connect(false, database_oid, index_oid)? {
+        Some(c) => c,
+        None => return Ok(vec![]),
+    };
+    let load_statement = format!("SELECT sample FROM index_{index_oid} ORDER BY create_at DESC");
+    let mut stmt = conn.prepare_cached(&load_statement)?;
+    let mut rows = stmt.query(())?;
+    let mut result = Vec::new();
+    while let Some(row) = rows.next().unwrap_or(None) {
+        let sample = row.get::<usize, String>(0)?;
+        result.push(sample);
     }
-    struct ColumnSpec<'a> {
-        name: &'a CStr,
-        expected_type: &'a CStr,
-    }
-
-    const EXPECTED_COLUMNS: &[ColumnSpec] = &[
-        ColumnSpec {
-            name: c"database_oid",
-            expected_type: c"INTEGER",
-        },
-        ColumnSpec {
-            name: c"table_oid",
-            expected_type: c"INTEGER",
-        },
-        ColumnSpec {
-            name: c"index_oid",
-            expected_type: c"INTEGER",
-        },
-        ColumnSpec {
-            name: c"operator",
-            expected_type: c"TEXT",
-        },
-        ColumnSpec {
-            name: c"vector",
-            expected_type: c"TEXT",
-        },
-        ColumnSpec {
-            name: c"create_at",
-            expected_type: c"REAL",
-        },
-    ];
-
-    const COMMON_METADATA_SUFFIX: (Option<&CStr>, bool, bool, bool) =
-        (Some(c"BINARY"), false, false, false);
-
-    for column_spec in EXPECTED_COLUMNS {
-        let expected = Ok((
-            Some(column_spec.expected_type),
-            COMMON_METADATA_SUFFIX.0,
-            COMMON_METADATA_SUFFIX.1,
-            COMMON_METADATA_SUFFIX.2,
-            COMMON_METADATA_SUFFIX.3,
-        ));
-        if connection.column_metadata(SQLITE_DATABASE, SQLITE_TABLE, column_spec.name) != expected {
-            pgrx::warning!("Collector: Invalid collector database schema, destroying the database");
-            let drop_statement = "DROP TABLE collector";
-            let _ = connection.execute(drop_statement, ()).map_err(|e| {
-                pgrx::warning!("Collector: Error dropping table: {}", e);
-                e
-            });
-            return;
-        }
-    }
+    Ok(result)
 }

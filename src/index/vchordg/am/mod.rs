@@ -375,10 +375,10 @@ pub unsafe extern "C-unwind" fn amrescan(
         };
         // Query collector is disable for vchordg indexes for now.
         let sender = DefaultSender {
+            enable: false,
             send_prob: None,
             max_records: 0,
             database_oid: pgrx::pg_sys::MyDatabaseId.to_u32(),
-            table_oid: (*(*scan).heapRelation).rd_id.to_u32(),
             index_oid: (*(*scan).indexRelation).rd_id.to_u32(),
         };
         // PAY ATTENTATION: `scanning` references `bump`, so `scanning` must be dropped before `bump`.

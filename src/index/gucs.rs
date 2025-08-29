@@ -27,7 +27,9 @@ pub enum PostgresIo {
     ReadStream,
 }
 
-static VCHORDRQ_MAX_LOGGED_QUERIES_PER_INDEX: GucSetting<i32> = GucSetting::<i32>::new(0);
+static VCHORDRQ_LOG_QUERIES_ENABLE: GucSetting<bool> = GucSetting::<bool>::new(false);
+
+static VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX: GucSetting<i32> = GucSetting::<i32>::new(0);
 
 static VCHORDRQ_LOG_QUERIES_SAMPLE_RATE: GucSetting<f64> = GucSetting::<f64>::new(0.0);
 
@@ -162,11 +164,19 @@ pub fn init() {
         GucContext::Userset,
         GucFlags::default(),
     );
+    GucRegistry::define_bool_guc(
+        c"vchordrq.log_queries_enable",
+        c"`log_queries_enable` argument of vchordrq.",
+        c"`log_queries_enable` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_ENABLE,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
     GucRegistry::define_int_guc(
-        c"vchordrq.max_logged_queries_per_index",
-        c"`max_logged_queries_per_index` argument of vchordrq.",
-        c"`max_logged_queries_per_index` argument of vchordrq.",
-        &VCHORDRQ_MAX_LOGGED_QUERIES_PER_INDEX,
+        c"vchordrq.log_queries_max_per_index",
+        c"`log_queries_max_per_index` argument of vchordrq.",
+        c"`log_queries_max_per_index` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX,
         0,
         65535,
         GucContext::Userset,
@@ -356,8 +366,12 @@ pub fn vchordrq_io_rerank() -> Io {
     }
 }
 
-pub fn vchordrq_max_logged_queries_per_index() -> u32 {
-    VCHORDRQ_MAX_LOGGED_QUERIES_PER_INDEX.get() as u32
+pub fn vchordrq_log_queries_enable() -> bool {
+    VCHORDRQ_LOG_QUERIES_ENABLE.get()
+}
+
+pub fn vchordrq_log_queries_max_per_index() -> u32 {
+    VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX.get() as u32
 }
 
 pub fn vchordrq_log_queries_sample_rate() -> f64 {
