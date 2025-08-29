@@ -16,6 +16,7 @@
 #![allow(unused_crate_dependencies)]
 #![warn(ffi_unwind_calls)]
 
+mod collector;
 mod datatype;
 mod index;
 mod upgrade;
@@ -53,6 +54,7 @@ unsafe extern "C-unwind" fn _pg_init() {
     }
     IS_MAIN.set(true);
     index::init();
+    collector::init();
     unsafe {
         #[cfg(any(feature = "pg13", feature = "pg14"))]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchord".as_ptr());

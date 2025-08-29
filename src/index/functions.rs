@@ -12,7 +12,9 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+use crate::collector::load_all;
 use crate::index::storage::PostgresRelation;
+use pgrx::iter::SetOfIterator;
 use pgrx::pg_sys::Oid;
 use pgrx_catalog::{PgAm, PgClass, PgClassRelkind};
 
@@ -83,4 +85,34 @@ impl Drop for Index {
             pgrx::pg_sys::index_close(self.raw, self.lockmode);
         }
     }
+}
+
+#[pgrx::pg_extern(sql = "")]
+fn _vchordrq_logged_samples(indexrelid: Oid) -> SetOfIterator<'static, String> {
+    let pg_am = PgAm::search_amname(c"vchordrq").unwrap();
+    let Some(pg_am) = pg_am.get() else {
+        pgrx::error!("vchord is not installed");
+    };
+    let pg_class = PgClass::search_reloid(indexrelid).unwrap();
+    let Some(pg_class) = pg_class.get() else {
+        pgrx::error!("the relation does not exist");
+    };
+    if pg_class.relkind() != PgClassRelkind::Index {
+        pgrx::error!("the relation {:?} is not an index", pg_class.relname());
+    }
+    if pg_class.relam() != pg_am.oid() {
+        pgrx::error!("the index {:?} is not a vchordrq index", pg_class.relname());
+    }
+    // The user must have access to the index, if not, raise an error from Postgres.
+    let _relation = Index::open(indexrelid, pgrx::pg_sys::AccessShareLock as _);
+
+    let database_oid = unsafe { pgrx::pg_sys::MyDatabaseId.to_u32() };
+    let queries = match load_all(database_oid, indexrelid.to_u32()) {
+        Ok(v) => v,
+        Err(e) => {
+            pgrx::warning!("Collector: Error loading samples: {}", e);
+            vec![]
+        }
+    };
+    SetOfIterator::new(queries)
 }

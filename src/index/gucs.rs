@@ -27,6 +27,12 @@ pub enum PostgresIo {
     ReadStream,
 }
 
+static VCHORDRQ_LOG_QUERIES_ENABLE: GucSetting<bool> = GucSetting::<bool>::new(false);
+
+static VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX: GucSetting<i32> = GucSetting::<i32>::new(0);
+
+static VCHORDRQ_LOG_QUERIES_SAMPLE_RATE: GucSetting<f64> = GucSetting::<f64>::new(0.0);
+
 static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
@@ -155,6 +161,34 @@ pub fn init() {
         c"`io_rerank` argument of vchordrq.",
         c"`io_rerank` argument of vchordrq.",
         &VCHORDRQ_IO_RERANK,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_bool_guc(
+        c"vchordrq.log_queries_enable",
+        c"`log_queries_enable` argument of vchordrq.",
+        c"`log_queries_enable` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_ENABLE,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.log_queries_max_per_index",
+        c"`log_queries_max_per_index` argument of vchordrq.",
+        c"`log_queries_max_per_index` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX,
+        0,
+        65535,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_float_guc(
+        c"vchordrq.log_queries_sample_rate",
+        c"`log_queries_sample_rate` argument of vchordrq.",
+        c"`log_queries_sample_rate` argument of vchordrq.",
+        &VCHORDRQ_LOG_QUERIES_SAMPLE_RATE,
+        0.0,
+        1.0,
         GucContext::Userset,
         GucFlags::default(),
     );
@@ -330,4 +364,16 @@ pub fn vchordrq_io_rerank() -> Io {
         #[cfg(any(feature = "pg17", feature = "pg18"))]
         PostgresIo::ReadStream => Io::Stream,
     }
+}
+
+pub fn vchordrq_log_queries_enable() -> bool {
+    VCHORDRQ_LOG_QUERIES_ENABLE.get()
+}
+
+pub fn vchordrq_log_queries_max_per_index() -> u32 {
+    VCHORDRQ_LOG_QUERIES_MAX_PER_INDEX.get() as u32
+}
+
+pub fn vchordrq_log_queries_sample_rate() -> f64 {
+    VCHORDRQ_LOG_QUERIES_SAMPLE_RATE.get()
 }
