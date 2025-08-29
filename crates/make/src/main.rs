@@ -36,14 +36,12 @@ enum Commands {
 struct BuildArgs {
     #[arg(short, long)]
     output: String,
-    #[arg(long, default_value = "release")]
-    profile: String,
-    #[arg(long, default_value = target_triple::TARGET)]
+    #[arg(long, default_value = target_triple::TARGET, env = "TARGET")]
     target: String,
-    #[arg(long)]
+    #[arg(long, default_value = "release", env = "PROFILE")]
+    profile: String,
+    #[arg(long, env = "RUNNER")]
     runner: Option<String>,
-    #[arg(long, action = clap::ArgAction::SetTrue, env = "EXPERIMENTAL", value_parser = clap::builder::FalseyValueParser::new())]
-    experimental: bool,
 }
 
 struct TargetSpecificInformation {
@@ -51,6 +49,7 @@ struct TargetSpecificInformation {
     is_windows: bool,
     is_emscripten: bool,
     is_unix: bool,
+    is_powerpc64: bool,
 }
 
 impl TargetSpecificInformation {
@@ -156,6 +155,7 @@ fn target_specific_information(target: &str) -> Result<TargetSpecificInformation
         is_unix: cfgs.contains("target_family=\"unix\""),
         is_emscripten: cfgs.contains("target_os=\"emscripten\""),
         is_windows: cfgs.contains("target_os=\"windows\""),
+        is_powerpc64: cfgs.contains("target_arch=\"powerpc64\""),
     })
 }
 
@@ -165,20 +165,13 @@ fn build(
     tsi: &TargetSpecificInformation,
     profile: &str,
     target: &str,
-    experimental: bool,
 ) -> Result<PathBuf, Box<dyn Error>> {
     let mut command = Command::new("cargo");
     command
         .args(["build", "-p", "vchord", "--lib"])
         .args(["--profile", profile])
         .args(["--target", target])
-        .args(["--features".into(), {
-            let mut features = vec![pg_version];
-            if experimental {
-                features.push("simd/experimental");
-            }
-            features.join(",")
-        }])
+        .args(["--features", pg_version])
         .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -243,26 +236,39 @@ fn generate(
     profile: &str,
     target: &str,
     exports: Vec<String>,
-    experimental: bool,
+    postmaster: impl AsRef<Path>,
 ) -> Result<String, Box<dyn Error>> {
+    let imports = if tsi.is_powerpc64 {
+        let postmaster = postmaster.as_ref();
+        eprintln!("Reading {postmaster:?}");
+        let contents = std::fs::read(postmaster)?;
+        let object = object::File::parse(contents.as_slice())?;
+        object
+            .exports()?
+            .into_iter()
+            .flat_map(|x| std::str::from_utf8(x.name()))
+            .filter(|x| !["_start", "_IO_stdin_used", "main"].contains(x))
+            .map(str::to_string)
+            .collect::<Vec<String>>()
+    } else {
+        Vec::new()
+    };
     let pgrx_embed = std::env::temp_dir().join("VCHORD_PGRX_EMBED");
     eprintln!("Writing {pgrx_embed:?}");
     std::fs::write(
         &pgrx_embed,
-        format!("crate::schema_generation!({});", exports.join(" ")),
+        format!(
+            "crate::schema_generation!({}; {});",
+            exports.join(" "),
+            imports.join(" ")
+        ),
     )?;
     let mut command = Command::new("cargo");
     command
         .args(["rustc", "-p", "vchord", "--bin", "pgrx_embed_vchord"])
         .args(["--profile", profile])
         .args(["--target", target])
-        .args(["--features".into(), {
-            let mut features = vec![pg_version];
-            if experimental {
-                features.push("simd/experimental");
-            }
-            features.join(",")
-        }])
+        .args(["--features", pg_version])
         .env("PGRX_PG_CONFIG_PATH", pg_config.as_ref())
         .args(["--", "--cfg", "pgrx_embed"])
         .env("PGRX_EMBED", &pgrx_embed)
@@ -341,10 +347,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     match cli.command {
         Commands::Build(BuildArgs {
             output,
-            profile,
             target,
+            profile,
             runner,
-            experimental,
         }) => {
             let runner = runner.and_then(|runner| shlex::split(&runner));
             let path = if let Some(value) = var_os("PGRX_PG_CONFIG_PATH") {
@@ -367,8 +372,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     return Err("PostgreSQL version is invalid.".into());
                 }
             };
+            let postmaster = format!("{}/postgres", pg_config["BINDIR"]);
             let tsi = target_specific_information(&target)?;
-            let obj = build(&path, &pg_version, &tsi, &profile, &target, experimental)?;
+            let obj = build(&path, &pg_version, &tsi, &profile, &target)?;
             let pkglibdir = format!("{output}/pkglibdir");
             let sharedir = format!("{output}/sharedir");
             let sharedir_extension = format!("{sharedir}/extension");
@@ -413,7 +419,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         &profile,
                         &target,
                         exports,
-                        experimental,
+                        postmaster,
                     )?,
                     format!("{sharedir_extension}/vchord--0.0.0.sql"),
                     false,

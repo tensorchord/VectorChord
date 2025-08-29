@@ -150,7 +150,7 @@ mod reduce_or_of_is_zero_x {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_or_of_is_zero_x(this: &[f16]) -> bool {
         for &x in this {
@@ -168,17 +168,17 @@ mod reduce_sum_of_x {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_sum_of_x(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x = 0.0f32;
         for i in 0..n {
-            #[cfg(not(feature = "experimental"))]
+            #[cfg(not(all(feature = "experimental_math", feature = "experimental_f16")))]
             {
                 x += this[i]._to_f32();
             }
-            #[cfg(feature = "experimental")]
+            #[cfg(all(feature = "experimental_math", feature = "experimental_f16"))]
             {
                 x = x.algebraic_add(this[i]._to_f32());
             }
@@ -193,17 +193,17 @@ mod reduce_sum_of_abs_x {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_sum_of_abs_x(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x = 0.0f32;
         for i in 0..n {
-            #[cfg(not(feature = "experimental"))]
+            #[cfg(not(all(feature = "experimental_math", feature = "experimental_f16")))]
             {
                 x += this[i]._to_f32().abs();
             }
-            #[cfg(feature = "experimental")]
+            #[cfg(all(feature = "experimental_math", feature = "experimental_f16"))]
             {
                 x = x.algebraic_add(this[i]._to_f32().abs());
             }
@@ -218,17 +218,17 @@ mod reduce_sum_of_x2 {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_sum_of_x2(this: &[f16]) -> f32 {
         let n = this.len();
         let mut x2 = 0.0f32;
         for i in 0..n {
-            #[cfg(not(feature = "experimental"))]
+            #[cfg(not(all(feature = "experimental_math", feature = "experimental_f16")))]
             {
                 x2 += this[i]._to_f32() * this[i]._to_f32();
             }
-            #[cfg(feature = "experimental")]
+            #[cfg(all(feature = "experimental_math", feature = "experimental_f16"))]
             {
                 x2 = x2.algebraic_add(this[i]._to_f32().algebraic_mul(this[i]._to_f32()));
             }
@@ -243,7 +243,7 @@ mod reduce_min_max_of_x {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_min_max_of_x(this: &[f16]) -> (f32, f32) {
         let mut min = f32::INFINITY;
@@ -520,17 +520,17 @@ mod reduce_sum_of_xy {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1")]
     pub fn reduce_sum_of_xy(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
         let mut xy = 0.0f32;
         for i in 0..n {
-            #[cfg(not(feature = "experimental"))]
+            #[cfg(not(all(feature = "experimental_math", feature = "experimental_f16")))]
             {
                 xy += lhs[i]._to_f32() * rhs[i]._to_f32();
             }
-            #[cfg(feature = "experimental")]
+            #[cfg(all(feature = "experimental_math", feature = "experimental_f16"))]
             {
                 xy = xy.algebraic_add(lhs[i]._to_f32().algebraic_mul(rhs[i]._to_f32()));
             }
@@ -810,18 +810,18 @@ mod reduce_sum_of_d2 {
         }
     }
 
-    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7")]
+    #[crate::multiversion(@"v4:avx512fp16", @"v4", @"v3", #[cfg(target_endian = "little")] @"a3.512", @"a2:fp16", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1")]
     pub fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {
         assert!(lhs.len() == rhs.len());
         let n = lhs.len();
         let mut d2 = 0.0_f32;
         for i in 0..n {
-            #[cfg(not(feature = "experimental"))]
+            #[cfg(not(all(feature = "experimental_math", feature = "experimental_f16")))]
             {
                 let d = lhs[i]._to_f32() - rhs[i]._to_f32();
                 d2 += d * d;
             }
-            #[cfg(feature = "experimental")]
+            #[cfg(all(feature = "experimental_math", feature = "experimental_f16"))]
             {
                 let d = lhs[i]._to_f32().algebraic_sub(rhs[i]._to_f32());
                 d2 = d2.algebraic_add(d.algebraic_mul(d));
@@ -838,7 +838,7 @@ mod reduce_sum_of_xy_sparse {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {
         use std::cmp::Ordering;
@@ -873,7 +873,7 @@ mod reduce_sum_of_d2_sparse {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {
         use std::cmp::Ordering;
@@ -914,7 +914,7 @@ mod vector_add {
     use crate::f16;
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_add(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
@@ -936,7 +936,7 @@ mod vector_add_inplace {
     use crate::f16;
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_add_inplace(lhs: &mut [f16], rhs: &[f16]) {
         assert_eq!(lhs.len(), rhs.len());
@@ -951,7 +951,7 @@ mod vector_sub {
     use crate::f16;
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_sub(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
@@ -973,7 +973,7 @@ mod vector_mul {
     use crate::f16;
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_mul(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {
         assert_eq!(lhs.len(), rhs.len());
@@ -995,7 +995,7 @@ mod vector_mul_scalar {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_mul_scalar(lhs: &[f16], rhs: f32) -> Vec<f16> {
         let rhs = f16::_from_f32(rhs);
@@ -1017,7 +1017,7 @@ mod vector_mul_scalar_inplace {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_mul_scalar_inplace(lhs: &mut [f16], rhs: f32) {
         let rhs = f16::_from_f32(rhs);
@@ -1032,7 +1032,7 @@ mod vector_abs_inplace {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_abs_inplace(this: &mut [f16]) {
         let n = this.len();
@@ -1046,7 +1046,7 @@ mod vector_from_f32 {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_from_f32(this: &[f32]) -> Vec<f16> {
         let n = this.len();
@@ -1067,7 +1067,7 @@ mod vector_to_f32 {
     use crate::{F16, f16};
 
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn vector_to_f32(this: &[f16]) -> Vec<f32> {
         let n = this.len();

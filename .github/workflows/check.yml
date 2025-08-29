@@ -147,18 +147,18 @@ jobs:
           if [ "$(uname -m)" == "x86_64" ]; then
             cargo \
               --config 'target.'\''cfg(all())'\''.runner = ["/opt/sde/sde64", "-spr", "--"]' \
-              test -p simd -- --nocapture
+              test -p simd -- --no-capture
           fi
           if [ "$(uname -m)" == "aarch64" ]; then
             cargo \
               --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=16"]' \
-              test -p simd -- --nocapture
+              test -p simd -- --no-capture
             cargo \
               --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=32"]' \
-              test -p simd -- --nocapture
+              test -p simd -- --no-capture
             cargo \
               --config 'target.'\''cfg(all())'\''.runner = ["qemu-aarch64-static", "-cpu", "max,sve-default-vector-length=64"]' \
-              test -p simd -- --nocapture
+              test -p simd -- --no-capture
           fi
 
   psql:
@@ -225,6 +225,14 @@ jobs:
           make PG_CONFIG=$PG_CONFIG PROFILE=dev build
           sudo make PG_CONFIG=$PG_CONFIG install
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-gnu
+          path: ./build/raw
+          compression-level: 9
+          retention-days: 14
+
       - name: Service
         run: |
           sudo systemctl start postgresql
@@ -238,14 +246,6 @@ jobs:
           if [ "${{ matrix.version }}" = "17" ]; then
             sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
           fi
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-gnu
-          path: ./build/raw
-          compression-level: 9
-          retention-days: 14
 
   psql_macos:
     if: |
@@ -308,6 +308,14 @@ jobs:
           make PG_CONFIG=$PG_CONFIG PROFILE=dev build
           sudo make PG_CONFIG=$PG_CONFIG install
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin
+          path: ./build/raw
+          compression-level: 9
+          retention-days: 14
+
       - name: Service
         run: |
           brew services start postgresql@${{ matrix.version }}
@@ -323,14 +331,6 @@ jobs:
           if [ "${{ matrix.version }}" = "17" ]; then
             sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
           fi
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin
-          path: ./build/raw
-          compression-level: 9
-          retention-days: 14
 
   psql_windows:
     if: |
@@ -414,6 +414,14 @@ jobs:
           make PG_CONFIG=$env:PG_CONFIG PROFILE=dev build
           make PG_CONFIG=$env:PG_CONFIG install
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-pc-windows-msvc
+          path: ./build/raw
+          compression-level: 9
+          retention-days: 14
+
       - name: Service
         run: |
           'PGBIN','PGDATA','PGROOT', 'PGUSER', 'PGPASSWORD' | ForEach-Object { Remove-Item "env:$_" }
@@ -429,14 +437,6 @@ jobs:
           if ( "${{ matrix.version }}" -eq "17" ) {
             sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordrq/pg17/*.slt'
           }
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-pc-windows-msvc
-          path: ./build/raw
-          compression-level: 9
-          retention-days: 14
 
   psql_alpine:
     if: |
@@ -486,7 +486,7 @@ jobs:
           sudo -iu postgres pg_ctl start -D /var/lib/postgresql/data
           sudo -iu postgres createuser -s -r $USER
           sudo -iu postgres createdb -O $USER $USER
-          sudo -iu postgres psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
+          sudo -iu postgres psql -d $USER -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
           sudo -iu postgres pg_ctl stop -D /var/lib/postgresql/data
 
           mkdir ~/pgvector-install
@@ -522,10 +522,18 @@ jobs:
           make PG_CONFIG=$PG_CONFIG PROFILE=dev build
           sudo make PG_CONFIG=$PG_CONFIG install
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-musl
+          path: ./build/raw
+          compression-level: 9
+          retention-days: 14
+
       - name: Service
         run: |
           sudo -iu postgres pg_ctl start -D /var/lib/postgresql/data
-          psql -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
+          psql -d $USER -U $USER -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
 
       - name: Sqllogictest
         run: |
@@ -536,10 +544,205 @@ jobs:
             sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
           fi
 
+  check_debian:
+    if: |
+      (github.event_name == 'push' && contains(github.event.head_commit.message, 'job: +check_debian')) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, 'job: +check_debian')) ||
+      github.event_name == 'workflow_dispatch'
+
+    strategy:
+      matrix:
+        include:
+          - version: "15"
+            platform: "s390x"
+            clang_triple: "s390x-linux-gnu"
+            rust_triple: "s390x-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "17"
+            platform: "s390x"
+            clang_triple: "s390x-linux-gnu"
+            rust_triple: "s390x-unknown-linux-gnu"
+            gcc_version: "14"
+            debian_version: "trixie"
+          - version: "13"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "14"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "15"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "16"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "17"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
+          - version: "17"
+            platform: "riscv64"
+            clang_triple: "riscv64-linux-gnu"
+            rust_triple: "riscv64gc-unknown-linux-gnu"
+            gcc_version: "14"
+            debian_version: "trixie"
+    runs-on: "ubuntu-24.04"
+
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTUP_AUTO_INSTALL: "0"
+      RUSTC_WRAPPER: "sccache"
+      # RUSTFLAGS: "-Dwarnings"
+      CARGO_TERM_COLOR: "always"
+      RUST_BACKTRACE: "1"
+
+    steps:
+      - name: Set up Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static clang lld
+          sudo systemctl enable --now systemd-binfmt
+          sudo mkdir /sysroot
+          curl -fsSL https://github.com/debuerreotype/docker-debian-artifacts/raw/refs/heads/dist-${{ matrix.platform }}/${{ matrix.debian_version }}/oci/blobs/rootfs.tar.gz | sudo tar -xz -C /sysroot
+          sudo mount --bind /dev /sysroot/dev
+          sudo mount --bind /dev/pts /sysroot/dev/pts
+          sudo mount --bind /etc/resolv.conf /sysroot/etc/resolv.conf
+          sudo mount --bind /proc /sysroot/proc
+          sudo mount --bind /sys /sysroot/sys
+          sudo mount --bind /tmp /sysroot/tmp
+          sudo chroot /sysroot apt-get update
+          sudo chroot /sysroot apt-get install --no-install-recommends -y libc6-dev libgcc-${{ matrix.gcc_version }}-dev
+          sudo chroot /sysroot apt-get install --no-install-recommends -y ca-certificates sudo
+          QEMU_LD_PREFIX=/sysroot
+          QEMU_CPU=max
+          if [ "${{ matrix.platform }}" = "ppc64le" ]; then
+            sudo rm -f /sysroot/lib64/ld64.so.2
+            sudo ln /sysroot/usr/lib/powerpc64le-linux-gnu/ld64.so.2 /sysroot/lib64/ld64.so.2
+            QEMU_CPU=power10
+          fi
+          export QEMU_LD_PREFIX
+          export QEMU_CPU
+          echo QEMU_LD_PREFIX=$QEMU_LD_PREFIX >> $GITHUB_ENV
+          echo QEMU_CPU=$QEMU_CPU >> $GITHUB_ENV
+          echo "Defaults env_keep += \"QEMU_CPU\"" | sudo tee -a /etc/sudoers
+
+          sudo apt-get remove -y '^postgres.*' '^libpq.*'
+          sudo apt-get purge -y '^postgres.*' '^libpq.*'
+          sudo chroot /sysroot apt-get update
+          sudo chroot /sysroot apt-get install --no-install-recommends -y postgresql-common
+          sudo chroot /sysroot /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo chroot /sysroot apt-get install --no-install-recommends -y postgresql-${{ matrix.version }} postgresql-server-dev-${{ matrix.version }}
+          sudo touch /usr/bin/pg_config
+          echo "#!/usr/bin/env bash" | sudo tee -a /usr/bin/pg_config
+          echo "sudo chroot /sysroot pg_config \"\$@\" \\" | sudo tee -a /usr/bin/pg_config
+          echo "    | sed -E 's|^/(.*)$|/sysroot/\1|' \\" | sudo tee -a /usr/bin/pg_config
+          echo "    | sed -E 's|^([A-Z]+) = /(.*)$|\1 = /sysroot/\2|'" | sudo tee -a /usr/bin/pg_config
+          sudo chmod 755 /usr/bin/pg_config
+          pg_config
+
+          echo "local all all trust" | sudo tee /sysroot/etc/postgresql/${{ matrix.version }}/main/pg_hba.conf
+          echo "host all all 127.0.0.1/32 trust" | sudo tee -a /sysroot/etc/postgresql/${{ matrix.version }}/main/pg_hba.conf
+          echo "host all all ::1/128 trust" | sudo tee -a /sysroot/etc/postgresql/${{ matrix.version }}/main/pg_hba.conf
+          sudo chroot /sysroot pg_ctlcluster ${{ matrix.version }} main start
+          sudo chroot /sysroot sudo -iu postgres createuser -s -r $USER
+          sudo chroot /sysroot sudo -iu postgres createdb -O $USER $USER
+          sudo chroot /sysroot sudo -iu postgres psql -d $USER -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
+          sudo chroot /sysroot pg_ctlcluster ${{ matrix.version }} main stop
+
+          mkdir ~/pgvector-install
+          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz | tar -xz -C ~/pgvector-install
+          make -C ~/pgvector-install/pgvector-0.8.0 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS=""
+          sudo make -C ~/pgvector-install/pgvector-0.8.0 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
+
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
+
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch
+        run: |
+          cat << EOF > rust-toolchain.toml
+          [toolchain]
+          channel = "nightly-2025-08-29"
+          components = ["rustfmt", "clippy"]
+          targets = ["${{ matrix.rust_triple }}"]
+          profile = "minimal"
+          EOF
+          mkdir -p .cargo
+          cat << EOF > .cargo/config.toml
+          [target.${{ matrix.rust_triple }}]
+          runner = ["qemu-${{ matrix.platform }}-static"]
+          linker = "clang"
+          rustflags = [
+              "-Clink-arg=-fuse-ld=lld",
+              "-Clink-arg=--target=${{ matrix.clang_triple }}",
+              "-Clink-arg=--sysroot=/sysroot",
+              "-Dwarnings",
+          ]
+          [env]
+          CC_${{ matrix.rust_triple }} = "clang"
+          CFLAGS_${{ matrix.rust_triple }} = "--target=${{ matrix.clang_triple }} --sysroot=/sysroot"
+          BINDGEN_EXTRA_CLANG_ARGS_${{ matrix.rust_triple }} = "--sysroot=/sysroot"
+          [patch.crates-io]
+          pgrx = { git = "https://github.com/tensorchord/pgrx.git", branch = "big-endian" }
+          EOF
+          rustup toolchain install
+
+      - name: Clippy & Test
+        run: |
+          PGRX_PG_CONFIG_PATH=pg_config \
+            cargo clippy --target ${{ matrix.rust_triple }} \
+            --workspace --features pg${{ matrix.version }}
+          PGRX_PG_CONFIG_PATH=pg_config \
+            cargo test --target ${{ matrix.rust_triple }} \
+            --workspace --exclude vchord  --no-fail-fast \
+            -- --no-capture
+
+      - name: Install
+        run: |
+          make \
+            TARGET=${{ matrix.rust_triple }} \
+            PROFILE=dev \
+            RUNNER='qemu-${{ matrix.platform }}-static' \
+            build
+          sudo make install
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-musl
+          name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.clang_triple }}
           path: ./build/raw
           compression-level: 9
           retention-days: 14
+
+      - name: Service
+        run: |
+          sudo chroot /sysroot pg_ctlcluster ${{ matrix.version }} main start
+          sudo chroot /sysroot psql -d $USER -U $USER -c 'CREATE EXTENSION IF NOT EXISTS vchord CASCADE;'
+
+      - name: Sqllogictest
+        run: |
+          sqllogictest --db $USER --user $USER './tests/general/*.slt'
+          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt'
+          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt'
+          if [ "${{ matrix.version }}" = "17" ]; then
+            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
+          fi

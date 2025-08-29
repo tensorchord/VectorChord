@@ -6,7 +6,8 @@ publish = false
 
 [features]
 init = []
-experimental = ["zerocopy/float-nightly"]
+experimental_f16 = ["zerocopy/float-nightly"]
+experimental_math = []
 
 [dependencies]
 simd_macros = { path = "../simd_macros" }

@@ -672,7 +672,7 @@ pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {
 
 mod accu {
     #[crate::multiversion(
-        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7"
+        "v4", "v3", "v2", "a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1"
     )]
     pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {
         for i in 0..32 {

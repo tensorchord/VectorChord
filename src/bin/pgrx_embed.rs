@@ -19,8 +19,17 @@
 
 #[macro_export]
 macro_rules! schema_generation {
-    ($($symbol:ident)*) => {
+    ($($symbol:ident)*; $($import:ident)*) => {
         pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+            $(
+                const _: () = {
+                    #[unsafe(no_mangle)]
+                    unsafe extern "C" fn $import() {
+                        panic!("{} is called unexpectedly.", stringify!($import));
+                    }
+                };
+            )*
+
             extern crate vchord as _;
 
             use ::pgrx::pgrx_sql_entity_graph::ControlFile;

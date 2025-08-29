@@ -311,7 +311,7 @@ mod reduce_sum_of_x_as_u32_y_as_u32 {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1")]
     pub fn reduce_sum_of_x_as_u32_y_as_u32(s: &[u8], t: &[u8]) -> u32 {
         assert_eq!(s.len(), t.len());
         let n = s.len();
@@ -517,7 +517,7 @@ mod reduce_sum_of_x_as_u16 {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1")]
     pub fn reduce_sum_of_x_as_u16(this: &[u8]) -> u16 {
         let n = this.len();
         let mut sum = 0;
@@ -722,7 +722,7 @@ mod reduce_sum_of_x_as_u32 {
         }
     }
 
-    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7")]
+    #[crate::multiversion(@"v4", @"v3", @"v2", @"a2", "z17", "z16", "z15", "z14", "z13", "p9", "p8", "p7", "r1")]
     pub fn reduce_sum_of_x_as_u32(this: &[u8]) -> u32 {
         let n = this.len();
         let mut sum = 0;

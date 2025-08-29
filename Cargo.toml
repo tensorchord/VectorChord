@@ -71,9 +71,11 @@ validator = { version = "0.20.0", features = ["derive"] }
 zerocopy = { version = "0.8.26", features = ["derive"] }
 
 [workspace.lints]
+rust.unknown_lints = "allow"
 # complexity
 clippy.identity_op = "allow"
 clippy.int_plus_one = "allow"
+clippy.manual_is_multiple_of = "allow"
 clippy.nonminimal_bool = "allow"
 clippy.too_many_arguments = "allow"
 clippy.type_complexity = "allow"

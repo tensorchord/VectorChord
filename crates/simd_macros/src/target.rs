@@ -153,4 +153,9 @@ pub const TARGET_CPUS: &[TargetCpu] = &[
         target_arch: "powerpc64",
         target_features: &["altivec", "vsx"],
     },
+    TargetCpu {
+        target_cpu: "r1",
+        target_arch: "riscv64",
+        target_features: &["v"],
+    },
 ];

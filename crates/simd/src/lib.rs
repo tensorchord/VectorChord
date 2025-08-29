@@ -13,14 +13,17 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 #![allow(unsafe_code, internal_features)]
-#![cfg_attr(feature = "experimental", feature(float_algebraic, f16))]
-#![cfg_attr(feature = "experimental", feature(core_intrinsics))]
+#![cfg_attr(feature = "experimental_f16", feature(f16))]
+#![cfg_attr(feature = "experimental_math", feature(float_algebraic))]
 #![cfg_attr(target_arch = "s390x", feature(stdarch_s390x_feature_detection))]
 #![cfg_attr(target_arch = "s390x", feature(s390x_target_feature))]
 #![cfg_attr(target_arch = "s390x", feature(stdarch_s390x))]
 #![cfg_attr(target_arch = "powerpc64", feature(stdarch_powerpc_feature_detection))]
 #![cfg_attr(target_arch = "powerpc64", feature(powerpc_target_feature))]
 #![cfg_attr(target_arch = "powerpc64", feature(stdarch_powerpc))]
+#![cfg_attr(target_arch = "powerpc64", feature(core_intrinsics))]
+#![cfg_attr(target_arch = "riscv64", feature(stdarch_riscv_feature_detection))]
+#![cfg_attr(target_arch = "riscv64", feature(riscv_target_feature))]
 
 mod aligned;
 mod emulate;
@@ -34,10 +37,10 @@ pub mod quantize;
 pub mod rotate;
 pub mod u8;
 
-#[cfg(not(feature = "experimental"))]
+#[cfg(not(feature = "experimental_f16"))]
 pub use half::f16;
 
-#[cfg(feature = "experimental")]
+#[cfg(feature = "experimental_f16")]
 pub use f16;
 
 pub trait F16: Sized {
@@ -48,7 +51,7 @@ pub trait F16: Sized {
     fn _to_f32(self) -> f32;
 }
 
-#[cfg(not(feature = "experimental"))]
+#[cfg(not(feature = "experimental_f16"))]
 impl F16 for f16 {
     const _ZERO: Self = f16::ZERO;
 
@@ -61,7 +64,7 @@ impl F16 for f16 {
     }
 }
 
-#[cfg(feature = "experimental")]
+#[cfg(feature = "experimental_f16")]
 impl F16 for f16 {
     const _ZERO: Self = 0.0;
 
@@ -121,6 +124,9 @@ mod internal {
     #[cfg(target_arch = "powerpc64")]
     simd_macros::define_is_cpu_detected!("powerpc64");
 
+    #[cfg(target_arch = "riscv64")]
+    simd_macros::define_is_cpu_detected!("riscv64");
+
     #[cfg(target_arch = "x86_64")]
     #[allow(unused_imports)]
     pub use is_x86_64_cpu_detected;
@@ -136,6 +142,10 @@ mod internal {
     #[cfg(target_arch = "powerpc64")]
     #[allow(unused_imports)]
     pub use is_powerpc64_cpu_detected;
+
+    #[cfg(target_arch = "riscv64")]
+    #[allow(unused_imports)]
+    pub use is_riscv64_cpu_detected;
 
     #[cfg(target_arch = "x86_64")]
     pub fn is_v4_detected() -> bool {
@@ -291,6 +301,11 @@ mod internal {
         std::arch::is_powerpc64_feature_detected!("altivec")
             && std::arch::is_powerpc64_feature_detected!("vsx")
     }
+
+    #[cfg(target_arch = "riscv64")]
+    pub fn is_r1_detected() -> bool {
+        std::arch::is_riscv_feature_detected!("v")
+    }
 }
 
 pub use simd_macros::{multiversion, target_cpu};
@@ -326,3 +341,7 @@ pub use internal::is_s390x_cpu_detected as is_cpu_detected;
 #[cfg(target_arch = "powerpc64")]
 #[allow(unused_imports)]
 pub use internal::is_powerpc64_cpu_detected as is_cpu_detected;
+
+#[cfg(target_arch = "riscv64")]
+#[allow(unused_imports)]
+pub use internal::is_riscv64_cpu_detected as is_cpu_detected;
