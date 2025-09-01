@@ -20,7 +20,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     let mut rng = ChaCha12Rng::from_seed([7; 32]);
-    let bits = (0..262144).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
+    let mut bits = (0..262144).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
+    if var("CARGO_CFG_TARGET_ENDIAN")?.as_str() == "big" {
+        for chunk in bits.as_chunks_mut::<8>().0 {
+            chunk.reverse();
+        }
+    }
     let out_dir = var("OUT_DIR")?;
     std::fs::write(PathBuf::from(out_dir).join("bits"), bits)?;
     Ok(())
