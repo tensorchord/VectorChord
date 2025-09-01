@@ -633,6 +633,8 @@ jobs:
           if [ "${{ matrix.platform }}" = "ppc64le" ]; then
             sudo rm -f /sysroot/lib64/ld64.so.2
             sudo ln /sysroot/usr/lib/powerpc64le-linux-gnu/ld64.so.2 /sysroot/lib64/ld64.so.2
+            sudo rm -f /sysroot/usr/lib/powerpc64le-linux-gnu/libm.so
+            sudo ln /sysroot/lib/powerpc64le-linux-gnu/libm.so.6 /sysroot/usr/lib/powerpc64le-linux-gnu/libm.so
             QEMU_CPU=power10
           fi
           export QEMU_LD_PREFIX
