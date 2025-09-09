@@ -149,10 +149,11 @@ STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_sampled_vectors_wrapper';
 CREATE OR REPLACE FUNCTION vchordrq_sampled_queries(regclass)
 RETURNS TABLE(
     schema_name NAME,
+    index_name NAME,
     table_name NAME,
     column_name NAME,
     operator TEXT,
-    vector_text TEXT
+    value TEXT
 )
 LANGUAGE plpgsql
 STRICT AS $$
@@ -175,6 +176,7 @@ BEGIN
         WITH index_metadata AS (
             SELECT
                 NS.nspname AS schema_name,
+                I.relname AS index_name,
                 C.relname AS table_name,
                 PA.attname AS column_name,
                 CASE
@@ -205,13 +207,14 @@ BEGIN
         )
         SELECT
             im.schema_name,
+            im.index_name,
             im.table_name,
             im.column_name,
             im.operator,
-            s.vector_text
+            s.value
         FROM
             index_metadata im,
-            LATERAL %2$I.vchordrq_sampled_vectors(%1$s) AS s(vector_text);
+            LATERAL %2$I.vchordrq_sampled_vectors(%1$s) AS s(value);
         $q$,
         $1::oid,
         ext_schema
@@ -223,10 +226,11 @@ $$;
 CREATE VIEW vchordrq_sampled_queries AS
 SELECT
     record.schema_name,
+    record.index_name,
     record.table_name,
     record.column_name,
     record.operator,
-    record.vector_text
+    record.value
 FROM
     (
         SELECT i.oid

@@ -11,6 +11,7 @@
 // vectorchord-inquiry@tensorchord.ai
 //
 // Copyright (c) 2025 TensorChord Inc.
+
 use crate::recorder::types::PgRefCell;
 use std::cell::RefMut;
 use std::fs;

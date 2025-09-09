@@ -86,12 +86,12 @@ statement ok
 SELECT * from t_dim4 ORDER BY val <-> '[1.00, 0.50, 0.25, 0]';
 
 query I
-SELECT vector_text from vchordrq_sampled_queries('idx1');
+SELECT value from vchordrq_sampled_queries('idx1');
 ----
 [0.5,0.25,1]
 
 query I
-SELECT vector_text from vchordrq_sampled_queries('idx2');
+SELECT value from vchordrq_sampled_queries('idx2');
 ----
 [1,0.5,0.25,0]
 
@@ -106,7 +106,7 @@ SELECT * from t_dim4 ORDER BY val <-> '[2.1, 0.3, 0.7, 0.9]';
 query I
 SELECT * from vchordrq_sampled_queries('idx2');
 ----
-public t_dim4 val <-> [2.1,0.3,0.7,0.9]
+public idx2 t_dim4 val <-> [2.1,0.3,0.7,0.9]
 
 query I
 SELECT AVG(recall_value)
@@ -119,7 +119,7 @@ FROM (
                 lq.table_name,
                 lq.column_name,
                 lq.operator,
-                lq.vector_text
+                lq.value
             )
         ) AS recall_value
     FROM
@@ -146,7 +146,7 @@ SELECT column_name from vchordrq_sampled_queries('idx3');
 NULL
 
 query I
-SELECT vector_text from vchordrq_sampled_queries('idx3');
+SELECT value from vchordrq_sampled_queries('idx3');
 ----
 [1,0.5,0.25]
 
@@ -154,7 +154,7 @@ statement ok
 SET search_path='@';
 
 query I
-SELECT vector_text from public.vchordrq_sampled_queries('public.idx3');
+SELECT value from public.vchordrq_sampled_queries('public.idx3');
 ----
 [1,0.5,0.25]
 
