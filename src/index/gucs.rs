@@ -170,7 +170,7 @@ pub fn init() {
         c"`query_sampling_enable` argument of vchordrq.",
         &VCHORDRQ_QUERY_SAMPLING_ENABLE,
         GucContext::Userset,
-        GucFlags::default(),
+        GucFlags::default().intersection(GucFlags::SUPERUSER_ONLY),
     );
     GucRegistry::define_int_guc(
         c"vchordrq.query_sampling_max_records",
@@ -180,7 +180,7 @@ pub fn init() {
         0,
         10000,
         GucContext::Userset,
-        GucFlags::default(),
+        GucFlags::default().intersection(GucFlags::SUPERUSER_ONLY),
     );
     GucRegistry::define_float_guc(
         c"vchordrq.query_sampling_rate",
@@ -190,7 +190,7 @@ pub fn init() {
         0.0,
         1.0,
         GucContext::Userset,
-        GucFlags::default(),
+        GucFlags::default().intersection(GucFlags::SUPERUSER_ONLY),
     );
     unsafe {
         #[cfg(any(feature = "pg13", feature = "pg14"))]
