@@ -114,7 +114,7 @@ FROM (
     SELECT
         vchordrq_evaluate_query_recall(
             query => format(
-                'SELECT ctid FROM %I.%I ORDER BY %I %s ''%s'' LIMIT 10',
+                'SELECT ctid FROM %I.%I ORDER BY %I OPERATOR(%s) %L LIMIT 10',
                 lq.schema_name,
                 lq.table_name,
                 lq.column_name,

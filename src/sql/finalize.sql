@@ -152,7 +152,7 @@ RETURNS TABLE(
     index_name NAME,
     table_name NAME,
     column_name NAME,
-    operator TEXT,
+    operator NAME,
     value TEXT
 )
 LANGUAGE plpgsql
@@ -179,12 +179,7 @@ BEGIN
                 I.relname AS index_name,
                 C.relname AS table_name,
                 PA.attname AS column_name,
-                CASE
-                    WHEN OP.opcname LIKE '%%l2%%' THEN '<->'
-                    WHEN OP.opcname LIKE '%%ip%%' THEN '<#>'
-                    WHEN OP.opcname LIKE '%%cosine%%' THEN '<=>'
-                    ELSE ''
-                END AS operator
+                OP.oprname AS operator
             FROM
                 pg_catalog.pg_index X
             JOIN
@@ -196,11 +191,16 @@ BEGIN
             JOIN
                 pg_catalog.pg_am A ON A.oid = I.relam
             LEFT JOIN
-                pg_catalog.pg_opclass AS OP ON OP.oid = X.indclass[0]
+                pg_catalog.pg_opclass AS OPC ON OPC.oid = X.indclass[0]
+            LEFT JOIN
+                pg_catalog.pg_amop AO ON OPC.opcfamily = AO.amopfamily
+            LEFT JOIN
+                pg_catalog.pg_operator OP ON OP.oid = AO.amopopr
             LEFT JOIN
                 pg_catalog.pg_attribute PA ON PA.attrelid = X.indrelid AND PA.attnum = X.indkey[0]
             WHERE
                 A.amname = 'vchordrq'
+                AND AO.amopstrategy = 1
                 AND C.relkind = 'r'
                 AND X.indnatts = 1
                 AND X.indexrelid = %1$s

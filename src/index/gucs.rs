@@ -169,7 +169,7 @@ pub fn init() {
         c"`query_sampling_enable` argument of vchordrq.",
         c"`query_sampling_enable` argument of vchordrq.",
         &VCHORDRQ_QUERY_SAMPLING_ENABLE,
-        GucContext::Userset,
+        GucContext::Suset,
         GucFlags::default(),
     );
     GucRegistry::define_int_guc(
@@ -179,7 +179,7 @@ pub fn init() {
         &VCHORDRQ_QUERY_SAMPLING_MAX_RECORDS,
         0,
         10000,
-        GucContext::Userset,
+        GucContext::Suset,
         GucFlags::default(),
     );
     GucRegistry::define_float_guc(
@@ -189,7 +189,7 @@ pub fn init() {
         &VCHORDRQ_QUERY_SAMPLING_RATE,
         0.0,
         1.0,
-        GucContext::Userset,
+        GucContext::Suset,
         GucFlags::default(),
     );
     unsafe {
