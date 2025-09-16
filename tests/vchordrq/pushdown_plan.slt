@@ -28,11 +28,22 @@ SELECT val0 FROM t WHERE val0 <<->> sphere('[0, 0, 0]'::vector, 1) ORDER BY val0
    Order By: (val0 <-> '[0,0,0]'::vector)
 
 # 1 vector key + 0 order_by key + original style
+
+skipif pg18
 query I
 EXPLAIN (COSTS FALSE, TIMING FALSE) 
 SELECT val0 FROM t WHERE val0 <-> '[0, 0, 0]' < 1;
 ----
  Seq Scan on t
+   Filter: ((val0 <-> '[0,0,0]'::vector) < '1'::double precision)
+
+onlyif pg18
+query I
+EXPLAIN (COSTS FALSE, TIMING FALSE) 
+SELECT val0 FROM t WHERE val0 <-> '[0, 0, 0]' < 1;
+----
+ Seq Scan on t
+   Disabled: true 
    Filter: ((val0 <-> '[0,0,0]'::vector) < '1'::double precision)
 
 # 1 vector key + 0 order_by key + sphere style
@@ -135,10 +146,19 @@ ORDER BY val0 <-> '[0, 0, 0]';
 #    Filter: (val0 <<->> '("[0,0,0]",1)'::sphere_vector)
 
 # 0 vector key + 0 order_by key(variable)
+
+skipif pg18
 query I
 EXPLAIN (COSTS FALSE, TIMING FALSE) SELECT val0 FROM t;
 ----
  Seq Scan on t
+
+onlyif pg18
+query I
+EXPLAIN (COSTS FALSE, TIMING FALSE) SELECT val0 FROM t;
+----
+ Seq Scan on t
+   Disabled: true
 
 statement ok
 DROP TABLE t;

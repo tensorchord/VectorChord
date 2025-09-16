@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   style:
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-24.04"
 
     steps:
       - name: Set up Environment
@@ -169,7 +169,7 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17"]
+        version: ["13", "14", "15", "16", "17", "18"]
         arch: ["x86_64", "aarch64"]
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 
@@ -185,8 +185,10 @@ jobs:
       - name: Set up Environment
         run: |
           rustup update
-
-          sudo apt-get update
+          if [ "${{ matrix.version }}" = "18" ]; then
+            rustup default beta
+            rustup component add clippy rustfmt
+          fi
 
           sudo apt-get remove -y '^postgres.*' '^libpq.*'
           sudo apt-get purge -y '^postgres.*' '^libpq.*'
@@ -194,8 +196,14 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
           sudo update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
 
+          sudo apt-get update
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          if [ "${{ matrix.version }}" = "18" ]; then
+            sudo add-apt-repository "deb https://apt.postgresql.org/pub/repos/apt/ $(lsb_release -s -c)-pgdg main 18"
+          fi
+
+          sudo apt-get update
           sudo apt-get install -y postgresql-server-dev-${{ matrix.version }}
           echo PGRX_PG_CONFIG_PATH=pg_config >> $GITHUB_ENV
           echo PG_CONFIG=pg_config >> $GITHUB_ENV
@@ -240,11 +248,11 @@ jobs:
 
       - name: Sqllogictest
         run: |
-          sqllogictest --db $USER --user $USER './tests/general/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt'
-          if [ "${{ matrix.version }}" = "17" ]; then
-            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
+          sqllogictest --db $USER --user $USER './tests/general/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt' --label pg${{ matrix.version }}
+          if [ "${{ matrix.version }}" -ge "17" ]; then
+            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt' --label pg${{ matrix.version }}
           fi
 
   psql_macos:
@@ -325,11 +333,11 @@ jobs:
 
       - name: Sqllogictest
         run: |
-          sqllogictest --db $USER --user $USER './tests/general/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt'
-          if [ "${{ matrix.version }}" = "17" ]; then
-            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
+          sqllogictest --db $USER --user $USER './tests/general/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt' --label pg${{ matrix.version }}
+          if [ "${{ matrix.version }}" -ge "17" ]; then
+            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt' --label pg${{ matrix.version }}
           fi
 
   psql_windows:
@@ -431,11 +439,11 @@ jobs:
 
       - name: Sqllogictest
         run: |
-          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/general/*.slt'
-          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordg/*.slt'
-          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordrq/*.slt'
-          if ( "${{ matrix.version }}" -eq "17" ) {
-            sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordrq/pg17/*.slt'
+          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/general/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordg/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordrq/*.slt' --label pg${{ matrix.version }}
+          if ( "${{ matrix.version }}" -ge "17" ) {
+            sqllogictest --db $env:USERNAME --user $env:USERNAME './tests/vchordrq/pg17/*.slt' --label pg${{ matrix.version }}
           }
 
   psql_alpine:
@@ -537,11 +545,11 @@ jobs:
 
       - name: Sqllogictest
         run: |
-          sqllogictest --db $USER --user $USER './tests/general/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt'
-          if [ "${{ matrix.version }}" = "17" ]; then
-            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
+          sqllogictest --db $USER --user $USER './tests/general/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt' --label pg${{ matrix.version }}
+          if [ "${{ matrix.version }}" -ge "17" ]; then
+            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt' --label pg${{ matrix.version }}
           fi
 
   check_debian:
@@ -742,9 +750,9 @@ jobs:
 
       - name: Sqllogictest
         run: |
-          sqllogictest --db $USER --user $USER './tests/general/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt'
-          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt'
-          if [ "${{ matrix.version }}" = "17" ]; then
-            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt'
+          sqllogictest --db $USER --user $USER './tests/general/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordg/*.slt' --label pg${{ matrix.version }}
+          sqllogictest --db $USER --user $USER './tests/vchordrq/*.slt' --label pg${{ matrix.version }}
+          if [ "${{ matrix.version }}" -ge "17" ]; then
+            sqllogictest --db $USER --user $USER './tests/vchordrq/pg17/*.slt' --label pg${{ matrix.version }}
           fi
