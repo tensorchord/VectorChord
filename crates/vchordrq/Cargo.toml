@@ -13,12 +13,10 @@ simd = { path = "../simd" }
 vector = { path = "../vector" }
 
 pin-project = "1.1"
+rand.workspace = true
 serde.workspace = true
 validator.workspace = true
 zerocopy.workspace = true
-
-[dev-dependencies]
-rand.workspace = true
 
 [lints]
 workspace = true

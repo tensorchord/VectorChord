@@ -20,7 +20,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 11;
+const VERSION: u64 = 12;
 
 #[inline(always)]
 fn tag(source: &[u8]) -> Tag {
@@ -56,7 +56,8 @@ struct MetaTupleHeader {
     cells_s: u16,
     cells_e: u16,
     _padding_0: [Padding; 2],
-    vectors_first: u32,
+    vectors_first_s: u16,
+    vectors_first_e: u16,
     freepages_first: u32,
     _padding_1: [Padding; 2],
     // tree
@@ -73,7 +74,7 @@ pub struct MetaTuple {
     pub is_residual: bool,
     pub rerank_in_heap: bool,
     pub cells: Vec<u32>,
-    pub vectors_first: u32,
+    pub vectors_first: Vec<u32>,
     pub freepages_first: u32,
     pub centroid_prefetch: Vec<u32>,
     pub centroid_head: u16,
@@ -108,6 +109,13 @@ impl Tuple for MetaTuple {
                 while buffer.len() % ALIGN != 0 {
                     buffer.push(0);
                 }
+                // vectors_first
+                let vectors_first_s = buffer.len() as u16;
+                buffer.extend(vectors_first.as_bytes());
+                let vectors_first_e = buffer.len() as u16;
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
                 // centroid_prefetch
                 let centroid_prefetch_s = buffer.len() as u16;
                 buffer.extend(centroid_prefetch.as_bytes());
@@ -125,7 +133,8 @@ impl Tuple for MetaTuple {
                         rerank_in_heap: (*rerank_in_heap).into(),
                         cells_s,
                         cells_e,
-                        vectors_first: *vectors_first,
+                        vectors_first_s,
+                        vectors_first_e,
                         freepages_first: *freepages_first,
                         centroid_prefetch_s,
                         centroid_prefetch_e,
@@ -157,13 +166,15 @@ impl WithReader for MetaTuple {
                     );
                 }
                 let header: &MetaTupleHeader = checker.prefix(size_of::<Tag>());
+                let cells = checker.bytes(header.cells_s, header.cells_e);
+                let vectors_first = checker.bytes(header.vectors_first_s, header.vectors_first_e);
                 let centroid_prefetch =
                     checker.bytes(header.centroid_prefetch_s, header.centroid_prefetch_e);
-                let cells = checker.bytes(header.cells_s, header.cells_e);
                 MetaTupleReader {
                     header,
-                    centroid_prefetch,
                     cells,
+                    vectors_first,
+                    centroid_prefetch,
                 }
             }
             _ => panic!("deserialization: bad magic number"),
@@ -174,8 +185,9 @@ impl WithReader for MetaTuple {
 #[derive(Debug, Clone, Copy)]
 pub struct MetaTupleReader<'a> {
     header: &'a MetaTupleHeader,
-    centroid_prefetch: &'a [u32],
     cells: &'a [u32],
+    vectors_first: &'a [u32],
+    centroid_prefetch: &'a [u32],
 }
 
 impl<'a> MetaTupleReader<'a> {
@@ -194,8 +206,8 @@ impl<'a> MetaTupleReader<'a> {
     pub fn cells(self) -> &'a [u32] {
         self.cells
     }
-    pub fn vectors_first(self) -> u32 {
-        self.header.vectors_first
+    pub fn vectors_first(self) -> &'a [u32] {
+        self.vectors_first
     }
     pub fn freepages_first(self) -> u32 {
         self.header.freepages_first

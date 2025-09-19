@@ -470,6 +470,7 @@ pub unsafe extern "C-unwind" fn vchordg_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
+    let _ = rand::rng().reseed();
     let vchordgshared = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordgShared>()
     };

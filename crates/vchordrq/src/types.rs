@@ -24,6 +24,9 @@ pub struct VchordrqIndexOptions {
     pub residual_quantization: bool,
     #[serde(default = "VchordrqIndexOptions::default_rerank_in_table")]
     pub rerank_in_table: bool,
+    #[serde(default = "VchordrqIndexOptions::default_degree_of_parallelism")]
+    #[validate(range(min = 1, max = 256))]
+    pub degree_of_parallelism: u32,
 }
 
 impl VchordrqIndexOptions {
@@ -33,6 +36,9 @@ impl VchordrqIndexOptions {
     fn default_rerank_in_table() -> bool {
         false
     }
+    fn default_degree_of_parallelism() -> u32 {
+        32
+    }
 }
 
 impl Default for VchordrqIndexOptions {
@@ -40,6 +46,7 @@ impl Default for VchordrqIndexOptions {
         Self {
             residual_quantization: Self::default_residual_quantization(),
             rerank_in_table: Self::default_rerank_in_table(),
+            degree_of_parallelism: Self::default_degree_of_parallelism(),
         }
     }
 }

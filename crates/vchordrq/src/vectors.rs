@@ -85,15 +85,21 @@ pub fn append<O: Operator, R: RelationRead + RelationWrite>(
     vectors_first: u32,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,
     payload: NonZero<u64>,
+    skip_search: bool,
 ) -> (Vec<u32>, u16)
 where
     R::Page: Page<Opaque = Opaque>,
 {
-    fn append<R: RelationRead + RelationWrite>(index: &R, first: u32, bytes: &[u8]) -> (u32, u16)
+    fn append<R: RelationRead + RelationWrite>(
+        index: &R,
+        first: u32,
+        bytes: &[u8],
+        skip_search: bool,
+    ) -> (u32, u16)
     where
         R::Page: Page<Opaque = Opaque>,
     {
-        if let Some(mut write) = index.search(bytes.len()) {
+        if !skip_search && let Some(mut write) = index.search(bytes.len()) {
             let i = write
                 .alloc(bytes)
                 .expect("implementation: a free page cannot accommodate a single tuple");
@@ -117,7 +123,7 @@ where
                 head,
             },
         });
-        let (id, head) = append(index, vectors_first, &bytes);
+        let (id, head) = append(index, vectors_first, &bytes, skip_search);
         chain = Err(head);
         prefetch.push(id);
     }

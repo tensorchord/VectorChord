@@ -154,11 +154,13 @@ pub fn insert<R>(
     payload: NonZero<u64>,
     vector: OwnedVector,
     skip_freespaces: bool,
+    skip_search: bool,
 ) where
     R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = Opaque>,
 {
     let bump = bumpalo::Bump::new();
+    let mut rng = rand::rng();
     let make_h1_plain_prefetcher = MakeH1PlainPrefetcherForInsertion { index };
     match (vector, opfamily.distance_kind()) {
         (OwnedVector::Vecf32(vector), DistanceKind::L2S) => {
@@ -168,6 +170,8 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                &mut rng,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f32>, L2S>>(
                 index,
@@ -186,6 +190,8 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                &mut rng,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f32>, Dot>>(
                 index,
@@ -204,6 +210,8 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                &mut rng,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f16>, L2S>>(
                 index,
@@ -222,6 +230,8 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                &mut rng,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f16>, Dot>>(
                 index,

@@ -309,7 +309,7 @@ unsafe fn aminsertinner(
         for (vector, extra) in store {
             let key = ctid_to_key(ctid);
             let payload = kv_to_pointer((key, extra));
-            crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, false);
+            crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, false, false);
         }
     }
     false

@@ -768,6 +768,7 @@ pub unsafe extern "C-unwind" fn vchordrq_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
+    let _ = rand::rng().reseed();
     let vchordrqshared = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordrqShared>()
     };
@@ -824,6 +825,7 @@ unsafe fn parallel_build(
     mut callback: impl FnMut(u64),
 ) {
     use vchordrq_cached::VchordrqCachedReader;
+
     let cached = VchordrqCachedReader::deserialize_ref(unsafe {
         let bytes = (vchordrqcached as *const u64).read_unaligned();
         std::slice::from_raw_parts(vchordrqcached.add(8), bytes as _)
@@ -846,7 +848,9 @@ unsafe fn parallel_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    crate::index::vchordrq::algo::insert(
+                        opfamily, &index, payload, vector, true, true,
+                    );
                 }
                 unsafe {
                     let indtuples;
@@ -869,7 +873,9 @@ unsafe fn parallel_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    crate::index::vchordrq::algo::insert(
+                        opfamily, &index, payload, vector, true, true,
+                    );
                 }
                 unsafe {
                     let indtuples;
@@ -900,7 +906,9 @@ unsafe fn sequential_build(
     mut callback: impl FnMut(u64),
 ) -> u64 {
     use vchordrq_cached::VchordrqCachedReader;
+
     let cached = VchordrqCachedReader::deserialize_ref(vchordrqcached);
+
     let index = unsafe { PostgresRelation::new(index_relation) };
 
     let opfamily = unsafe { opfamily(index_relation) };
@@ -919,7 +927,9 @@ unsafe fn sequential_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    crate::index::vchordrq::algo::insert(
+                        opfamily, &index, payload, vector, true, true,
+                    );
                 }
                 indtuples += 1;
                 callback(indtuples);
@@ -934,7 +944,9 @@ unsafe fn sequential_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    crate::index::vchordrq::algo::insert(
+                        opfamily, &index, payload, vector, true, true,
+                    );
                 }
                 indtuples += 1;
                 callback(indtuples);
