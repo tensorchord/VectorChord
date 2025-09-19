@@ -23,12 +23,14 @@ use crate::index::vchordrq::scanners::*;
 use crate::recorder::DefaultRecorder;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
+use rand::RngCore;
 use std::cell::LazyCell;
 use std::ffi::CStr;
 use std::num::NonZero;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
 use std::sync::OnceLock;
+use vchordrq::Chooser;
 
 #[repr(C)]
 struct Reloption {
@@ -301,6 +303,13 @@ unsafe fn aminsertinner(
     is_null: *mut bool,
     ctid: pgrx::pg_sys::ItemPointer,
 ) -> bool {
+    struct RngChooser<T>(T);
+    impl<T: RngCore> Chooser for RngChooser<T> {
+        fn choose(&mut self, n: NonZero<usize>) -> usize {
+            rand::Rng::random_range(&mut self.0, 0..n.get())
+        }
+    }
+
     let opfamily = unsafe { opfamily(index_relation) };
     let index = unsafe { PostgresRelation::new(index_relation) };
     let datum = unsafe { (!is_null.add(0).read()).then_some(values.add(0).read()) };
@@ -309,7 +318,18 @@ unsafe fn aminsertinner(
         for (vector, extra) in store {
             let key = ctid_to_key(ctid);
             let payload = kv_to_pointer((key, extra));
-            crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, false);
+            let mut chooser = RngChooser(rand::rng());
+            let bump = bumpalo::Bump::new();
+            crate::index::vchordrq::algo::insert(
+                opfamily,
+                &index,
+                payload,
+                vector,
+                false,
+                false,
+                &mut chooser,
+                &bump,
+            );
         }
     }
     false

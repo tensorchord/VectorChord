@@ -20,7 +20,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 11;
+const VERSION: u64 = 12;
 
 #[inline(always)]
 fn tag(source: &[u8]) -> Tag {
@@ -56,9 +56,11 @@ struct MetaTupleHeader {
     cells_s: u16,
     cells_e: u16,
     _padding_0: [Padding; 2],
-    vectors_first: u32,
+    centroids_first: u32,
+    vectors_first_s: u16,
+    vectors_first_e: u16,
     freepages_first: u32,
-    _padding_1: [Padding; 2],
+    _padding_1: [Padding; 6],
     // tree
     centroid_prefetch_s: u16,
     centroid_prefetch_e: u16,
@@ -73,7 +75,8 @@ pub struct MetaTuple {
     pub is_residual: bool,
     pub rerank_in_heap: bool,
     pub cells: Vec<u32>,
-    pub vectors_first: u32,
+    pub centroids_first: u32,
+    pub vectors_first: Vec<u32>,
     pub freepages_first: u32,
     pub centroid_prefetch: Vec<u32>,
     pub centroid_head: u16,
@@ -92,6 +95,7 @@ impl Tuple for MetaTuple {
                 is_residual,
                 rerank_in_heap,
                 cells,
+                centroids_first,
                 vectors_first,
                 freepages_first,
                 centroid_prefetch,
@@ -105,6 +109,13 @@ impl Tuple for MetaTuple {
                 let cells_s = buffer.len() as u16;
                 buffer.extend(cells.as_bytes());
                 let cells_e = buffer.len() as u16;
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
+                // vectors_first
+                let vectors_first_s = buffer.len() as u16;
+                buffer.extend(vectors_first.as_bytes());
+                let vectors_first_e = buffer.len() as u16;
                 while buffer.len() % ALIGN != 0 {
                     buffer.push(0);
                 }
@@ -125,7 +136,9 @@ impl Tuple for MetaTuple {
                         rerank_in_heap: (*rerank_in_heap).into(),
                         cells_s,
                         cells_e,
-                        vectors_first: *vectors_first,
+                        centroids_first: *centroids_first,
+                        vectors_first_s,
+                        vectors_first_e,
                         freepages_first: *freepages_first,
                         centroid_prefetch_s,
                         centroid_prefetch_e,
@@ -157,13 +170,15 @@ impl WithReader for MetaTuple {
                     );
                 }
                 let header: &MetaTupleHeader = checker.prefix(size_of::<Tag>());
+                let cells = checker.bytes(header.cells_s, header.cells_e);
+                let vectors_first = checker.bytes(header.vectors_first_s, header.vectors_first_e);
                 let centroid_prefetch =
                     checker.bytes(header.centroid_prefetch_s, header.centroid_prefetch_e);
-                let cells = checker.bytes(header.cells_s, header.cells_e);
                 MetaTupleReader {
                     header,
-                    centroid_prefetch,
                     cells,
+                    vectors_first,
+                    centroid_prefetch,
                 }
             }
             _ => panic!("deserialization: bad magic number"),
@@ -174,8 +189,9 @@ impl WithReader for MetaTuple {
 #[derive(Debug, Clone, Copy)]
 pub struct MetaTupleReader<'a> {
     header: &'a MetaTupleHeader,
-    centroid_prefetch: &'a [u32],
     cells: &'a [u32],
+    vectors_first: &'a [u32],
+    centroid_prefetch: &'a [u32],
 }
 
 impl<'a> MetaTupleReader<'a> {
@@ -194,8 +210,11 @@ impl<'a> MetaTupleReader<'a> {
     pub fn cells(self) -> &'a [u32] {
         self.cells
     }
-    pub fn vectors_first(self) -> u32 {
-        self.header.vectors_first
+    pub fn centroids_first(self) -> u32 {
+        self.header.centroids_first
+    }
+    pub fn vectors_first(self) -> &'a [u32] {
+        self.vectors_first
     }
     pub fn freepages_first(self) -> u32 {
         self.header.freepages_first
@@ -252,6 +271,162 @@ pub struct FreepagesTupleWriter<'a> {
 impl FreepagesTupleWriter<'_> {
     pub fn first(&mut self) -> &mut u32 {
         &mut self.header.first
+    }
+}
+
+#[repr(C, align(8))]
+#[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
+struct CentroidTupleHeader0 {
+    metadata_s: u16,
+    elements_s: u16,
+    elements_e: u16,
+    _padding_0: [Padding; 2],
+}
+
+#[repr(C, align(8))]
+#[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
+struct CentroidTupleHeader1 {
+    head: u16,
+    elements_s: u16,
+    elements_e: u16,
+    _padding_0: [Padding; 2],
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CentroidTuple<V: Vector> {
+    _0 {
+        metadata: V::Metadata,
+        elements: Vec<V::Element>,
+    },
+    _1 {
+        head: u16,
+        elements: Vec<V::Element>,
+    },
+}
+
+impl<V: Vector> Tuple for CentroidTuple<V> {
+    fn serialize(&self) -> Vec<u8> {
+        let mut buffer = Vec::<u8>::new();
+        match self {
+            CentroidTuple::_0 { metadata, elements } => {
+                buffer.extend((0 as Tag).to_ne_bytes());
+                buffer.extend(std::iter::repeat_n(0, size_of::<CentroidTupleHeader0>()));
+                // metadata
+                let metadata_s = buffer.len() as u16;
+                buffer.extend(metadata.as_bytes());
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
+                // elements
+                let elements_s = buffer.len() as u16;
+                buffer.extend(elements.as_bytes());
+                let elements_e = buffer.len() as u16;
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
+                // header
+                buffer[size_of::<Tag>()..][..size_of::<CentroidTupleHeader0>()].copy_from_slice(
+                    CentroidTupleHeader0 {
+                        metadata_s,
+                        elements_s,
+                        elements_e,
+                        _padding_0: Default::default(),
+                    }
+                    .as_bytes(),
+                );
+            }
+            CentroidTuple::_1 { head, elements } => {
+                buffer.extend((1 as Tag).to_ne_bytes());
+                buffer.extend(std::iter::repeat_n(0, size_of::<CentroidTupleHeader1>()));
+                // elements
+                let elements_s = buffer.len() as u16;
+                buffer.extend(elements.as_bytes());
+                let elements_e = buffer.len() as u16;
+                while buffer.len() % ALIGN != 0 {
+                    buffer.push(0);
+                }
+                // header
+                buffer[size_of::<Tag>()..][..size_of::<CentroidTupleHeader1>()].copy_from_slice(
+                    CentroidTupleHeader1 {
+                        head: *head,
+                        elements_s,
+                        elements_e,
+                        _padding_0: Default::default(),
+                    }
+                    .as_bytes(),
+                );
+            }
+        }
+        buffer
+    }
+}
+
+impl<V: Vector> WithReader for CentroidTuple<V> {
+    type Reader<'a> = CentroidTupleReader<'a, V>;
+
+    fn deserialize_ref(source: &[u8]) -> CentroidTupleReader<'_, V> {
+        let tag = tag(source);
+        match tag {
+            0 => {
+                let checker = RefChecker::new(source);
+                let header: &CentroidTupleHeader0 = checker.prefix(size_of::<Tag>());
+                let metadata = checker.prefix(header.metadata_s);
+                let elements = checker.bytes(header.elements_s, header.elements_e);
+                CentroidTupleReader::_0(CentroidTupleReader0 {
+                    header,
+                    elements,
+                    metadata,
+                })
+            }
+            1 => {
+                let checker = RefChecker::new(source);
+                let header: &CentroidTupleHeader1 = checker.prefix(size_of::<Tag>());
+                let elements = checker.bytes(header.elements_s, header.elements_e);
+                CentroidTupleReader::_1(CentroidTupleReader1 { header, elements })
+            }
+            _ => panic!("deserialization: bad bytes"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct CentroidTupleReader0<'a, V: Vector> {
+    #[allow(dead_code)]
+    header: &'a CentroidTupleHeader0,
+    metadata: &'a V::Metadata,
+    elements: &'a [V::Element],
+}
+
+impl<V: Vector> Copy for CentroidTupleReader0<'_, V> {}
+
+#[derive(Clone)]
+pub struct CentroidTupleReader1<'a, V: Vector> {
+    header: &'a CentroidTupleHeader1,
+    elements: &'a [V::Element],
+}
+
+impl<V: Vector> Copy for CentroidTupleReader1<'_, V> {}
+
+#[derive(Clone)]
+pub enum CentroidTupleReader<'a, V: Vector> {
+    _0(CentroidTupleReader0<'a, V>),
+    _1(CentroidTupleReader1<'a, V>),
+}
+
+impl<V: Vector> Copy for CentroidTupleReader<'_, V> {}
+
+impl<'a, V: Vector> CentroidTupleReader<'a, V> {
+    pub fn elements(self) -> &'a [<V as Vector>::Element] {
+        match self {
+            CentroidTupleReader::_0(this) => this.elements,
+            CentroidTupleReader::_1(this) => this.elements,
+        }
+    }
+    pub fn metadata_or_head(self) -> Result<V::Metadata, u16> {
+        match self {
+            CentroidTupleReader::_0(this) => Ok(*this.metadata),
+            CentroidTupleReader::_1(this) => Err(this.header.head),
+        }
     }
 }
 

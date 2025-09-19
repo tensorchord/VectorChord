@@ -51,7 +51,7 @@ pub fn bulkdelete<R>(
     check: impl Fn(),
     callback: impl Fn(NonZero<u64>) -> bool,
 ) where
-    R: RelationRead + RelationWrite + RelationLength,
+    R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = Opaque>,
 {
     match (opfamily.vector_kind(), opfamily.distance_kind()) {

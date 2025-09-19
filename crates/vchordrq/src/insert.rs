@@ -17,7 +17,7 @@ use crate::operator::*;
 use crate::tape::by_next;
 use crate::tuples::*;
 use crate::vectors::{self};
-use crate::{Opaque, Page, tape};
+use crate::{Chooser, Opaque, Page, centroids, tape};
 use algo::accessor::{FunctionalAccessor, LAccess};
 use algo::prefetcher::{Prefetcher, PrefetcherHeapFamily};
 use algo::{BorrowedIter, Bump, RelationRead, RelationWrite};
@@ -34,6 +34,8 @@ pub fn insert_vector<R: RelationRead + RelationWrite, O: Operator>(
     index: &R,
     payload: NonZero<u64>,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,
+    chooser: &mut impl Chooser,
+    skip_search: bool,
 ) -> (Vec<u32>, u16)
 where
     R::Page: Page<Opaque = Opaque>,
@@ -44,12 +46,17 @@ where
     let dims = meta_tuple.dims();
     let rerank_in_heap = meta_tuple.rerank_in_heap();
     assert_eq!(dims, vector.dims(), "unmatched dimensions");
-    let vectors_first = meta_tuple.vectors_first();
+    let vectors_first = {
+        let l = meta_tuple.vectors_first();
+        let n = NonZero::new(l.len()).expect("data corruption");
+        let i = chooser.choose(n);
+        l[i]
+    };
 
     drop(meta_guard);
 
     if !rerank_in_heap {
-        vectors::append::<O, R>(index, vectors_first, vector, payload)
+        vectors::append::<O, R>(index, vectors_first, vector, payload, skip_search)
     } else {
         (Vec::new(), 0)
     }
@@ -81,7 +88,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         let prefetch =
             BorrowedIter::from_slice(meta_tuple.centroid_prefetch(), |x| bump.alloc_slice(x));
         let head = meta_tuple.centroid_head();
-        let distance = vectors::read_for_h1_tuple::<R, O, _>(
+        let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
             LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
@@ -127,7 +134,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
             while let Some(((Reverse(_), AlwaysEqual(&mut (first, norm, head, ..))), prefetch)) =
                 heap.next_if(|(d, _)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
-                let distance = vectors::read_for_h1_tuple::<R, O, _>(
+                let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
                     LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
@@ -152,7 +159,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let (code, delta) = O::build(
         vector,
         is_residual.then(|| {
-            vectors::read_for_h1_tuple::<R, O, _>(
+            centroids::read::<R, O, _>(
                 jump_tuple
                     .centroid_prefetch()
                     .iter()

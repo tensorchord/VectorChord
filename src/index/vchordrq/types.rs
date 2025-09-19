@@ -119,18 +119,34 @@ impl Validate for VchordrqBuildSourceOptions {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
-#[serde(rename_all = "snake_case")]
 pub struct VchordrqBuildOptions {
     #[serde(flatten)]
     #[validate(nested)]
     pub source: VchordrqBuildSourceOptions,
+    #[serde(deserialize_with = "VchordrqBuildOptions::deserialize_pin")]
     #[serde(default = "VchordrqBuildOptions::default_pin")]
-    pub pin: bool,
+    #[validate(range(min = -1, max = 2))]
+    pub pin: i32,
 }
 
 impl VchordrqBuildOptions {
-    pub fn default_pin() -> bool {
-        false
+    pub fn deserialize_pin<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<i32, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Untagged {
+            Bool(bool),
+            I32(i32),
+        }
+
+        match Untagged::deserialize(deserializer)? {
+            Untagged::Bool(b) => Ok(if b { 1 } else { -1 }),
+            Untagged::I32(i) => Ok(i),
+        }
+    }
+    pub fn default_pin() -> i32 {
+        -1
     }
 }
 

@@ -91,7 +91,7 @@ pub fn rerank_index<
         prefetcher,
         cache: BinaryHeap::new(),
         f: id_4::<_, P, _, _, _>(move |payload, prefetch, head| {
-            vectors::read_for_h0_tuple::<P::R, O, _>(
+            vectors::read::<P::R, O, _>(
                 prefetch,
                 head,
                 payload,

@@ -25,7 +25,9 @@ use pgrx::pg_sys::{Datum, ItemPointerData};
 use rand::Rng;
 use simd::{Floating, f16};
 use std::ffi::CStr;
+use std::num::NonZero;
 use std::ops::Deref;
+use vchordrq::Chooser;
 use vchordrq::types::*;
 use vector::VectorOwned;
 use vector::vect::VectOwned;
@@ -343,8 +345,8 @@ pub unsafe extern "C-unwind" fn ambuild(
     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Build));
     crate::index::vchordrq::algo::build(vector_options, vchordrq_options.index, &index, structures);
     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Inserting));
-    let cached = if vchordrq_options.build.pin {
-        let mut trace = vchordrq::cache(&index);
+    let cached = if vchordrq_options.build.pin >= 0 {
+        let mut trace = vchordrq::cache(&index, vchordrq_options.build.pin);
         trace.sort();
         trace.dedup();
         if let Some(max) = trace.last().copied() {
@@ -387,13 +389,13 @@ pub unsafe extern "C-unwind" fn ambuild(
             let nparticipants = leader.nparticipants;
             loop {
                 pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.vchordrqshared).mutex);
-                if (*leader.vchordrqshared).nparticipantsdone == nparticipants {
+                if (*leader.vchordrqshared).workers_done == nparticipants {
                     pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordrqshared).mutex);
                     break;
                 }
                 pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordrqshared).mutex);
                 pgrx::pg_sys::ConditionVariableSleep(
-                    &raw mut (*leader.vchordrqshared).workersdonecv,
+                    &raw mut (*leader.vchordrqshared).condvar_workers_done,
                     pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN as _,
                 );
             }
@@ -424,19 +426,18 @@ pub unsafe extern "C-unwind" fn ambuild(
 }
 
 struct VchordrqShared {
-    /* Immutable state */
+    /* immutable state */
     heaprelid: pgrx::pg_sys::Oid,
     indexrelid: pgrx::pg_sys::Oid,
     isconcurrent: bool,
 
-    /* Worker progress */
-    workersdonecv: pgrx::pg_sys::ConditionVariable,
-
-    /* Mutex for mutable state */
+    /* locking */
     mutex: pgrx::pg_sys::slock_t,
+    condvar_workers_done: pgrx::pg_sys::ConditionVariable,
 
-    /* Mutable state */
-    nparticipantsdone: i32,
+    /* mutable state */
+    workers_ready: i32,
+    workers_done: i32,
     indtuples: u64,
 }
 
@@ -681,12 +682,13 @@ impl VchordrqLeader {
                 heaprelid: (*heap_relation).rd_id,
                 indexrelid: (*index_relation).rd_id,
                 isconcurrent,
-                workersdonecv: std::mem::zeroed(),
+                condvar_workers_done: std::mem::zeroed(),
                 mutex: std::mem::zeroed(),
-                nparticipantsdone: 0,
+                workers_ready: 0,
+                workers_done: 0,
                 indtuples: 0,
             });
-            pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordrqshared).workersdonecv);
+            pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordrqshared).condvar_workers_done);
             pgrx::pg_sys::SpinLockInit(&raw mut (*vchordrqshared).mutex);
             vchordrqshared
         };
@@ -768,6 +770,7 @@ pub unsafe extern "C-unwind" fn vchordrq_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
+    let _ = rand::rng().reseed();
     let vchordrqshared = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordrqShared>()
     };
@@ -824,6 +827,16 @@ unsafe fn parallel_build(
     mut callback: impl FnMut(u64),
 ) {
     use vchordrq_cached::VchordrqCachedReader;
+
+    let wid;
+
+    unsafe {
+        pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
+        wid = (*vchordrqshared).workers_ready as u32;
+        (*vchordrqshared).workers_ready += 1;
+        pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
+    }
+
     let cached = VchordrqCachedReader::deserialize_ref(unsafe {
         let bytes = (vchordrqcached as *const u64).read_unaligned();
         std::slice::from_raw_parts(vchordrqcached.add(8), bytes as _)
@@ -840,13 +853,32 @@ unsafe fn parallel_build(
         opfamily,
         scan,
     };
+
+    struct IdChooser(u32);
+    impl Chooser for IdChooser {
+        fn choose(&mut self, n: NonZero<usize>) -> usize {
+            self.0 as usize % n.get()
+        }
+    }
+
     match cached {
         VchordrqCachedReader::_0(_) => {
             heap.traverse(true, |(ctid, store)| {
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    let mut chooser = IdChooser(wid);
+                    let bump = bumpalo::Bump::new();
+                    crate::index::vchordrq::algo::insert(
+                        opfamily,
+                        &index,
+                        payload,
+                        vector,
+                        true,
+                        true,
+                        &mut chooser,
+                        &bump,
+                    );
                 }
                 unsafe {
                     let indtuples;
@@ -869,7 +901,18 @@ unsafe fn parallel_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    let mut chooser = IdChooser(wid);
+                    let bump = bumpalo::Bump::new();
+                    crate::index::vchordrq::algo::insert(
+                        opfamily,
+                        &index,
+                        payload,
+                        vector,
+                        true,
+                        true,
+                        &mut chooser,
+                        &bump,
+                    );
                 }
                 unsafe {
                     let indtuples;
@@ -886,9 +929,9 @@ unsafe fn parallel_build(
     }
     unsafe {
         pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
-        (*vchordrqshared).nparticipantsdone += 1;
+        (*vchordrqshared).workers_done += 1;
         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
-        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*vchordrqshared).workersdonecv);
+        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*vchordrqshared).condvar_workers_done);
     }
 }
 
@@ -900,7 +943,9 @@ unsafe fn sequential_build(
     mut callback: impl FnMut(u64),
 ) -> u64 {
     use vchordrq_cached::VchordrqCachedReader;
+
     let cached = VchordrqCachedReader::deserialize_ref(vchordrqcached);
+
     let index = unsafe { PostgresRelation::new(index_relation) };
 
     let opfamily = unsafe { opfamily(index_relation) };
@@ -912,6 +957,13 @@ unsafe fn sequential_build(
         scan: std::ptr::null_mut(),
     };
 
+    struct ChooseZero;
+    impl Chooser for ChooseZero {
+        fn choose(&mut self, _: NonZero<usize>) -> usize {
+            0
+        }
+    }
+
     let mut indtuples = 0;
     match cached {
         VchordrqCachedReader::_0(_) => {
@@ -919,7 +971,18 @@ unsafe fn sequential_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    let mut chooser = ChooseZero;
+                    let bump = bumpalo::Bump::new();
+                    crate::index::vchordrq::algo::insert(
+                        opfamily,
+                        &index,
+                        payload,
+                        vector,
+                        true,
+                        true,
+                        &mut chooser,
+                        &bump,
+                    );
                 }
                 indtuples += 1;
                 callback(indtuples);
@@ -934,7 +997,18 @@ unsafe fn sequential_build(
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
-                    crate::index::vchordrq::algo::insert(opfamily, &index, payload, vector, true);
+                    let mut chooser = ChooseZero;
+                    let bump = bumpalo::Bump::new();
+                    crate::index::vchordrq::algo::insert(
+                        opfamily,
+                        &index,
+                        payload,
+                        vector,
+                        true,
+                        true,
+                        &mut chooser,
+                        &bump,
+                    );
                 }
                 indtuples += 1;
                 callback(indtuples);

@@ -12,11 +12,10 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::num::NonZero;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub enum Typmod {
     Any,
     Dims(NonZero<u32>),

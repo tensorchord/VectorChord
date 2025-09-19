@@ -15,6 +15,7 @@
 mod build;
 mod bulkdelete;
 mod cache;
+mod centroids;
 mod closure_lifetime_binder;
 mod cost;
 mod fast_heap;
@@ -44,6 +45,7 @@ pub use maintain::maintain;
 pub use prewarm::prewarm;
 pub use rerank::{how, rerank_heap, rerank_index};
 pub use search::{default_search, maxsim_search};
+use std::num::NonZero;
 
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -64,4 +66,8 @@ pub(crate) struct Branch<T> {
     pub head: u16,
     pub norm: f32,
     pub extra: T,
+}
+
+pub trait Chooser {
+    fn choose(&mut self, n: NonZero<usize>) -> usize;
 }

@@ -22,7 +22,7 @@ use std::collections::BinaryHeap;
 use std::num::NonZero;
 use vchordrq::operator::Op;
 use vchordrq::types::*;
-use vchordrq::{FastHeap, Opaque};
+use vchordrq::{Chooser, FastHeap, Opaque};
 use vector::VectorOwned;
 use vector::vect::{VectBorrowed, VectOwned};
 
@@ -154,11 +154,13 @@ pub fn insert<R>(
     payload: NonZero<u64>,
     vector: OwnedVector,
     skip_freespaces: bool,
+    skip_search: bool,
+    chooser: &mut impl Chooser,
+    bump: &impl Bump,
 ) where
     R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = Opaque>,
 {
-    let bump = bumpalo::Bump::new();
     let make_h1_plain_prefetcher = MakeH1PlainPrefetcherForInsertion { index };
     match (vector, opfamily.distance_kind()) {
         (OwnedVector::Vecf32(vector), DistanceKind::L2S) => {
@@ -168,13 +170,15 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                chooser,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f32>, L2S>>(
                 index,
                 payload,
                 projected.as_borrowed(),
                 key,
-                &bump,
+                bump,
                 make_h1_plain_prefetcher,
                 skip_freespaces,
             )
@@ -186,13 +190,15 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                chooser,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f32>, Dot>>(
                 index,
                 payload,
                 projected.as_borrowed(),
                 key,
-                &bump,
+                bump,
                 make_h1_plain_prefetcher,
                 skip_freespaces,
             )
@@ -204,13 +210,15 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                chooser,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f16>, L2S>>(
                 index,
                 payload,
                 projected.as_borrowed(),
                 key,
-                &bump,
+                bump,
                 make_h1_plain_prefetcher,
                 skip_freespaces,
             )
@@ -222,13 +230,15 @@ pub fn insert<R>(
                 index,
                 payload,
                 vector.as_borrowed(),
+                chooser,
+                skip_search,
             );
             vchordrq::insert::<_, Op<VectOwned<f16>, Dot>>(
                 index,
                 payload,
                 projected.as_borrowed(),
                 key,
-                &bump,
+                bump,
                 make_h1_plain_prefetcher,
                 skip_freespaces,
             )

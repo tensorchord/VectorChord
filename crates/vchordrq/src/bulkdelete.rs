@@ -142,41 +142,43 @@ pub fn bulkdelete_vectors<R: RelationRead + RelationWrite, O: Operator>(
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let vectors_first = meta_tuple.vectors_first();
+    let vectors_first = meta_tuple.vectors_first().to_vec();
 
     drop(meta_guard);
 
-    let mut current = vectors_first;
-    while current != u32::MAX {
-        check();
-        let read = index.read(current);
-        let flag = 'flag: {
-            for i in 1..=read.len() {
-                if let Some(bytes) = read.get(i) {
-                    let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
-                    let p = tuple.payload();
-                    if Some(true) == p.map(&callback) {
-                        break 'flag true;
+    for vectors_first in vectors_first {
+        let mut current = vectors_first;
+        while current != u32::MAX {
+            check();
+            let read = index.read(current);
+            let flag = 'flag: {
+                for i in 1..=read.len() {
+                    if let Some(bytes) = read.get(i) {
+                        let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
+                        let p = tuple.payload();
+                        if Some(true) == p.map(&callback) {
+                            break 'flag true;
+                        }
                     }
                 }
+                false
+            };
+            if flag {
+                drop(read);
+                let mut write = index.write(current, true);
+                for i in 1..=write.len() {
+                    if let Some(bytes) = write.get(i) {
+                        let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
+                        let p = tuple.payload();
+                        if Some(true) == p.map(&callback) {
+                            write.free(i);
+                        }
+                    };
+                }
+                current = write.get_opaque().next;
+            } else {
+                current = read.get_opaque().next;
             }
-            false
-        };
-        if flag {
-            drop(read);
-            let mut write = index.write(current, true);
-            for i in 1..=write.len() {
-                if let Some(bytes) = write.get(i) {
-                    let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
-                    let p = tuple.payload();
-                    if Some(true) == p.map(&callback) {
-                        write.free(i);
-                    }
-                };
-            }
-            current = write.get_opaque().next;
-        } else {
-            current = read.get_opaque().next;
         }
     }
 }

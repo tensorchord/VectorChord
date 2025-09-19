@@ -16,7 +16,7 @@ use crate::closure_lifetime_binder::{id_0, id_1, id_2};
 use crate::operator::Operator;
 use crate::tape::{by_directory, by_next};
 use crate::tuples::*;
-use crate::{Opaque, Page, tape, vectors};
+use crate::{Opaque, Page, centroids, tape};
 use algo::RelationRead;
 use algo::accessor::FunctionalAccessor;
 use algo::prefetcher::PrefetcherSequenceFamily;
@@ -48,7 +48,7 @@ where
         let prefetch = meta_tuple.centroid_prefetch().to_vec().into_iter();
         let head = meta_tuple.centroid_head();
         let first = meta_tuple.first();
-        vectors::read_for_h1_tuple::<R, O, _>(prefetch.map(|id| index.read(id)), head, ());
+        centroids::read::<R, O, _>(prefetch.map(|id| index.read(id)), head, ());
         results.push(first);
         writeln!(message, "------------------------").unwrap();
         writeln!(message, "number of nodes: {}", results.len()).unwrap();
@@ -66,11 +66,7 @@ where
                 by_next(index, first).inspect(|_| counter += 1),
                 || FunctionalAccessor::new((), id_0(|_, _| ()), id_1(|_, _| [(); _])),
                 |(), head, _, first, prefetch| {
-                    vectors::read_for_h1_tuple::<R, O, _>(
-                        prefetch.iter().map(|&id| index.read(id)),
-                        head,
-                        (),
-                    );
+                    centroids::read::<R, O, _>(prefetch.iter().map(|&id| index.read(id)), head, ());
                     results.push(first);
                 },
             );

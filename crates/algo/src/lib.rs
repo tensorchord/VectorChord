@@ -92,14 +92,6 @@ pub trait RelationWrite: RelationWriteTypes {
     fn search(&self, freespace: usize) -> Option<Self::WriteGuard<'_>>;
 }
 
-pub trait RelationLength: Relation {
-    fn len(&self) -> u32;
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
 pub trait RelationPrefetch: Relation {
     fn prefetch(&self, id: u32);
 }

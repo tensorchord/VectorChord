@@ -92,14 +92,14 @@ pub enum BorrowedVector<'a> {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DistanceKind {
     L2S,
     Dot,
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VectorKind {
     Vecf32,
     Vecf16,
@@ -114,16 +114,12 @@ impl VectorKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Validate)]
 #[validate(schema(function = "Self::validate_self"))]
 pub struct VectorOptions {
     #[validate(range(min = 1))]
-    #[serde(rename = "dimensions")]
     pub dims: u32,
-    #[serde(rename = "vector")]
     pub v: VectorKind,
-    #[serde(rename = "distance")]
     pub d: DistanceKind,
 }
 

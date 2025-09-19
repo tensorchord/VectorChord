@@ -227,13 +227,13 @@ pub unsafe extern "C-unwind" fn ambuild(
             let nparticipants = leader.nparticipants;
             loop {
                 pgrx::pg_sys::SpinLockAcquire(&raw mut (*leader.vchordgshared).mutex);
-                if (*leader.vchordgshared).nparticipantsdone == nparticipants {
+                if (*leader.vchordgshared).workers_done == nparticipants {
                     pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordgshared).mutex);
                     break;
                 }
                 pgrx::pg_sys::SpinLockRelease(&raw mut (*leader.vchordgshared).mutex);
                 pgrx::pg_sys::ConditionVariableSleep(
-                    &raw mut (*leader.vchordgshared).workersdonecv,
+                    &raw mut (*leader.vchordgshared).condvar_workers_done,
                     pgrx::pg_sys::WaitEventIPC::WAIT_EVENT_PARALLEL_CREATE_INDEX_SCAN as _,
                 );
             }
@@ -259,19 +259,17 @@ pub unsafe extern "C-unwind" fn ambuild(
 }
 
 struct VchordgShared {
-    /* Immutable state */
+    /* immutable state */
     heaprelid: pgrx::pg_sys::Oid,
     indexrelid: pgrx::pg_sys::Oid,
     isconcurrent: bool,
 
-    /* Worker progress */
-    workersdonecv: pgrx::pg_sys::ConditionVariable,
-
-    /* Mutex for mutable state */
+    /* locking */
     mutex: pgrx::pg_sys::slock_t,
+    condvar_workers_done: pgrx::pg_sys::ConditionVariable,
 
-    /* Mutable state */
-    nparticipantsdone: i32,
+    /* mutable state */
+    workers_done: i32,
     indtuples: u64,
 }
 
@@ -384,12 +382,12 @@ impl VchordgLeader {
                 heaprelid: (*heap_relation).rd_id,
                 indexrelid: (*index_relation).rd_id,
                 isconcurrent,
-                workersdonecv: std::mem::zeroed(),
+                condvar_workers_done: std::mem::zeroed(),
                 mutex: std::mem::zeroed(),
-                nparticipantsdone: 0,
+                workers_done: 0,
                 indtuples: 0,
             });
-            pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordgshared).workersdonecv);
+            pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordgshared).condvar_workers_done);
             pgrx::pg_sys::SpinLockInit(&raw mut (*vchordgshared).mutex);
             vchordgshared
         };
@@ -470,6 +468,7 @@ pub unsafe extern "C-unwind" fn vchordg_parallel_build_main(
     _seg: *mut pgrx::pg_sys::dsm_segment,
     toc: *mut pgrx::pg_sys::shm_toc,
 ) {
+    let _ = rand::rng().reseed();
     let vchordgshared = unsafe {
         pgrx::pg_sys::shm_toc_lookup(toc, 0xA000000000000001, false).cast::<VchordgShared>()
     };
@@ -565,9 +564,9 @@ unsafe fn parallel_build(
     }
     unsafe {
         pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordgshared).mutex);
-        (*vchordgshared).nparticipantsdone += 1;
+        (*vchordgshared).workers_done += 1;
         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordgshared).mutex);
-        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*vchordgshared).workersdonecv);
+        pgrx::pg_sys::ConditionVariableSignal(&raw mut (*vchordgshared).condvar_workers_done);
     }
 }
 

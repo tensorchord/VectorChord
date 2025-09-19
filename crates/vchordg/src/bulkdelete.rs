@@ -15,10 +15,10 @@
 use crate::Opaque;
 use crate::operator::Operator;
 use crate::tuples::{MetaTuple, VertexTuple, WithReader, WithWriter};
-use algo::{Page, RelationLength, RelationRead, RelationWrite};
+use algo::{Page, RelationRead, RelationWrite};
 use std::num::NonZero;
 
-pub fn bulkdelete<R: RelationRead + RelationWrite + RelationLength, O: Operator>(
+pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
     index: &R,
     check: impl Fn(),
     callback: impl Fn(NonZero<u64>) -> bool,

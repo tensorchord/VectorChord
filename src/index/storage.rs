@@ -336,19 +336,36 @@ impl<O: Opaque> RelationWrite for PostgresRelation<O> {
     ) -> PostgresBufferWriteGuard<O> {
         unsafe {
             use pgrx::pg_sys::{
-                BUFFER_LOCK_EXCLUSIVE, ExclusiveLock, ForkNumber, GENERIC_XLOG_FULL_IMAGE,
-                GenericXLogRegisterBuffer, GenericXLogStart, LockBuffer, LockRelationForExtension,
-                ReadBufferExtended, ReadBufferMode, UnlockRelationForExtension,
+                BUFFER_LOCK_EXCLUSIVE, GENERIC_XLOG_FULL_IMAGE, GenericXLogRegisterBuffer,
+                GenericXLogStart, LockBuffer,
             };
-            LockRelationForExtension(self.raw, ExclusiveLock as _);
-            let buf = ReadBufferExtended(
-                self.raw,
-                ForkNumber::MAIN_FORKNUM,
-                u32::MAX,
-                ReadBufferMode::RBM_NORMAL,
-                std::ptr::null_mut(),
-            );
-            UnlockRelationForExtension(self.raw, ExclusiveLock as _);
+            let buf;
+            #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15"))]
+            {
+                use pgrx::pg_sys::{
+                    ExclusiveLock, ForkNumber, LockRelationForExtension, ReadBufferExtended,
+                    ReadBufferMode, UnlockRelationForExtension,
+                };
+                LockRelationForExtension(self.raw, ExclusiveLock as _);
+                buf = ReadBufferExtended(
+                    self.raw,
+                    ForkNumber::MAIN_FORKNUM,
+                    u32::MAX,
+                    ReadBufferMode::RBM_NORMAL,
+                    std::ptr::null_mut(),
+                );
+                UnlockRelationForExtension(self.raw, ExclusiveLock as _);
+            }
+            #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+            {
+                use pgrx::pg_sys::{BufferManagerRelation, ExtendBufferedRel, ForkNumber};
+                let bmr = BufferManagerRelation {
+                    rel: self.raw,
+                    smgr: std::ptr::null_mut(),
+                    relpersistence: 0,
+                };
+                buf = ExtendBufferedRel(bmr, ForkNumber::MAIN_FORKNUM, std::ptr::null_mut(), 0);
+            }
             LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE as _);
             let state = GenericXLogStart(self.raw);
             let mut page = NonNull::new(
@@ -664,13 +681,6 @@ impl<O: Opaque> RelationReadStream for PostgresRelation<O> {
             cache,
             _phantom: PhantomData,
         }
-    }
-}
-
-impl<O: Opaque> RelationLength for PostgresRelation<O> {
-    fn len(&self) -> u32 {
-        use pgrx::pg_sys::{ForkNumber, RelationGetNumberOfBlocksInFork};
-        unsafe { RelationGetNumberOfBlocksInFork(self.raw, ForkNumber::MAIN_FORKNUM) }
     }
 }
 

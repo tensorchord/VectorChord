@@ -35,7 +35,10 @@ pub fn build<R: RelationWrite, O: Operator>(
     assert_eq!(meta.first(), 0);
     let mut freepages = TapeWriter::<_, FreepagesTuple>::create(index, false);
     freepages.push(FreepagesTuple {});
-    let mut vectors = TapeWriter::<_, VectorTuple<O::Vector>>::create(index, true);
+    let mut centroids = TapeWriter::<_, CentroidTuple<O::Vector>>::create(index, false);
+    let vectors = (0..vchordrq_options.degree_of_parallelism)
+        .map(|_| TapeWriter::<_, VectorTuple<O::Vector>>::create(index, true).first())
+        .collect::<Vec<_>>();
     let mut pointer_of_centroids = Vec::<Vec<(Vec<u32>, u16)>>::new();
     for i in 0..structures.len() {
         let mut level = Vec::new();
@@ -45,14 +48,12 @@ pub fn build<R: RelationWrite, O: Operator>(
             let mut chain = Ok(metadata);
             let mut prefetch = Vec::new();
             for i in (0..slices.len()).rev() {
-                let (id, head) = vectors.push(match chain {
-                    Ok(metadata) => VectorTuple::_0 {
-                        payload: None,
+                let (id, head) = centroids.push(match chain {
+                    Ok(metadata) => CentroidTuple::_0 {
                         elements: slices[i].to_vec(),
                         metadata,
                     },
-                    Err(head) => VectorTuple::_1 {
-                        payload: None,
+                    Err(head) => CentroidTuple::_1 {
                         elements: slices[i].to_vec(),
                         head,
                     },
@@ -118,7 +119,8 @@ pub fn build<R: RelationWrite, O: Operator>(
         height_of_root: structures.len() as u32,
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,
-        vectors_first: vectors.first(),
+        centroids_first: centroids.first(),
+        vectors_first: vectors,
         centroid_prefetch: pointer_of_centroids
             .last()
             .expect("internal error: empty structure")[0]

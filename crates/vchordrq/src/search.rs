@@ -17,7 +17,7 @@ use crate::linked_vec::LinkedVec;
 use crate::operator::*;
 use crate::tape::{by_directory, by_next};
 use crate::tuples::*;
-use crate::{Opaque, Page, tape, vectors};
+use crate::{Opaque, Page, centroids, tape};
 use algo::accessor::{FunctionalAccessor, LAccess};
 use algo::prefetcher::{Prefetcher, PrefetcherHeapFamily, PrefetcherSequenceFamily};
 use algo::{BorrowedIter, Bump, PackedRefMut4, PackedRefMut8, RelationRead};
@@ -67,7 +67,7 @@ where
         let prefetch =
             BorrowedIter::from_slice(meta_tuple.centroid_prefetch(), |x| bump.alloc_slice(x));
         let head = meta_tuple.centroid_head();
-        let distance = vectors::read_for_h1_tuple::<R, O, _>(
+        let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
             LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
@@ -112,7 +112,7 @@ where
             while let Some(((Reverse(_), AlwaysEqual(&mut (first, norm, head, ..))), prefetch)) =
                 heap.next_if(|(d, _)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
-                let distance = vectors::read_for_h1_tuple::<R, O, _>(
+                let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
                     LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
@@ -228,7 +228,7 @@ where
         let prefetch =
             BorrowedIter::from_slice(meta_tuple.centroid_prefetch(), |x| bump.alloc_slice(x));
         let head = meta_tuple.centroid_head();
-        let distance = vectors::read_for_h1_tuple::<R, O, _>(
+        let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
             LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
@@ -273,7 +273,7 @@ where
             while let Some(((Reverse(_), AlwaysEqual(&mut (first, norm, head, ..))), prefetch)) =
                 heap.next_if(|(d, _)| Some(*d) > cache.peek().map(|(d, ..)| *d))
             {
-                let distance = vectors::read_for_h1_tuple::<R, O, _>(
+                let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
                     LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),

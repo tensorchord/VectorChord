@@ -15,40 +15,12 @@
 use crate::operator::*;
 use crate::tuples::*;
 use crate::{Opaque, Page, PageGuard, tape};
-use algo::accessor::{Accessor1, TryAccessor1};
+use algo::accessor::TryAccessor1;
 use algo::{RelationRead, RelationWrite};
 use std::num::NonZero;
 use vector::VectorOwned;
 
-pub fn read_for_h1_tuple<
-    'a,
-    R: RelationRead + 'a,
-    O: Operator,
-    A: Accessor1<<O::Vector as Vector>::Element, <O::Vector as Vector>::Metadata>,
->(
-    mut prefetch: impl Iterator<Item = R::ReadGuard<'a>>,
-    head: u16,
-    accessor: A,
-) -> A::Output {
-    let mut cursor = Err(head);
-    let mut result = accessor;
-    while let Err(head) = cursor {
-        let guard = prefetch.next().expect("data corruption");
-        let bytes = guard.get(head).expect("data corruption");
-        let tuple = VectorTuple::<O::Vector>::deserialize_ref(bytes);
-        if tuple.payload().is_some() {
-            panic!("data corruption");
-        }
-        result.push(tuple.elements());
-        cursor = tuple.metadata_or_head();
-    }
-    if prefetch.next().is_some() {
-        panic!("data corruption");
-    }
-    result.finish(cursor.expect("data corruption"))
-}
-
-pub fn read_for_h0_tuple<
+pub fn read<
     'a,
     R: RelationRead + 'a,
     O: Operator,
@@ -85,15 +57,21 @@ pub fn append<O: Operator, R: RelationRead + RelationWrite>(
     vectors_first: u32,
     vector: <O::Vector as VectorOwned>::Borrowed<'_>,
     payload: NonZero<u64>,
+    skip_search: bool,
 ) -> (Vec<u32>, u16)
 where
     R::Page: Page<Opaque = Opaque>,
 {
-    fn append<R: RelationRead + RelationWrite>(index: &R, first: u32, bytes: &[u8]) -> (u32, u16)
+    fn append<R: RelationRead + RelationWrite>(
+        index: &R,
+        first: u32,
+        bytes: &[u8],
+        skip_search: bool,
+    ) -> (u32, u16)
     where
         R::Page: Page<Opaque = Opaque>,
     {
-        if let Some(mut write) = index.search(bytes.len()) {
+        if !skip_search && let Some(mut write) = index.search(bytes.len()) {
             let i = write
                 .alloc(bytes)
                 .expect("implementation: a free page cannot accommodate a single tuple");
@@ -117,7 +95,7 @@ where
                 head,
             },
         });
-        let (id, head) = append(index, vectors_first, &bytes);
+        let (id, head) = append(index, vectors_first, &bytes, skip_search);
         chain = Err(head);
         prefetch.push(id);
     }
