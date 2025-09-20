@@ -264,9 +264,9 @@ jobs:
     strategy:
       matrix:
         version: ["13", "14", "15", "16", "17"]
-        arch: ["aarch64"]
+        arch: ["aarch64", "x86_64"]
 
-    runs-on: "macos-15"
+    runs-on: ${{ matrix.arch == 'aarch64' && 'macos-15' || 'macos-15-intel' }}
 
     env:
       SCCACHE_GHA_ENABLED: "true"
