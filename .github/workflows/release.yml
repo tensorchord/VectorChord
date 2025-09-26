@@ -39,7 +39,7 @@ jobs:
     needs: ["semver"]
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17"]
+        version: ["13", "14", "15", "16", "17", "18"]
         arch: ["x86_64", "aarch64"]
     runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 

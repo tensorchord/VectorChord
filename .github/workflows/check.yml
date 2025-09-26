@@ -185,7 +185,7 @@ jobs:
       - name: Set up Environment
         run: |
           rustup update
-          if [ "${{ matrix.version }}" = "18" ]; then
+          if [ "${{ matrix.version }}" = "13" ]; then
             rustup default beta
             rustup component add clippy rustfmt
           fi
@@ -199,9 +199,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          if [ "${{ matrix.version }}" = "18" ]; then
-            sudo add-apt-repository "deb https://apt.postgresql.org/pub/repos/apt/ $(lsb_release -s -c)-pgdg main 18"
-          fi
 
           sudo apt-get update
           sudo apt-get install -y postgresql-server-dev-${{ matrix.version }}
@@ -263,7 +260,7 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17"]
+        version: ["13", "14", "15", "16", "17", "18"]
         arch: ["aarch64", "x86_64"]
 
     runs-on: ${{ matrix.arch == 'aarch64' && 'macos-15' || 'macos-15-intel' }}
@@ -281,7 +278,8 @@ jobs:
         run: |
           rustup update
 
-          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install llvm@18
+          brew update
+
           echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
           HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 brew install postgresql@${{ matrix.version }}
@@ -295,9 +293,9 @@ jobs:
           echo PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config >> $GITHUB_ENV
 
           mkdir ~/pgvector-install
-          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.0 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config
-          sudo make -C ~/pgvector-install/pgvector-0.8.0 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config install
+          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config
+          sudo make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config install
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-${{ matrix.arch }}-apple-darwin.tar.gz | tar -xOzf - ./sqllogictest | tee /usr/local/bin/sqllogictest > /dev/null && chmod 755 /usr/local/bin/sqllogictest
 
@@ -348,7 +346,7 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17"]
+        version: ["13", "14", "15", "16", "17", "18"]
         arch: ["x86_64"]
 
     runs-on: "windows-2022"
@@ -371,19 +369,22 @@ jobs:
           & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\Launch-VsDevShell.ps1' -HostArch amd64 -Arch amd64
 
           if ( "${{ matrix.version }}" -eq "13" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-13.21-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-13.22-1-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "14" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-14.18-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-14.19-1-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "15" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-15.13-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-15.14-1-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "16" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-16.9-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-16.10-1-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "17" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-17.5-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip"
+          }
+          if ( "${{ matrix.version }}" -eq "18" ) {
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-18.0-1-windows-x64-binaries.zip"
           }
           Invoke-WebRequest -Uri $postgresql_url -OutFile "$env:TEMP\postgresql-install.zip"
           Expand-Archive -Path "$env:TEMP\postgresql-install.zip" -DestinationPath "D:\postgresql-install" -Force
@@ -396,9 +397,9 @@ jobs:
           D:\postgresql-install\pgsql\bin\psql.exe -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
           D:\postgresql-install\pgsql\bin\pg_ctl.exe stop -D D:\postgresql-install\pgsql\data
 
-          Invoke-WebRequest -Uri "https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.zip" -OutFile "$env:TEMP\pgvector-install.zip"
+          Invoke-WebRequest -Uri "https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.zip" -OutFile "$env:TEMP\pgvector-install.zip"
           Expand-Archive -Path "$env:TEMP\pgvector-install.zip" -DestinationPath "D:\pgvector-install" -Force
-          Push-Location -Path D:\pgvector-install\pgvector-0.8.0
+          Push-Location -Path D:\pgvector-install\pgvector-0.8.1
           nmake /F Makefile.win PGROOT="D:\postgresql-install\pgsql"
           nmake /F Makefile.win PGROOT="D:\postgresql-install\pgsql" install
           Pop-Location
@@ -498,9 +499,9 @@ jobs:
           sudo -iu postgres pg_ctl stop -D /var/lib/postgresql/data
 
           mkdir ~/pgvector-install
-          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.0 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config
-          make -C ~/pgvector-install/pgvector-0.8.0 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config install
+          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config install
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
@@ -603,6 +604,12 @@ jobs:
             rust_triple: "powerpc64le-unknown-linux-gnu"
             gcc_version: "12"
             debian_version: "bookworm"
+          - version: "18"
+            platform: "ppc64le"
+            clang_triple: "powerpc64le-linux-gnu"
+            rust_triple: "powerpc64le-unknown-linux-gnu"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "17"
             platform: "riscv64"
             clang_triple: "riscv64-linux-gnu"
@@ -675,9 +682,9 @@ jobs:
           sudo chroot /sysroot pg_ctlcluster ${{ matrix.version }} main stop
 
           mkdir ~/pgvector-install
-          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.0 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS=""
-          sudo make -C ~/pgvector-install/pgvector-0.8.0 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
+          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
+          make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS=""
+          sudo make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
 
           curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.26.4/sqllogictest-bin-v0.26.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
