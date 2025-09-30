@@ -111,13 +111,13 @@ impl SearchBuilder for DefaultBuilder {
         let make_vertex_simple_prefetcher = MakeSimplePrefetcher { index };
         let make_vertex_stream_prefetcher = MakeStreamPrefetcher {
             index,
-            hints: Hints::default().full(true),
+            hints: Hints::default().full(true).batch(true),
         };
         let make_vector_plain_prefetcher = MakePlainPrefetcher { index };
         let make_vector_simple_prefetcher = MakeSimplePrefetcher { index };
         let make_vector_stream_prefetcher = MakeStreamPrefetcher {
             index,
-            hints: Hints::default().full(true),
+            hints: Hints::default().full(true).batch(true),
         };
         let iter: Box<dyn Iterator<Item = (Distance, NonZero<u64>)>> =
             match (opfamily.vector_kind(), opfamily.distance_kind()) {

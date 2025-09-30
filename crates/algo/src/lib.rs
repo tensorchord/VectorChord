@@ -96,16 +96,21 @@ pub trait RelationPrefetch: Relation {
     fn prefetch(&self, id: u32);
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
+#[non_exhaustive]
 pub struct Hints {
     pub full: bool,
+    pub batch: bool,
 }
 
 impl Hints {
-    #[allow(clippy::needless_update)]
     #[inline]
     pub fn full(self, full: bool) -> Self {
         Self { full, ..self }
+    }
+    #[inline]
+    pub fn batch(self, batch: bool) -> Self {
+        Self { batch, ..self }
     }
 }
 

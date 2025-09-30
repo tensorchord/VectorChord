@@ -101,12 +101,14 @@ impl SearchBuilder for MaxsimBuilder {
             pgrx::error!("maxsim search with rerank_in_table is not supported");
         }
         assert!(matches!(opfamily.distance_kind(), DistanceKind::Dot));
+        let search_hints = Hints::default().full(true).batch(false);
+        let rerank_hints = Hints::default().full(false).batch(true);
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };
         let make_h0_stream_prefetcher = MakeH0StreamPrefetcher {
             index,
-            hints: Hints::default().full(true),
+            hints: search_hints,
         };
         let n = vectors.len();
         let accu_map = |(Reverse(distance), AlwaysEqual(payload))| (distance, payload);
@@ -225,7 +227,7 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             (Io::Stream, false) => {
                                 let prefetcher =
-                                    StreamPrefetcher::new(index, sequence, Hints::default());
+                                    StreamPrefetcher::new(index, sequence, rerank_hints);
                                 let mut reranker =
                                     rerank_index::<Op, _, _, _>(unprojected[i].clone(), prefetcher);
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
@@ -244,7 +246,7 @@ impl SearchBuilder for MaxsimBuilder {
                                     });
                                 let sequence = filter(sequence, predicate);
                                 let prefetcher =
-                                    StreamPrefetcher::new(index, sequence, Hints::default());
+                                    StreamPrefetcher::new(index, sequence, rerank_hints);
                                 let mut reranker =
                                     rerank_index::<Op, _, _, _>(unprojected[i].clone(), prefetcher);
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
@@ -369,7 +371,7 @@ impl SearchBuilder for MaxsimBuilder {
                             }
                             (Io::Stream, false) => {
                                 let prefetcher =
-                                    StreamPrefetcher::new(index, sequence, Hints::default());
+                                    StreamPrefetcher::new(index, sequence, rerank_hints);
                                 let mut reranker =
                                     rerank_index::<Op, _, _, _>(unprojected[i].clone(), prefetcher);
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));
@@ -388,7 +390,7 @@ impl SearchBuilder for MaxsimBuilder {
                                     });
                                 let sequence = filter(sequence, predicate);
                                 let prefetcher =
-                                    StreamPrefetcher::new(index, sequence, Hints::default());
+                                    StreamPrefetcher::new(index, sequence, rerank_hints);
                                 let mut reranker =
                                     rerank_index::<Op, _, _, _>(unprojected[i].clone(), prefetcher);
                                 accu_set.extend(reranker.by_ref().take(maxsim_refine as _));

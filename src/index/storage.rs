@@ -659,18 +659,19 @@ impl<O: Opaque> RelationReadStream for PostgresRelation<O> {
             _phantom: PhantomData,
         }));
         let raw = unsafe {
-            use pgrx::pg_sys::{
-                ForkNumber, READ_STREAM_DEFAULT, READ_STREAM_FULL, read_stream_begin_relation,
-            };
-            let mut flags = READ_STREAM_DEFAULT;
+            let mut flags = pgrx::pg_sys::READ_STREAM_DEFAULT;
             if hints.full {
-                flags |= READ_STREAM_FULL;
+                flags |= pgrx::pg_sys::READ_STREAM_FULL;
             }
-            read_stream_begin_relation(
+            #[cfg(feature = "pg18")]
+            if hints.batch {
+                flags |= pgrx::pg_sys::READ_STREAM_USE_BATCHING;
+            }
+            pgrx::pg_sys::read_stream_begin_relation(
                 flags as i32,
                 core::ptr::null_mut(),
                 self.raw,
-                ForkNumber::MAIN_FORKNUM,
+                pgrx::pg_sys::ForkNumber::MAIN_FORKNUM,
                 Some(callback::<I>),
                 cache.as_ptr().cast(),
                 0,

@@ -266,7 +266,7 @@ impl<'b, R> Clone for MakeStreamPrefetcher<'b, R> {
     fn clone(&self) -> Self {
         Self {
             index: self.index,
-            hints: self.hints.clone(),
+            hints: self.hints,
         }
     }
 }
@@ -283,7 +283,7 @@ impl<'b, R: RelationRead + RelationReadStream> PrefetcherSequenceFamily<'b, R>
     where
         S::Item: Fetch<'b>,
     {
-        StreamPrefetcher::new(self.index, seq, self.hints.clone())
+        StreamPrefetcher::new(self.index, seq, self.hints)
     }
 
     fn is_not_plain(&self) -> bool {

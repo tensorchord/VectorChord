@@ -110,12 +110,14 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
+        let search_hints = Hints::default().full(true).batch(false);
+        let rerank_hints = Hints::default().full(false).batch(true);
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };
         let make_h0_stream_prefetcher = MakeH0StreamPrefetcher {
             index,
-            hints: Hints::default().full(true),
+            hints: search_hints,
         };
         let f = move |(distance, payload)| (opfamily.output(distance), payload);
         let iter: Box<dyn Iterator<Item = (f32, NonZero<u64>)>> =
@@ -195,8 +197,7 @@ impl SearchBuilder for DefaultBuilder {
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, false) => {
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, true) => {
@@ -209,8 +210,7 @@ impl SearchBuilder for DefaultBuilder {
                                     tuple.filter()
                                 });
                             let sequence = filter(sequence, predicate);
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Heap, _, false) => {
@@ -335,8 +335,7 @@ impl SearchBuilder for DefaultBuilder {
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, false) => {
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, true) => {
@@ -349,8 +348,7 @@ impl SearchBuilder for DefaultBuilder {
                                     tuple.filter()
                                 });
                             let sequence = filter(sequence, predicate);
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Heap, _, false) => {
@@ -475,8 +473,7 @@ impl SearchBuilder for DefaultBuilder {
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, false) => {
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, true) => {
@@ -489,8 +486,7 @@ impl SearchBuilder for DefaultBuilder {
                                     tuple.filter()
                                 });
                             let sequence = filter(sequence, predicate);
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Heap, _, false) => {
@@ -615,8 +611,7 @@ impl SearchBuilder for DefaultBuilder {
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, false) => {
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Index, Io::Stream, true) => {
@@ -629,8 +624,7 @@ impl SearchBuilder for DefaultBuilder {
                                     tuple.filter()
                                 });
                             let sequence = filter(sequence, predicate);
-                            let prefetcher =
-                                StreamPrefetcher::new(index, sequence, Hints::default());
+                            let prefetcher = StreamPrefetcher::new(index, sequence, rerank_hints);
                             Box::new(rerank_index::<Op, _, _, _>(unprojected, prefetcher).map(f))
                         }
                         (RerankMethod::Heap, _, false) => {
