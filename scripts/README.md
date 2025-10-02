@@ -17,7 +17,7 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 
    - If you already have your vectors stored in `PostgreSQL` using `pgvector`, you can export them to a local file by:
      ```shell
-     python script/dump.py -n [table name] -c [column name] -d [dim] -o export.hdf5
+     python scripts/dump.py -n [table name] -c [column name] -d [dim] -o export.hdf5
      ```
 
    - If you don't have any data, but would like to give it a try, you can choose one of these datasets:
@@ -34,9 +34,9 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 
    ```shell
    # For small dataset size from 1M to 5M
-   python script/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] -lists [lists] -m [metric(l2/cos/dot)]
+   python scripts/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] --lists [lists] -m [metric(l2/cos/dot)]
    # For large datasets size, 5M to 100M in size, use GPU and mmap chunks
-   python script/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] --lists [lists] -m [metric(l2/cos/dot)] -g --mmap
+   python scripts/train.py -i [dataset file(export.hdf5)] -o [centroid filename(centroid.npy)] --lists [lists] -m [metric(l2/cos/dot)] -g --mmap
    ```
 
    `lists` is the number of centroids for clustering, and a typical value for large datasets(>5M) could range from:
@@ -48,11 +48,11 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 3. To insert vectors and centroids into the database, and then create an index 
 
    ```shell
-   python script/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim] --url postgresql://postgres:123@localhost:5432/postgres
+   python scripts/index.py -n [table name] -i [dataset file(export.hdf5)] -c [centroid filename(centroid.npy)] -m [metric(l2/cos/dot)] -d [dim] --url postgresql://postgres:123@localhost:5432/postgres
    ```
 
 4. Let's start our tour to check the benchmark result of VectorChord
 
    ```shell
-   python script/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] --nprob 100 --epsilon 1.0  --url postgresql://postgres:123@localhost:5432/postgres
+   python scripts/bench.py -n [table name] -i [dataset file(export.hdf5)] -m [metric(l2/cos/dot)] --nprob 100 --epsilon 1.0  --url postgresql://postgres:123@localhost:5432/postgres
    ```
