@@ -23,17 +23,19 @@ from pgvector.psycopg import register_vector
 
 def build_arg_parse():
     parser = argparse.ArgumentParser(description="Dump embeddings to a local file")
-    parser.add_argument("-n", "--name", help="table name", required=True)
     parser.add_argument(
-        "-p", "--password", help="Database password", default="password"
+        "--url",
+        help="url, like `postgresql://USERNAME:PASSWORD@localhost:5432/DBNAME`",
+        default="postgresql://postgres:postgres@localhost:5432/postgres"
     )
-    parser.add_argument("-o", "--output", help="Output filepath", required=True)
+    parser.add_argument("-n", "--name", help="Table name", required=True)
     parser.add_argument("-c", "--column", help="Column name", default="embedding")
     parser.add_argument("-d", "--dim", help="Dimension", type=int, required=True)
+    parser.add_argument("-o", "--output", help="Output filepath", required=True)
     return parser
 
 
-def create_connection(password):
+def create_connection(url):
     keepalive_kwargs = {
         "keepalives": 1,
         "keepalives_idle": 30,
@@ -41,13 +43,10 @@ def create_connection(password):
         "keepalives_count": 5,
     }
     conn = psycopg.connect(
-        conninfo=f"postgresql://postgres:{password}@localhost:5432/postgres",
-        dbname="postgres",
+        conninfo=url,
         autocommit=True,
         **keepalive_kwargs,
     )
-    conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     register_vector(conn)
     return conn
 
@@ -78,5 +77,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    conn = create_connection(args.password)
+    conn = create_connection(args.url)
     write_to_h5(args.output, extract_vectors(conn, args.name, args.column), args.dim)

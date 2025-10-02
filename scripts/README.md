@@ -17,7 +17,7 @@ conda install conda-forge::pgvector-python numpy pytorch::faiss-gpu conda-forge:
 
    - If you already have your vectors stored in `PostgreSQL` using `pgvector`, you can export them to a local file by:
      ```shell
-     python scripts/dump.py -n [table name] -c [column name] -d [dim] -o export.hdf5
+     python scripts/dump.py -n [table name] -c [column name] -d [dim] -o export.hdf5 --url postgresql://USERNAME:PASSWORD@localhost:5432/DBNAME
      ```
 
    - If you don't have any data, but would like to give it a try, you can choose one of these datasets:
