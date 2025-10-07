@@ -44,7 +44,7 @@ def build_arg_parse():
         choices=["l2", "cos", "dot"],
     )
     parser.add_argument("-n", "--name", help="Dataset name, like: sift", required=True)
-    parser.add_argument("-i", "--input", help="Input filepath", required=True)
+    parser.add_argument("-i", "--input", help="Input filepath", required=False)
     parser.add_argument(
         "--url", help="url, like `postgresql://postgres:123@localhost:5432/postgres`", required=True
     )
@@ -70,6 +70,8 @@ def build_arg_parse():
     )
     # Internal build
     parser.add_argument("--lists", help="Number of centroids", type=int, required=False)
+    # Do not build index
+    parser.add_argument("--noindex", help="Do not build index", action='store_true', required=False)
 
     return parser
 
@@ -119,12 +121,10 @@ def get_ivf_ops_config(metric, workers, k=None, name=None):
 async def create_connection(url):
     conn = await psycopg.AsyncConnection.connect(
         conninfo=url,
-        dbname="postgres",
         autocommit=True,
         **KEEPALIVE_KWARGS,
     )
     await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    await conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     await register_vector_async(conn)
     return conn
 
@@ -176,6 +176,7 @@ async def add_embeddings(conn, name, dim, train, chunks, workers):
 async def build_index(
     conn, name, workers, metric_ops, ivf_config, finish: asyncio.Event
 ):
+    await conn.execute("CREATE EXTENSION IF NOT EXISTS vchord")
     start_time = perf_counter()
     await conn.execute(f"SET max_parallel_maintenance_workers TO {workers}")
     await conn.execute(f"SET max_parallel_workers TO {workers}")
@@ -208,32 +209,35 @@ async def monitor_index_build(conn, finish: asyncio.Event):
 
 
 async def main(dataset):
-    dataset = h5py.File(Path(args.input), "r")
     conn = await create_connection(args.url)
     if args.centroids:
         centroids = np.load(args.centroids, allow_pickle=False)
         await add_centroids(conn, args.name, centroids)
-    metric_ops, ivf_config = get_ivf_ops_config(
-        args.metric, args.workers, args.lists, args.name if args.centroids else None
-    )
-    await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks, args.workers)
 
-    index_finish = asyncio.Event()
-    # Need a separate connection for monitor process
-    monitor_conn = await create_connection(args.url)
-    monitor_task = monitor_index_build(
-        monitor_conn,
-        index_finish,
-    )
-    index_task = build_index(
-        conn,
-        args.name,
-        args.workers,
-        metric_ops,
-        ivf_config,
-        index_finish,
-    )
-    await asyncio.gather(index_task, monitor_task)
+    if args.input:
+        dataset = h5py.File(Path(args.input), "r")
+        await add_embeddings(conn, args.name, args.dim, dataset["train"], args.chunks, args.workers)
+
+    if not args.noindex:
+        metric_ops, ivf_config = get_ivf_ops_config(
+            args.metric, args.workers, args.lists, args.name if args.centroids else None
+        )
+        index_finish = asyncio.Event()
+        # Need a separate connection for monitor process
+        monitor_conn = await create_connection(args.url)
+        monitor_task = monitor_index_build(
+            monitor_conn,
+            index_finish,
+        )
+        index_task = build_index(
+            conn,
+            args.name,
+            args.workers,
+            metric_ops,
+            ivf_config,
+            index_finish,
+        )
+        await asyncio.gather(index_task, monitor_task)
 
 
 if __name__ == "__main__":
