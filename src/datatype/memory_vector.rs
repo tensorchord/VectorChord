@@ -20,7 +20,7 @@ use std::ptr::NonNull;
 use vector::VectorBorrowed;
 use vector::vect::VectBorrowed;
 
-#[repr(C, align(8))]
+#[repr(C)]
 struct VectorHeader {
     varlena: u32,
     dims: u16,
@@ -33,7 +33,7 @@ impl VectorHeader {
         if len > 65535 {
             panic!("vector is too large");
         }
-        (size_of::<Self>() + size_of::<f32>() * len).next_multiple_of(8)
+        size_of::<Self>() + size_of::<f32>() * len
     }
     unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> VectBorrowed<'a, f32> {
         unsafe {
@@ -53,6 +53,17 @@ impl VectorInput<'_> {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum(p.as_ptr().cast()).cast()).unwrap()
         };
+        unsafe {
+            let varlena = q.cast::<u32>().read();
+            #[cfg(target_endian = "big")]
+            let size = varlena as usize;
+            #[cfg(target_endian = "little")]
+            let size = varlena as usize >> 2;
+            let dims = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(VectorHeader::size_of(dims as _), size);
+            let unused = q.byte_add(6).cast::<u16>().read();
+            assert_eq!(unused, 0);
+        }
         VectorInput(q, PhantomData, p != q)
     }
     pub fn as_borrowed(&self) -> VectBorrowed<'_, f32> {
@@ -77,9 +88,20 @@ impl VectorOutput {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum_copy(p.as_ptr().cast()).cast()).unwrap()
         };
+        unsafe {
+            let varlena = q.cast::<u32>().read();
+            #[cfg(target_endian = "big")]
+            let size = varlena as usize;
+            #[cfg(target_endian = "little")]
+            let size = varlena as usize >> 2;
+            let dims = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(VectorHeader::size_of(dims as _), size);
+            let unused = q.byte_add(6).cast::<u16>().read();
+            assert_eq!(unused, 0);
+        }
         Self(q)
     }
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub fn new(vector: VectBorrowed<'_, f32>) -> Self {
         unsafe {
             let slice = vector.slice();

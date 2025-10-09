@@ -210,7 +210,7 @@ impl VectorBorrowed for BVectBorrowed<'_> {
 
     fn operator_and(&self, rhs: Self) -> Self::Owned {
         assert_eq!(self.dims, rhs.dims);
-        let data = simd::bit::vector_and(self.data, self.data);
+        let data = simd::bit::vector_and(self.data, rhs.data);
         BVectOwned::new(self.dims, data)
     }
 

@@ -20,7 +20,7 @@ use std::ptr::NonNull;
 use vector::VectorBorrowed;
 use vector::scalar8::Scalar8Borrowed;
 
-#[repr(C, align(8))]
+#[repr(C)]
 struct Scalar8Header {
     varlena: u32,
     dims: u16,
@@ -63,6 +63,17 @@ impl Scalar8Input<'_> {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum(p.as_ptr().cast()).cast()).unwrap()
         };
+        unsafe {
+            let varlena = q.cast::<u32>().read();
+            #[cfg(target_endian = "big")]
+            let size = varlena as usize;
+            #[cfg(target_endian = "little")]
+            let size = varlena as usize >> 2;
+            let dims = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(Scalar8Header::size_of(dims as _), size);
+            let unused = q.byte_add(6).cast::<u16>().read();
+            assert_eq!(unused, 0);
+        }
         Scalar8Input(q, PhantomData, p != q)
     }
     pub fn as_borrowed(&self) -> Scalar8Borrowed<'_> {
@@ -87,6 +98,17 @@ impl Scalar8Output {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum_copy(p.as_ptr().cast()).cast()).unwrap()
         };
+        unsafe {
+            let varlena = q.cast::<u32>().read();
+            #[cfg(target_endian = "big")]
+            let size = varlena as usize;
+            #[cfg(target_endian = "little")]
+            let size = varlena as usize >> 2;
+            let dims = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(Scalar8Header::size_of(dims as _), size);
+            let unused = q.byte_add(6).cast::<u16>().read();
+            assert_eq!(unused, 0);
+        }
         Self(q)
     }
     pub fn new(vector: Scalar8Borrowed<'_>) -> Self {
