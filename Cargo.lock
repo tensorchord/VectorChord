@@ -744,6 +744,8 @@ dependencies = [
 name = "k_means"
 version = "0.0.0"
 dependencies = [
+ "always_equal",
+ "distance",
  "rabitq",
  "rand",
  "rayon",

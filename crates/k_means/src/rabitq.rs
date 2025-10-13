@@ -12,24 +12,26 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::square::Square;
+use crate::square::{Square, SquareMut};
 use crate::{KMeans, This};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use simd::Floating;
 
-struct RaBitQ {
+struct RaBitQ<'a> {
     this: This,
+    samples: SquareMut<'a>,
 }
 
-impl KMeans for RaBitQ {
+impl<'a> KMeans for RaBitQ<'a> {
     fn this(&mut self) -> &mut This {
         &mut self.this
     }
 
     fn assign(&mut self) {
         let this = &mut self.this;
+        let samples = &mut self.samples;
         this.pool.install(|| {
             use rabitq::packing::{pack_to_u4, padding_pack};
 
@@ -51,7 +53,7 @@ impl KMeans for RaBitQ {
 
             this.targets
                 .par_iter_mut()
-                .zip(this.samples.into_par_iter())
+                .zip(samples.par_iter_mut())
                 .for_each(|(target, sample)| {
                     let lut = rabitq::bit::block::preprocess(sample);
                     let mut result = (f32::INFINITY, 0);
@@ -77,20 +79,21 @@ impl KMeans for RaBitQ {
 
     fn update(&mut self) {
         let this = &mut self.this;
+        let samples = &mut self.samples;
         this.pool.install(|| {
             const DELTA: f32 = 9.7656e-4_f32;
 
             let d = this.d;
-            let n = this.samples.len();
+            let n = samples.len();
             let c = this.c;
 
             let list = rayon::broadcast({
                 |ctx| {
                     let mut sum = Square::from_zeros(d, c);
                     let mut count = vec![0.0f32; c];
-                    for i in (ctx.index()..this.samples.len()).step_by(ctx.num_threads()) {
+                    for i in (ctx.index()..samples.len()).step_by(ctx.num_threads()) {
                         let target = this.targets[i];
-                        let sample = &this.samples[i];
+                        let sample = &samples[i];
                         f32::vector_add_inplace(&mut sum[target], sample);
                         count[target] += 1.0;
                     }
@@ -134,6 +137,17 @@ impl KMeans for RaBitQ {
         });
     }
 
+    fn index(&mut self) -> Box<dyn Fn(&[f32]) -> u32> {
+        let this = self.this();
+        let mut centroids = this.centroids.clone();
+        this.pool.install(|| {
+            centroids.par_iter_mut().for_each(|centroid| {
+                rabitq::rotate::rotate_reversed_inplace(centroid);
+            });
+        });
+        Box::new(move |sample| crate::flat::k_means_lookup(sample, &centroids) as u32)
+    }
+
     fn finish(self: Box<Self>) -> Square {
         let mut this = self.this;
         this.pool.install(|| {
@@ -145,13 +159,13 @@ impl KMeans for RaBitQ {
     }
 }
 
-pub fn new(
+pub fn new<'a>(
     d: usize,
-    mut samples: Square,
+    mut samples: SquareMut<'a>,
     c: usize,
     num_threads: usize,
     seed: [u8; 32],
-) -> Box<dyn KMeans> {
+) -> Box<dyn KMeans + 'a> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
@@ -188,8 +202,8 @@ pub fn new(
             centroids,
             targets,
             rng,
-            samples,
         },
+        samples,
     })
 }
 

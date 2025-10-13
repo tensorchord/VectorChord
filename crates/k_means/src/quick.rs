@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::square::Square;
+use crate::square::{Square, SquareMut};
 use crate::{KMeans, This};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -30,19 +30,25 @@ impl KMeans for Quick {
 
     fn update(&mut self) {}
 
+    fn index(&mut self) -> Box<dyn Fn(&[f32]) -> u32> {
+        let this = self.this();
+        let centroids = this.centroids.clone();
+        Box::new(move |sample| crate::flat::k_means_lookup(sample, &centroids) as u32)
+    }
+
     fn finish(self: Box<Self>) -> Square {
         let this = self.this;
         this.centroids
     }
 }
 
-pub fn new(
+pub fn new<'a>(
     d: usize,
-    samples: Square,
+    samples: SquareMut<'a>,
     c: usize,
     num_threads: usize,
     seed: [u8; 32],
-) -> Box<dyn KMeans> {
+) -> Box<dyn KMeans + 'a> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
@@ -70,7 +76,6 @@ pub fn new(
             pool,
             rng,
             d,
-            samples,
             c,
             centroids,
             targets,

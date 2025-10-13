@@ -25,6 +25,7 @@ use crate::index::vchordrq::types::*;
 use index::relation::{
     Page, PageGuard, Relation, RelationRead, RelationReadTypes, RelationWrite, RelationWriteTypes,
 };
+use k_means::flat::k_means_lookup;
 use k_means::square::Square;
 use simd::Floating;
 use std::ffi::CStr;
@@ -1274,8 +1275,20 @@ fn make_internal_build(
 ) -> Vec<Structure<Normalized>> {
     use humansize::{BINARY, format_size};
     use std::iter::once;
+    let (reduction, sample_dim) = match internal_build.kmeans_dimension_reduction {
+        None => (false, vector_options.dims as usize),
+        Some(d) if d < vector_options.dims => (true, d as usize),
+        Some(d) => {
+            pgrx::warning!(
+                "ignoring `kmeans_dimension_reduction = {}` because it is less than the vector dimension {}",
+                d,
+                vector_options.dims
+            );
+            (false, vector_options.dims as usize)
+        }
+    };
     {
-        let d = vector_options.dims as u64;
+        let d = sample_dim as u64;
         let c = internal_build.lists.last().copied().unwrap_or_default() as u64;
         let f = internal_build.sampling_factor as u64;
         let t = internal_build.build_threads as u64;
@@ -1295,8 +1308,7 @@ fn make_internal_build(
             .last()
             .map(|x| x.saturating_mul(internal_build.sampling_factor))
             .unwrap_or_default();
-        let mut samples =
-            Square::with_capacity(vector_options.dims as _, max_number_of_samples as _);
+        let mut samples = Square::with_capacity(sample_dim, max_number_of_samples as _);
         if samples.len() >= max_number_of_samples as usize {
             break 'a samples;
         }
@@ -1307,7 +1319,7 @@ fn make_internal_build(
                 let vectors = unsafe { opfamily.store(datum) };
                 if let Some(vectors) = vectors {
                     for (vector, _) in vectors {
-                        let x = match vector {
+                        let mut x = match vector {
                             OwnedVector::Vecf32(x) => VectOwned::normalize(x),
                             OwnedVector::Vecf16(x) => VectOwned::normalize(x),
                         };
@@ -1316,9 +1328,13 @@ fn make_internal_build(
                             x.len() as u32,
                             "invalid vector dimensions"
                         );
+                        if reduction {
+                            rabitq::rotate::rotate_inplace(&mut x);
+                            x.truncate(sample_dim);
+                        }
                         samples.push_slice(x.as_slice());
                         if samples.len() >= max_number_of_samples as usize {
-                            break;
+                            break 'a samples;
                         }
                     }
                 }
@@ -1329,7 +1345,7 @@ fn make_internal_build(
     let mut result = Vec::<Structure<Normalized>>::new();
     let mut samples = Some(samples);
     for w in internal_build.lists.iter().rev().copied().chain(once(1)) {
-        let input = if let Some(structure) = result.last() {
+        let mut input = if let Some(structure) = result.last() {
             let mut input =
                 Square::with_capacity(vector_options.dims as _, structure.centroids.len());
             for slice in structure.centroids.iter() {
@@ -1343,7 +1359,7 @@ fn make_internal_build(
         };
         let num_threads = internal_build.build_threads as _;
         let num_points = input.len();
-        let num_dims = vector_options.dims as usize;
+        let num_dims = input.d();
         let num_lists = w as usize;
         let num_iterations = internal_build.kmeans_iterations as _;
         if result.is_empty() {
@@ -1358,7 +1374,23 @@ fn make_internal_build(
                 "clustering: starting, using {num_threads} threads, clustering {num_points} vectors of {num_dims} dimension into {num_lists} clusters, in {num_iterations} iterations"
             );
         }
-        let mut f = k_means::k_means(num_dims, input, num_lists, num_threads, [7; 32]);
+        let mut f = {
+            let view = input.as_mut_view();
+            if result.last().is_none()
+                && let KMeansAlgorithm::Hierarchical {} = internal_build.kmeans_algorithm
+            {
+                k_means::hierarchical_k_means(
+                    num_dims,
+                    view,
+                    num_lists,
+                    num_threads,
+                    [7; 32],
+                    internal_build.spherical_centroids,
+                )
+            } else {
+                k_means::k_means(num_dims, view, num_lists, num_threads, [7; 32])
+            }
+        };
         if internal_build.spherical_centroids {
             f.sphericalize();
         }
@@ -1381,7 +1413,45 @@ fn make_internal_build(
                 f.sphericalize();
             }
         }
-        let centroids = f.finish();
+        let centroids = if reduction && result.last().is_none() {
+            let mut sample = sampler.sample();
+            let mut next_sample = || -> Option<(Vec<f32>, Vec<f32>)> {
+                let mut tuple = sample.next()?;
+                let (values, is_nulls) = tuple.build();
+                let datum = (!is_nulls[0]).then_some(values[0]);
+                if let Some(datum) = datum {
+                    let vectors = unsafe { opfamily.store(datum) };
+                    if let Some(vectors) = vectors {
+                        if let Some((vector, _)) = vectors.into_iter().next() {
+                            let x = match vector {
+                                OwnedVector::Vecf32(x) => VectOwned::normalize(x),
+                                OwnedVector::Vecf16(x) => VectOwned::normalize(x),
+                            };
+                            let mut y = rabitq::rotate::rotate(&x);
+                            y.truncate(sample_dim);
+                            return Some((x, y));
+                        }
+                        None
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            k_means_dimension_restore(
+                vector_options.dims as usize,
+                num_lists,
+                num_points,
+                internal_build.spherical_centroids,
+                [7; 32],
+                f.index(),
+                &mut next_sample,
+            )
+        } else {
+            f.finish()
+        };
+
         if result.is_empty() {
             let percentage = 100;
             let default = BuildPhase::from_code(BuildPhaseCode::InternalBuild);
@@ -1395,17 +1465,6 @@ fn make_internal_build(
         if let Some(structure) = result.last() {
             let mut children = vec![Vec::new(); centroids.len()];
             for i in 0..structure.len() as u32 {
-                pub fn k_means_lookup(vector: &[f32], centroids: &Square) -> usize {
-                    assert_ne!(centroids.len(), 0);
-                    let mut result = (f32::INFINITY, 0);
-                    for i in 0..centroids.len() {
-                        let dis = f32::reduce_sum_of_d2(vector, &centroids[i]);
-                        if dis <= result.0 {
-                            result = (dis, i);
-                        }
-                    }
-                    result.1
-                }
                 let target = k_means_lookup(&structure.centroids[i as usize], &centroids);
                 children[target].push(i);
             }
@@ -1426,6 +1485,45 @@ fn make_internal_build(
         }
     }
     result
+}
+
+fn k_means_dimension_restore<'a>(
+    d: usize,
+    c: usize,
+    num_points: usize,
+    is_spherical: bool,
+    seed: [u8; 32],
+    index: Box<dyn Fn(&[f32]) -> u32 + 'a>,
+    mut next_sample: impl FnMut() -> Option<(Vec<f32>, Vec<f32>)>,
+) -> Square {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    let mut centroids = Square::from_zeros(d, c);
+    let mut count = vec![0_u32; c];
+    let mut traveled = 0;
+    let mut rng = StdRng::from_seed(seed);
+    while let Some((original, reduction)) = next_sample()
+        && traveled < num_points
+    {
+        let cid = index(&reduction) as usize;
+        f32::vector_add_inplace(&mut centroids[cid], &original);
+        count[cid] += 1;
+        traveled += 1;
+    }
+    let mut ret = Square::new(d);
+    for (i, centroid) in centroids.as_mut_view().iter_mut().enumerate() {
+        if count[i] == 0 {
+            centroid.fill_with(|| rng.random_range(-1.0f32..1.0f32));
+        } else {
+            f32::vector_mul_scalar_inplace(centroid, 1.0 / count[i] as f32);
+        }
+        if is_spherical {
+            let l = f32::reduce_sum_of_x2(centroid).sqrt();
+            f32::vector_mul_scalar_inplace(centroid, 1.0 / l);
+        }
+        ret.push_slice(centroid);
+    }
+    ret
 }
 
 #[allow(clippy::collapsible_else_if)]

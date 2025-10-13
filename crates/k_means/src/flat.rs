@@ -12,57 +12,51 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::square::Square;
+use crate::square::{Square, SquareMut};
 use crate::{KMeans, This};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use simd::Floating;
 
-struct Flat {
+struct Flat<'a> {
     this: This,
+    samples: SquareMut<'a>,
 }
 
-impl KMeans for Flat {
+impl<'a> KMeans for Flat<'a> {
     fn this(&mut self) -> &mut This {
         &mut self.this
     }
-
     fn assign(&mut self) {
         let this = &mut self.this;
         this.pool.install(|| {
             this.targets
                 .par_iter_mut()
-                .zip(this.samples.into_par_iter())
+                .zip(self.samples.par_iter_mut())
                 .for_each(|(target, sample)| {
-                    let mut result = (f32::INFINITY, 0);
-                    for (j, centroid) in this.centroids.into_iter().enumerate() {
-                        let dis_2 = f32::reduce_sum_of_d2(sample, centroid);
-                        if dis_2 <= result.0 {
-                            result = (dis_2, j);
-                        }
-                    }
-                    *target = result.1;
+                    *target = k_means_lookup(sample, &this.centroids);
                 });
         });
     }
 
     fn update(&mut self) {
         let this = &mut self.this;
+        let samples = &mut self.samples;
         this.pool.install(|| {
             const DELTA: f32 = 9.7656e-4_f32;
 
             let d = this.d;
-            let n = this.samples.len();
+            let n = samples.len();
             let c = this.c;
 
             let list = rayon::broadcast({
                 |ctx| {
                     let mut sum = Square::from_zeros(d, c);
                     let mut count = vec![0.0f32; c];
-                    for i in (ctx.index()..this.samples.len()).step_by(ctx.num_threads()) {
+                    for i in (ctx.index()..samples.len()).step_by(ctx.num_threads()) {
                         let target = this.targets[i];
-                        let sample = &this.samples[i];
+                        let sample = &samples[i];
                         f32::vector_add_inplace(&mut sum[target], sample);
                         count[target] += 1.0;
                     }
@@ -106,19 +100,25 @@ impl KMeans for Flat {
         });
     }
 
+    fn index(&mut self) -> Box<dyn Fn(&[f32]) -> u32> {
+        let this = self.this();
+        let centroids = this.centroids.clone();
+        Box::new(move |sample| k_means_lookup(sample, &centroids) as u32)
+    }
+
     fn finish(self: Box<Self>) -> Square {
         let this = self.this;
         this.centroids
     }
 }
 
-pub fn new(
+pub fn new<'a>(
     d: usize,
-    samples: Square,
+    samples: SquareMut<'a>,
     c: usize,
     num_threads: usize,
     seed: [u8; 32],
-) -> Box<dyn KMeans> {
+) -> Box<dyn KMeans + 'a> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
@@ -144,14 +144,26 @@ pub fn new(
     Box::new(Flat {
         this: This {
             pool,
+            rng,
             d,
             c,
             centroids,
             targets,
-            rng,
-            samples,
         },
+        samples,
     })
+}
+
+pub fn k_means_lookup(vector: &[f32], centroids: &Square) -> usize {
+    assert_ne!(centroids.len(), 0);
+    let mut result = (f32::INFINITY, 0);
+    for i in 0..centroids.len() {
+        let dis = f32::reduce_sum_of_d2(vector, &centroids[i]);
+        if dis <= result.0 {
+            result = (dis, i);
+        }
+    }
+    result.1
 }
 
 fn vector_mul_scalars_inplace(this: &mut [f32], scalars: [f32; 2]) {

@@ -13,18 +13,18 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 pub mod flat;
+pub mod hierarchical;
 pub mod quick;
 pub mod rabitq;
 pub mod square;
 
-use crate::square::Square;
+use crate::square::{Square, SquareMut};
 use rand::rngs::StdRng;
 
 pub struct This {
     pool: rayon::ThreadPool,
     rng: StdRng,
     d: usize,
-    samples: Square,
     c: usize,
     centroids: Square,
     targets: Vec<usize>,
@@ -45,16 +45,17 @@ pub trait KMeans {
             });
         });
     }
+    fn index(&mut self) -> Box<dyn Fn(&[f32]) -> u32 + '_>;
     fn finish(self: Box<Self>) -> Square;
 }
 
-pub fn k_means(
+pub fn k_means<'a>(
     d: usize,
-    samples: Square,
+    samples: SquareMut<'a>,
     c: usize,
     num_threads: usize,
     seed: [u8; 32],
-) -> Box<dyn KMeans> {
+) -> Box<dyn KMeans + 'a> {
     assert!(d > 0 && c > 0 && num_threads > 0);
     let n = samples.len();
     if n <= c {
@@ -64,4 +65,16 @@ pub fn k_means(
     } else {
         rabitq::new(d, samples, c, num_threads, seed)
     }
+}
+
+pub fn hierarchical_k_means<'a>(
+    d: usize,
+    samples: SquareMut<'a>,
+    c: usize,
+    num_threads: usize,
+    seed: [u8; 32],
+    is_spherical: bool,
+) -> Box<dyn KMeans + 'a> {
+    assert!(d > 0 && c > 0 && num_threads > 0);
+    hierarchical::new(d, samples, c, num_threads, seed, is_spherical)
 }

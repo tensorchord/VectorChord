@@ -59,6 +59,13 @@ impl Square {
     pub fn truncate(&mut self, len: usize) {
         self.p.truncate(self.d * len);
     }
+    #[inline]
+    pub fn as_mut_view(&mut self) -> SquareMut<'_> {
+        SquareMut {
+            d: self.d,
+            p: self.p.as_mut_slice(),
+        }
+    }
 }
 
 impl std::ops::Index<usize> for Square {
@@ -112,5 +119,85 @@ impl<'a> rayon::prelude::IntoParallelIterator for &'a mut Square {
 
     fn into_par_iter(self) -> Self::Iter {
         rayon::slice::ParallelSliceMut::par_chunks_exact_mut(self.p.as_mut_slice(), self.d)
+    }
+}
+
+#[derive(Debug)]
+pub struct SquareMut<'a> {
+    d: usize,
+    p: &'a mut [f32],
+}
+impl<'a> SquareMut<'a> {
+    #[inline]
+    pub fn d(&self) -> usize {
+        self.d
+    }
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.p.len() / self.d
+    }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.p.is_empty()
+    }
+    pub fn new(d: usize, p: &'a mut [f32]) -> Self {
+        Self { d, p }
+    }
+    #[inline]
+    pub fn iter_mut<'b>(&'b mut self) -> std::slice::ChunksExactMut<'b, f32>
+    where
+        'a: 'b,
+    {
+        self.p.chunks_exact_mut(self.d)
+    }
+    #[inline]
+    pub fn par_iter_mut<'b>(&'b mut self) -> rayon::slice::ChunksExactMut<'b, f32>
+    where
+        'a: 'b,
+    {
+        rayon::slice::ParallelSliceMut::par_chunks_exact_mut(self.p, self.d)
+    }
+    #[inline]
+    pub fn row(&self, i: usize) -> &[f32] {
+        let d = self.d;
+        &self.p[i * d..(i + 1) * d]
+    }
+    #[inline]
+    pub fn row_mut(&mut self, i: usize) -> &mut [f32] {
+        let d = self.d;
+        &mut self.p[i * d..(i + 1) * d]
+    }
+    pub fn copy_within<R: std::ops::RangeBounds<usize>>(&mut self, src: R, dest: usize) {
+        let src_start = src.start_bound().map(|x| self.d * x);
+        let src_end = src.end_bound().map(|x| self.d * x);
+        self.p.copy_within((src_start, src_end), self.d * dest);
+    }
+    #[inline]
+    pub fn into_inner(self) -> (usize, &'a mut [f32]) {
+        (self.d, self.p)
+    }
+}
+
+impl std::ops::Index<usize> for SquareMut<'_> {
+    type Output = [f32];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.p[self.d * index..][..self.d]
+    }
+}
+
+impl std::ops::IndexMut<usize> for SquareMut<'_> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.p[self.d * index..][..self.d]
+    }
+}
+
+impl<'a> rayon::prelude::IntoParallelIterator for &'a mut SquareMut<'a> {
+    type Item = &'a mut [f32];
+
+    type Iter = rayon::slice::ChunksExactMut<'a, f32>;
+
+    fn into_par_iter(self) -> Self::Iter {
+        rayon::slice::ParallelSliceMut::par_chunks_exact_mut(self.p, self.d)
     }
 }
