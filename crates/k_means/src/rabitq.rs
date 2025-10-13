@@ -28,7 +28,7 @@ impl KMeans for RaBitQ {
         &mut self.this
     }
 
-    fn assign(&mut self) {
+    fn assign(&mut self) -> Vec<usize> {
         let this = &mut self.this;
         this.pool.install(|| {
             use rabitq::packing::{pack_to_u4, padding_pack};
@@ -73,6 +73,7 @@ impl KMeans for RaBitQ {
                     *target = result.1;
                 });
         });
+        this.targets.clone()
     }
 
     fn update(&mut self) {
@@ -134,14 +135,19 @@ impl KMeans for RaBitQ {
         });
     }
 
-    fn finish(self: Box<Self>) -> Square {
+    fn finish(self: Box<Self>) -> (Square, Square) {
         let mut this = self.this;
         this.pool.install(|| {
             this.centroids.par_iter_mut().for_each(|centroid| {
                 rabitq::rotate::rotate_reversed_inplace(centroid);
             });
         });
-        this.centroids
+        this.pool.install(|| {
+            this.samples.par_iter_mut().for_each(|sample| {
+                rabitq::rotate::rotate_reversed_inplace(sample);
+            });
+        });
+        (this.centroids, this.samples)
     }
 }
 

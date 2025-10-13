@@ -1,0 +1,70 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 1000);
+
+statement error invalid K-means reduction dimension
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.internal]
+lists = [33]
+spherical_centroids = false
+[build.internal.kmeans_algorithm]
+reduction = { dim = 100 }
+$$);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+residual_quantization = true
+[build.internal]
+lists = [33]
+spherical_centroids = false
+[build.internal.kmeans_algorithm]
+reduction = { dim = 2 }
+$$);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_ip_ops)
+WITH (options = $$
+residual_quantization = false
+[build.internal]
+lists = [33]
+spherical_centroids = true
+[build.internal.kmeans_algorithm]
+reduction = { }
+$$);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_cosine_ops)
+WITH (options = $$
+residual_quantization = false
+[build.internal]
+lists = [33]
+spherical_centroids = true
+[build.internal.kmeans_algorithm]
+reduction = { }
+$$);
+
+statement ok
+SET vchordrq.probes = '16';
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <=> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+query I
+SELECT COUNT(1) FROM (SELECT 1 FROM t ORDER BY val <#> '[0.5,0.5,0.5]' limit 10) t2;
+----
+10
+
+statement ok
+DROP TABLE t;

@@ -27,6 +27,15 @@ impl Default for VchordrqDefaultBuildOptions {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum KMeansAlgorithm {
+    #[serde(rename = "lloyd")]
+    Lloyd {},
+    #[serde(rename = "reduction")]
+    Reduction { dim: Option<u32> },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct VchordrqInternalBuildOptions {
@@ -44,6 +53,8 @@ pub struct VchordrqInternalBuildOptions {
     #[serde(default = "VchordrqInternalBuildOptions::default_build_threads")]
     #[validate(range(min = 1, max = 255))]
     pub build_threads: u16,
+    #[serde(default = "VchordrqInternalBuildOptions::default_kmeans_algorithm")]
+    pub kmeans_algorithm: KMeansAlgorithm,
 }
 
 impl VchordrqInternalBuildOptions {
@@ -71,6 +82,9 @@ impl VchordrqInternalBuildOptions {
     fn default_build_threads() -> u16 {
         1
     }
+    fn default_kmeans_algorithm() -> KMeansAlgorithm {
+        KMeansAlgorithm::Lloyd {}
+    }
 }
 
 impl Default for VchordrqInternalBuildOptions {
@@ -81,6 +95,7 @@ impl Default for VchordrqInternalBuildOptions {
             sampling_factor: Self::default_sampling_factor(),
             kmeans_iterations: Self::default_kmeans_iterations(),
             build_threads: Self::default_build_threads(),
+            kmeans_algorithm: Self::default_kmeans_algorithm(),
         }
     }
 }

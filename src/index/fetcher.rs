@@ -52,6 +52,7 @@ pub struct HeapFetcher {
     heap_relation: pgrx::pg_sys::Relation,
     snapshot: pgrx::pg_sys::Snapshot,
     heapfetch: *mut pgrx::pg_sys::IndexFetchTableData,
+    heapfetch_is_tmp: bool,
     slot: *mut pgrx::pg_sys::TupleTableSlot,
     values: [Datum; 32],
     is_nulls: [bool; 32],
@@ -77,10 +78,48 @@ impl HeapFetcher {
                 heap_relation,
                 snapshot,
                 heapfetch,
+                heapfetch_is_tmp: false,
                 slot: pgrx::pg_sys::table_slot_create(heap_relation, std::ptr::null_mut()),
                 values: [Datum::null(); 32],
                 is_nulls: [true; 32],
                 hack,
+            }
+        }
+    }
+
+    pub fn new_with_tmp_heapfetch(
+        index_relation: pgrx::pg_sys::Relation,
+        heap_relation: pgrx::pg_sys::Relation,
+        snapshot: pgrx::pg_sys::Snapshot,
+    ) -> Self {
+        unsafe {
+            use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+            let index_info = pgrx::pg_sys::BuildIndexInfo(index_relation);
+            let estate = pgrx::pg_sys::CreateExecutorState();
+            let econtext = pgrx::pg_sys::MakePerTupleExprContext(estate);
+            let slot = pgrx::pg_sys::ExecInitExtraTupleSlot(
+                estate,
+                (*heap_relation).rd_att,
+                &pgrx::pg_sys::TTSOpsBufferHeapTuple,
+            );
+            let table_am = (*heap_relation).rd_tableam;
+            let index_fetch_begin = (*table_am)
+                .index_fetch_begin
+                .expect("heap AM does not support index_fetch_begin");
+            #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+            let heapfetch = pg_guard_ffi_boundary(|| index_fetch_begin(heap_relation));
+            Self {
+                index_info,
+                estate,
+                econtext,
+                heap_relation,
+                snapshot,
+                heapfetch,
+                heapfetch_is_tmp: true,
+                slot,
+                values: [Datum::null(); 32],
+                is_nulls: [true; 32],
+                hack: std::ptr::null_mut(),
             }
         }
     }
@@ -93,6 +132,15 @@ impl Drop for HeapFetcher {
             // free common resources
             pgrx::pg_sys::ExecDropSingleTupleTableSlot(self.slot);
             pgrx::pg_sys::FreeExecutorState(self.estate);
+            if self.heapfetch_is_tmp {
+                use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+                let table_am = (*self.heap_relation).rd_tableam;
+                let index_fetch_end = (*table_am)
+                    .index_fetch_end
+                    .expect("heap AM does not support index_fetch_end");
+                #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+                pg_guard_ffi_boundary(|| index_fetch_end(self.heapfetch));
+            }
         }
     }
 }
