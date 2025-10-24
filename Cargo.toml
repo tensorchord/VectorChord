@@ -34,6 +34,7 @@ vchordg = { path = "./crates/vchordg" }
 vchordrq = { path = "./crates/vchordrq" }
 vector = { path = "./crates/vector" }
 
+arrayvec = "0.7.6"
 bumpalo.workspace = true
 dary_heap.workspace = true
 paste.workspace = true
