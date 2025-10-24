@@ -15,6 +15,7 @@
 pub mod flat;
 pub mod quick;
 pub mod rabitq;
+pub mod reduction;
 pub mod square;
 
 use crate::square::Square;
@@ -32,7 +33,7 @@ pub struct This {
 
 pub trait KMeans {
     fn this(&mut self) -> &mut This;
-    fn assign(&mut self);
+    fn assign(&mut self) -> Vec<usize>;
     fn update(&mut self);
     fn sphericalize(&mut self) {
         use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -45,7 +46,7 @@ pub trait KMeans {
             });
         });
     }
-    fn finish(self: Box<Self>) -> Square;
+    fn finish(self: Box<Self>) -> (Square, Square);
 }
 
 pub fn k_means(

@@ -26,13 +26,15 @@ impl KMeans for Quick {
         &mut self.this
     }
 
-    fn assign(&mut self) {}
+    fn assign(&mut self) -> Vec<usize> {
+        self.this.targets.clone()
+    }
 
     fn update(&mut self) {}
 
-    fn finish(self: Box<Self>) -> Square {
+    fn finish(self: Box<Self>) -> (Square, Square) {
         let this = self.this;
-        this.centroids
+        (this.centroids, this.samples)
     }
 }
 

@@ -28,7 +28,7 @@ impl KMeans for Flat {
         &mut self.this
     }
 
-    fn assign(&mut self) {
+    fn assign(&mut self) -> Vec<usize> {
         let this = &mut self.this;
         this.pool.install(|| {
             this.targets
@@ -45,6 +45,7 @@ impl KMeans for Flat {
                     *target = result.1;
                 });
         });
+        this.targets.clone()
     }
 
     fn update(&mut self) {
@@ -106,9 +107,9 @@ impl KMeans for Flat {
         });
     }
 
-    fn finish(self: Box<Self>) -> Square {
+    fn finish(self: Box<Self>) -> (Square, Square) {
         let this = self.this;
-        this.centroids
+        (this.centroids, this.samples)
     }
 }
 

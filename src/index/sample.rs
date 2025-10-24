@@ -16,7 +16,6 @@ use pgrx::pg_sys::{Datum, ItemPointerData};
 use std::ptr::NonNull;
 
 pub trait Tuple {
-    #[expect(dead_code)]
     fn id(&mut self) -> ItemPointerData;
     fn build(&mut self) -> (&[Datum; 32], &[bool; 32]);
 }

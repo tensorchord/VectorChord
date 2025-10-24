@@ -24,8 +24,11 @@ use crate::index::vchordrq::types::*;
 use index::relation::{
     Page, PageGuard, Relation, RelationRead, RelationReadTypes, RelationWrite, RelationWriteTypes,
 };
+use k_means::reduction::*;
 use k_means::square::Square;
+use pgrx::pg_sys::ItemPointerData;
 use simd::Floating;
+use std::collections::HashMap;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::num::NonZero;
@@ -233,8 +236,21 @@ pub unsafe extern "C-unwind" fn ambuild(
             };
             let sampler = unsafe { HeapSampler::new(index_relation, heap_relation, snapshot) };
             let mut sample = sampler.sample();
+            let (approximation, reduction, k_means_dim) = match internal_build.kmeans_algorithm {
+                KMeansAlgorithm::Lloyd {} => (false, false, vector_options.dims),
+                KMeansAlgorithm::Reduction { dim: None } => (true, false, vector_options.dims),
+                KMeansAlgorithm::Reduction { dim: Some(d) } => (true, true, d),
+            };
+            assert!(
+                k_means_dim <= vector_options.dims,
+                "invalid K-means reduction dimension {} > {}",
+                k_means_dim,
+                vector_options.dims
+            );
+            let mut samples_idx = Vec::new();
+            pgrx::info!("start collecting samples from the table");
             let samples = 'a: {
-                let mut samples = Square::new(vector_options.dims as _);
+                let mut samples = Square::new(k_means_dim as _);
                 let Some(max_number_of_samples) = internal_build
                     .lists
                     .last()
@@ -250,7 +266,7 @@ pub unsafe extern "C-unwind" fn ambuild(
                             let vectors = unsafe { opfamily.store(datum) };
                             if let Some(vectors) = vectors {
                                 for (vector, _) in vectors {
-                                    let x = match vector {
+                                    let mut x = match vector {
                                         OwnedVector::Vecf32(x) => VectOwned::normalize(x),
                                         OwnedVector::Vecf16(x) => VectOwned::normalize(x),
                                     };
@@ -259,7 +275,12 @@ pub unsafe extern "C-unwind" fn ambuild(
                                         x.len() as u32,
                                         "invalid vector dimensions"
                                     );
+                                    if reduction {
+                                        x = rabitq::rotate::rotate(&x)[..k_means_dim as usize]
+                                            .to_vec();
+                                    }
                                     samples.push_slice(x.as_slice());
+                                    samples_idx.push(tuple.id());
                                 }
                             } else {
                                 continue;
@@ -272,20 +293,51 @@ pub unsafe extern "C-unwind" fn ambuild(
                     }
                 }
                 samples.truncate(max_number_of_samples as usize);
+                samples_idx.truncate(max_number_of_samples as usize);
                 samples
+            };
+            let tree = match approximation {
+                true => {
+                    let (approximate_tree, allocation) = make_internal_approximate_build(
+                        VectorOptions {
+                            dims: k_means_dim,
+                            ..vector_options
+                        },
+                        internal_build.clone(),
+                        samples,
+                        &reporter,
+                    );
+                    let mut fetcher = HeapFetcher::new_with_tmp_heapfetch(
+                        index_relation,
+                        heap_relation,
+                        snapshot,
+                    );
+                    restore_from_approximate_tree(
+                        vector_options,
+                        internal_build,
+                        reduction,
+                        opfamily,
+                        &mut fetcher,
+                        samples_idx,
+                        approximate_tree,
+                        allocation,
+                    )
+                }
+                false => make_internal_build(vector_options, internal_build, samples, &reporter),
             };
             if is_mvcc_snapshot(snapshot) {
                 unsafe {
                     pgrx::pg_sys::UnregisterSnapshot(snapshot);
                 }
             }
-            make_internal_build(vector_options, internal_build, samples, &reporter)
+            tree
         }
         VchordrqBuildSourceOptions::External(external_build) => {
             reporter.phase(BuildPhase::from_code(BuildPhaseCode::ExternalBuild));
             make_external_build(vector_options, opfamily, external_build)
         }
     };
+    pgrx::info!("the K-means structure tree is constructed");
     for structure in structures.iter_mut() {
         for centroid in structure.centroids.iter_mut() {
             *centroid = rabitq::rotate::rotate(centroid);
@@ -1288,6 +1340,311 @@ fn make_default_build(
     }]
 }
 
+fn make_internal_approximate_build(
+    vector_options: VectorOptions,
+    internal_build: VchordrqInternalBuildOptions,
+    samples: Square,
+    reporter: &PostgresReporter,
+) -> (Vec<Structure<Normalized>>, HashMap<usize, usize>) {
+    let mut result = vec![];
+    let (top_list, bottom_list) = if internal_build.lists.len() == 1 {
+        let top_k = (internal_build.lists[0] as f64).sqrt().floor() as u32;
+        let top_k = top_k.clamp(1, (samples.len() as f64).sqrt().floor() as u32);
+        (top_k, internal_build.lists[0])
+    } else {
+        (internal_build.lists[0], internal_build.lists[1])
+    };
+    let num_iterations = internal_build.kmeans_iterations as _;
+    pgrx::info!(
+        "approximation: building a two-level index with {} top-level clusters and {} bottom-level clusters.",
+        top_list,
+        bottom_list
+    );
+    let k_means_report = |i: u32| {
+        let percentage = ((i + 1) as f64 / (top_list + 1) as f64 * 100.0).clamp(0.0, 100.0) as u16;
+        let default = BuildPhase::from_code(BuildPhaseCode::InternalBuild);
+        let phase =
+            BuildPhase::new(BuildPhaseCode::InternalBuild, 1 + percentage).unwrap_or(default);
+        reporter.phase(phase);
+    };
+    pgrx::info!("approximation: top clustering started");
+    let mut f = k_means::k_means(
+        vector_options.dims as _,
+        samples,
+        top_list as usize,
+        internal_build.build_threads as _,
+        [7; 32],
+    );
+    if internal_build.spherical_centroids {
+        f.sphericalize();
+    }
+    for i in 0..num_iterations {
+        pgrx::check_for_interrupts!();
+        if result.is_empty() {
+            let percentage = ((i as f64 / num_iterations as f64) * 100.0).clamp(0.0, 100.0) as u16;
+            let default = BuildPhase::from_code(BuildPhaseCode::InternalBuild);
+            let phase =
+                BuildPhase::new(BuildPhaseCode::InternalBuild, 1 + percentage).unwrap_or(default);
+            reporter.phase(phase);
+        }
+        pgrx::info!("clustering: iteration {}", i + 1);
+        f.assign();
+        f.update();
+        if internal_build.spherical_centroids {
+            f.sphericalize();
+        }
+    }
+    let final_assign = f.assign();
+    let (mid_centroids, samples) = f.finish();
+    pgrx::info!("approximation: top clustering finished");
+    k_means_report(0);
+    let alloc = final_assign.into_iter().enumerate().fold(
+        vec![vec![]; mid_centroids.len()],
+        |mut acc, (i, target)| {
+            acc[target].push(i);
+            acc
+        },
+    );
+    let alloc_size = alloc.iter().map(|x| x.len() as u32).collect::<Vec<_>>();
+    let keep_indices: Vec<usize> = alloc_size
+        .iter()
+        .enumerate()
+        .filter_map(|(i, size)| if *size > 0 { Some(i) } else { None })
+        .collect();
+    let mid_centroids: Vec<_> = keep_indices
+        .iter()
+        .map(|&i| mid_centroids[i].to_vec())
+        .collect();
+    let alloc: Vec<_> = keep_indices.iter().map(|&i| alloc[i].clone()).collect();
+    let alloc_size: Vec<_> = keep_indices.iter().map(|&i| alloc_size[i]).collect();
+    let alloc_lists = successive_quotients_allocate(bottom_list, alloc_size);
+    pgrx::info!("approximation: bottom clustering started");
+    let mut mid_children = vec![Vec::new(); mid_centroids.len()];
+    let mut bottom_centroids = vec![];
+    let mut bottom_children = vec![];
+    let mut offset = 0;
+    let mut global_alloc: HashMap<usize, usize> = HashMap::new();
+    for (i, nlist) in alloc_lists.into_iter().enumerate() {
+        pgrx::check_for_interrupts!();
+        let alloc_i = if let Some(a) = alloc.get(i) {
+            a.clone()
+        } else {
+            unreachable!()
+        };
+        let sub_samples = {
+            let mut s = Square::new(vector_options.dims as _);
+            for j in alloc_i {
+                s.push_slice(&samples[j]);
+            }
+            s
+        };
+        let mut f = k_means::k_means(
+            vector_options.dims as _,
+            sub_samples,
+            nlist as usize,
+            internal_build.build_threads as _,
+            [7; 32],
+        );
+        if internal_build.spherical_centroids {
+            f.sphericalize();
+        }
+        for _ in 0..num_iterations {
+            f.assign();
+            f.update();
+            if internal_build.spherical_centroids {
+                f.sphericalize();
+            }
+        }
+        let final_assign = f.assign();
+        let (sub_centroids, sub_samples) = f.finish();
+        let sub_alloc =
+            final_assign
+                .into_iter()
+                .fold(vec![0_usize; sub_centroids.len()], |mut acc, target| {
+                    acc[target] += 1;
+                    acc
+                });
+        let sub_centroids = {
+            let it = sub_centroids
+                .into_iter()
+                .enumerate()
+                .filter(|(j, _)| sub_alloc[*j] > 0)
+                .map(|(_, c)| c);
+            let mut s = Square::new(vector_options.dims as _);
+            for c in it {
+                s.push_slice(c);
+            }
+            s
+        };
+        for j in 0..sub_samples.len() {
+            let si = alloc[i][j];
+            let target = k_means_lookup(&sub_samples[j], &sub_centroids);
+            global_alloc.insert(si, offset + target);
+        }
+        k_means_report(i as u32 + 1);
+        mid_children[i] = (offset as u32..offset as u32 + sub_centroids.len() as u32).collect();
+        offset += sub_centroids.len();
+        bottom_children.extend(vec![Vec::new(); sub_centroids.len()]);
+        bottom_centroids.extend(sub_centroids.into_iter().map(|x| x.to_vec()));
+    }
+    pgrx::info!("approximation: bottom clustering finished");
+    result.push(Structure {
+        centroids: bottom_centroids.clone(),
+        children: bottom_children,
+    });
+    result.push(Structure {
+        centroids: mid_centroids.clone(),
+        children: mid_children,
+    });
+    (result, global_alloc)
+}
+
+fn restore_from_approximate_tree(
+    vector_options: VectorOptions,
+    internal_build: VchordrqInternalBuildOptions,
+    reduction: bool,
+    opfamily: Opfamily,
+    fetcher: &mut HeapFetcher,
+    samples_idx: Vec<ItemPointerData>,
+    tree: Vec<Structure<Normalized>>,
+    allocation: HashMap<usize, usize>,
+) -> Vec<Structure<Normalized>> {
+    let drop_top = internal_build.lists.len() == 1;
+    let num_iterations = internal_build.kmeans_iterations as _;
+    let mut result = Vec::<Structure<Normalized>>::new();
+    let centroids = if reduction {
+        pgrx::info!(
+            "approximation: restoring the precise index structure and dimension from {} samples.",
+            samples_idx.len()
+        );
+        let dim = vector_options.dims as usize;
+        let bottom = tree.first().unwrap();
+        let top = tree.last().unwrap();
+        pgrx::info!("approximation: start recovering samples from the table");
+        let mut centroids = traverse_heap_again(
+            opfamily,
+            fetcher,
+            dim,
+            bottom.len(),
+            internal_build.spherical_centroids,
+            samples_idx,
+            allocation,
+        );
+        pgrx::info!("approximation: samples recovered from the table");
+        result.push(Structure {
+            centroids: centroids.clone(),
+            children: bottom.children.clone(),
+        });
+
+        if !drop_top {
+            let mut mid_centroids = vec![vec![0.0_f32; dim]; top.len()];
+            for (i, children) in top.children.iter().enumerate() {
+                for c in children.iter().copied() {
+                    mid_centroids[i] = f32::vector_add(&mid_centroids[i], &centroids[c as usize]);
+                }
+                k_means_centroids_inplace(
+                    &mut mid_centroids[i],
+                    children.len() as u32,
+                    internal_build.spherical_centroids,
+                );
+            }
+            result.push(Structure {
+                centroids: mid_centroids.clone(),
+                children: top.children.clone(),
+            });
+            centroids = mid_centroids;
+        }
+        centroids
+    } else {
+        pgrx::info!(
+            "approximation: restoring the precise index structure from {} samples.",
+            samples_idx.len()
+        );
+        if !drop_top {
+            result = tree;
+        } else {
+            result = tree.into_iter().rev().skip(1).collect();
+        }
+        result.last().unwrap().centroids.clone()
+    };
+    let samples = {
+        let mut s = Square::new(vector_options.dims as _);
+        for c in centroids.iter() {
+            s.push_slice(c.as_slice());
+        }
+        s
+    };
+    let mut f = k_means::k_means(
+        vector_options.dims as _,
+        samples,
+        1,
+        internal_build.build_threads as _,
+        [7; 32],
+    );
+    if internal_build.spherical_centroids {
+        f.sphericalize();
+    }
+    for _ in 0..num_iterations {
+        f.assign();
+        f.update();
+        if internal_build.spherical_centroids {
+            f.sphericalize();
+        }
+    }
+    let top_centroids = f.finish().0;
+    result.push(Structure {
+        centroids: top_centroids.into_iter().map(|x| x.to_vec()).collect(),
+        children: vec![(0..centroids.len() as u32).collect(); 1],
+    });
+    result
+}
+
+fn traverse_heap_again(
+    opfamily: Opfamily,
+    fetcher: &mut HeapFetcher,
+    dim: usize,
+    centroids_len: usize,
+    is_spherical: bool,
+    samples_idx: Vec<ItemPointerData>,
+    allocation: HashMap<usize, usize>,
+) -> Vec<Vec<f32>> {
+    use crate::index::fetcher::Tuple;
+    let mut centroids = vec![vec![0.0_f32; dim]; centroids_len];
+    let mut idx_alloc = 0_usize;
+    let mut count = vec![0_u32; centroids_len];
+    for ctid in samples_idx.into_iter() {
+        let key = ctid_to_key(ctid);
+        let Some(mut tuple) = fetcher.fetch(key) else {
+            unreachable!()
+        };
+        let (values, is_nulls) = tuple.build();
+        let datum = (!is_nulls[0]).then_some(values[0]);
+        if let Some(datum) = datum {
+            let vectors = unsafe { opfamily.store(datum) };
+            if let Some(vectors) = vectors {
+                for (vector, _) in vectors {
+                    let x = match vector {
+                        OwnedVector::Vecf32(x) => VectOwned::normalize(x),
+                        OwnedVector::Vecf16(x) => VectOwned::normalize(x),
+                    };
+                    let centroid_id = allocation[&idx_alloc];
+                    centroids[centroid_id] = f32::vector_add(&centroids[centroid_id], &x);
+                    count[centroid_id] += 1;
+                    idx_alloc += 1;
+                }
+            } else {
+                unreachable!()
+            }
+        } else {
+            unreachable!()
+        }
+    }
+    for i in 0..centroids_len {
+        k_means_centroids_inplace(&mut centroids[i], count[i], is_spherical);
+    }
+    centroids
+}
+
 fn make_internal_build(
     vector_options: VectorOptions,
     internal_build: VchordrqInternalBuildOptions,
@@ -1349,7 +1706,7 @@ fn make_internal_build(
                 f.sphericalize();
             }
         }
-        let centroids = f.finish();
+        let centroids = f.finish().0;
         if result.is_empty() {
             let percentage = 100;
             let default = BuildPhase::from_code(BuildPhaseCode::InternalBuild);
@@ -1363,17 +1720,6 @@ fn make_internal_build(
         if let Some(structure) = result.last() {
             let mut children = vec![Vec::new(); centroids.len()];
             for i in 0..structure.len() as u32 {
-                pub fn k_means_lookup(vector: &[f32], centroids: &Square) -> usize {
-                    assert_ne!(centroids.len(), 0);
-                    let mut result = (f32::INFINITY, 0);
-                    for i in 0..centroids.len() {
-                        let dis = f32::reduce_sum_of_d2(vector, &centroids[i]);
-                        if dis <= result.0 {
-                            result = (dis, i);
-                        }
-                    }
-                    result.1
-                }
                 let target = k_means_lookup(&structure.centroids[i as usize], &centroids);
                 children[target].push(i);
             }
