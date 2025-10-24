@@ -18,6 +18,7 @@ use std::error::Error;
 use std::process::{Command, Stdio};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo::rerun-if-changed=vchord.control");
     let version = 'version: {
         for line in std::fs::read_to_string("./vchord.control")?.lines() {
             if let Some(prefix_stripped) = line.strip_prefix("default_version = '")

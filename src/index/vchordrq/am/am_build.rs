@@ -15,6 +15,7 @@
 use crate::datatype::typmod::Typmod;
 use crate::index::fetcher::*;
 use crate::index::sample::{HeapSampler, Sample, Sampler, Tuple};
+use crate::index::storage::buffered::BufferedPostgresRelation;
 use crate::index::storage::{PostgresPage, PostgresRelation};
 use crate::index::traverse::{HeapTraverser, Traverser};
 use crate::index::vchordrq::am::Reloption;
@@ -978,8 +979,6 @@ unsafe fn parallel_build(
         std::slice::from_raw_parts(vchordrqcached.add(8), bytes as _)
     });
 
-    let index = unsafe { PostgresRelation::new(index_relation) };
-
     let scan = unsafe { pgrx::pg_sys::table_beginscan_parallel(heap_relation, tablescandesc) };
     let opfamily = unsafe { opfamily(index_relation) };
     let traverser = unsafe { HeapTraverser::new(heap_relation, index_relation, index_info, scan) };
@@ -1006,6 +1005,8 @@ unsafe fn parallel_build(
     };
 
     let order = sync_0();
+
+    let index = unsafe { BufferedPostgresRelation::new(index_relation) };
 
     match cached {
         VchordrqCachedReader::_0(_) => {
@@ -1047,7 +1048,7 @@ unsafe fn parallel_build(
         VchordrqCachedReader::_1(cached) => {
             let index = CachingRelation {
                 cache: cached,
-                relation: index.clone(),
+                relation: &index,
             };
             traverser.traverse(true, |tuple: &mut dyn crate::index::traverse::Tuple| {
                 let ctid = tuple.id();
@@ -1086,7 +1087,15 @@ unsafe fn parallel_build(
         }
     }
 
+    while index.can_release() {
+        vchordrq::consume(&index);
+    }
+
+    drop(index);
+
     sync_1(unsafe { (*vchordrqshared).indtuples });
+
+    let index = unsafe { PostgresRelation::new(index_relation) };
 
     let mut chooser = ChooseSome {
         n: unsafe { (*vchordrqshared).nparticipants as usize },
@@ -1110,8 +1119,6 @@ unsafe fn sequential_build(
     use vchordrq_cached::VchordrqCachedReader;
 
     let cached = VchordrqCachedReader::deserialize_ref(vchordrqcached);
-
-    let index = unsafe { PostgresRelation::new(index_relation) };
 
     let opfamily = unsafe { opfamily(index_relation) };
     let traverser = unsafe {
@@ -1142,6 +1149,8 @@ unsafe fn sequential_build(
     };
 
     sync_0();
+
+    let index = unsafe { BufferedPostgresRelation::new(index_relation) };
 
     let mut indtuples = 0;
     match cached {
@@ -1176,7 +1185,7 @@ unsafe fn sequential_build(
         VchordrqCachedReader::_1(cached) => {
             let index = CachingRelation {
                 cache: cached,
-                relation: index.clone(),
+                relation: &index,
             };
             traverser.traverse(true, |tuple: &mut dyn crate::index::traverse::Tuple| {
                 let ctid = tuple.id();
@@ -1207,7 +1216,15 @@ unsafe fn sequential_build(
         }
     }
 
+    while index.can_release() {
+        vchordrq::consume(&index);
+    }
+
+    drop(index);
+
     sync_1(indtuples);
+
+    let index = unsafe { PostgresRelation::new(index_relation) };
 
     let mut chooser = ChooseAll;
     crate::index::vchordrq::dispatch::maintain(opfamily, &index, &mut chooser, check);
@@ -1564,16 +1581,7 @@ fn make_external_build(
 
 struct CachingRelation<'a, R> {
     cache: vchordrq_cached::VchordrqCachedReader1<'a>,
-    relation: R,
-}
-
-impl<R: Clone> Clone for CachingRelation<'_, R> {
-    fn clone(&self) -> Self {
-        Self {
-            cache: self.cache,
-            relation: self.relation.clone(),
-        }
-    }
+    relation: &'a R,
 }
 
 enum CachingRelationReadGuard<'a, G: Deref> {

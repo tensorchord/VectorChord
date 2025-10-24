@@ -12,6 +12,8 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+pub mod buffered;
+
 use index::fetch::Fetch;
 use index::relation::{
     Hints, Opaque, Page, PageGuard, ReadStream, Relation, RelationPrefetch, RelationRead,
