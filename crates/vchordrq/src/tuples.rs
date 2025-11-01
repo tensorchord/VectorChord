@@ -20,7 +20,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordrq");
-const VERSION: u64 = 12;
+const VERSION: u64 = 13;
 
 #[inline(always)]
 fn tag(source: &[u8]) -> Tag {
@@ -50,6 +50,7 @@ pub trait WithWriter: Tuple {
 struct MetaTupleHeader {
     version: u64,
     dims: u32,
+    epsilon: f32,
     height_of_root: u32,
     is_residual: Bool,
     rerank_in_heap: Bool,
@@ -60,7 +61,7 @@ struct MetaTupleHeader {
     vectors_first_s: u16,
     vectors_first_e: u16,
     freepages_first: u32,
-    _padding_1: [Padding; 6],
+    _padding_1: [Padding; 2],
     // tree
     centroid_prefetch_s: u16,
     centroid_prefetch_e: u16,
@@ -71,6 +72,7 @@ struct MetaTupleHeader {
 
 pub struct MetaTuple {
     pub dims: u32,
+    pub epsilon: f32,
     pub height_of_root: u32,
     pub is_residual: bool,
     pub rerank_in_heap: bool,
@@ -91,6 +93,7 @@ impl Tuple for MetaTuple {
         match self {
             MetaTuple {
                 dims,
+                epsilon,
                 height_of_root,
                 is_residual,
                 rerank_in_heap,
@@ -131,6 +134,7 @@ impl Tuple for MetaTuple {
                     MetaTupleHeader {
                         version: VERSION,
                         dims: *dims,
+                        epsilon: *epsilon,
                         height_of_root: *height_of_root,
                         is_residual: (*is_residual).into(),
                         rerank_in_heap: (*rerank_in_heap).into(),
@@ -197,6 +201,9 @@ pub struct MetaTupleReader<'a> {
 impl<'a> MetaTupleReader<'a> {
     pub fn dims(self) -> u32 {
         self.header.dims
+    }
+    pub fn epsilon(self) -> f32 {
+        self.header.epsilon
     }
     pub fn height_of_root(self) -> u32 {
         self.header.height_of_root

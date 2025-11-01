@@ -116,6 +116,7 @@ pub fn build<R: RelationWrite, O: Operator>(
     }
     meta.push(MetaTuple {
         dims,
+        epsilon: vchordrq_options.epsilon,
         height_of_root: structures.len() as u32,
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,
