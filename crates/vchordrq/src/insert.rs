@@ -81,11 +81,11 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dims = meta_tuple.dims();
+    let epsilon = meta_tuple.epsilon();
     let is_residual = meta_tuple.is_residual();
     let height_of_root = meta_tuple.height_of_root();
     let freepages_first = meta_tuple.freepages_first();
     assert_eq!(dims, vector.dims(), "unmatched dimensions");
-    let epsilon = 1.9;
 
     type State = (Reverse<Distance>, AlwaysEqual<f32>, AlwaysEqual<u32>);
     let mut state: State = if is_residual {

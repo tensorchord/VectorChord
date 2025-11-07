@@ -20,6 +20,9 @@ use vector::vect::{VectBorrowed, VectOwned};
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct VchordrqIndexOptions {
+    #[serde(default = "VchordrqIndexOptions::default_epsilon")]
+    #[validate(range(min = 1.0, max = 4.0))]
+    pub epsilon: f32,
     #[serde(default = "VchordrqIndexOptions::default_residual_quantization")]
     pub residual_quantization: bool,
     #[serde(default = "VchordrqIndexOptions::default_rerank_in_table")]
@@ -30,6 +33,9 @@ pub struct VchordrqIndexOptions {
 }
 
 impl VchordrqIndexOptions {
+    fn default_epsilon() -> f32 {
+        1.9
+    }
     fn default_residual_quantization() -> bool {
         false
     }
@@ -44,6 +50,7 @@ impl VchordrqIndexOptions {
 impl Default for VchordrqIndexOptions {
     fn default() -> Self {
         Self {
+            epsilon: Self::default_epsilon(),
             residual_quantization: Self::default_residual_quantization(),
             rerank_in_table: Self::default_rerank_in_table(),
             degree_of_parallelism: Self::default_degree_of_parallelism(),
