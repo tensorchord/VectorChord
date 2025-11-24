@@ -113,7 +113,7 @@ codegen-units = 1
 lto = "fat"
 opt-level = 3
 debug = "none"
-strip = "debuginfo"
+strip = "symbols"
 
 [profile.prof]
 inherits = "release"
