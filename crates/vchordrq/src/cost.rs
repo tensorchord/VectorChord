@@ -16,7 +16,7 @@ use crate::tuples::{MetaTuple, WithReader};
 use index::relation::{Page, RelationRead};
 
 pub struct Cost {
-    pub dims: u32,
+    pub dim: u32,
     pub cells: Vec<u32>,
 }
 
@@ -25,10 +25,10 @@ pub fn cost<R: RelationRead>(index: &R) -> Cost {
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let cells = meta_tuple.cells().to_vec();
 
     drop(meta_guard);
 
-    Cost { dims, cells }
+    Cost { dim, cells }
 }

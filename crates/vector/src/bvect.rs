@@ -20,42 +20,42 @@ pub const BVECTOR_WIDTH: u32 = u64::BITS;
 // When using binary vector, please ensure that the padding bits are always zero.
 #[derive(Debug, Clone)]
 pub struct BVectOwned {
-    dims: u32,
+    dim: u32,
     data: Vec<u64>,
 }
 
 impl BVectOwned {
     #[inline(always)]
-    pub fn new(dims: u32, data: Vec<u64>) -> Self {
-        Self::new_checked(dims, data).expect("invalid data")
+    pub fn new(dim: u32, data: Vec<u64>) -> Self {
+        Self::new_checked(dim, data).expect("invalid data")
     }
 
     #[inline(always)]
-    pub fn new_checked(dims: u32, data: Vec<u64>) -> Option<Self> {
-        if !(1..=65535).contains(&dims) {
+    pub fn new_checked(dim: u32, data: Vec<u64>) -> Option<Self> {
+        if !(1..=65535).contains(&dim) {
             return None;
         }
-        if data.len() != dims.div_ceil(BVECTOR_WIDTH) as usize {
+        if data.len() != dim.div_ceil(BVECTOR_WIDTH) as usize {
             return None;
         }
-        if dims % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dims % BVECTOR_WIDTH) != 0 {
+        if dim % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dim % BVECTOR_WIDTH) != 0 {
             return None;
         }
         #[allow(unsafe_code)]
         unsafe {
-            Some(Self::new_unchecked(dims, data))
+            Some(Self::new_unchecked(dim, data))
         }
     }
 
     /// # Safety
     ///
-    /// * `dims` must be in `1..=65535`.
+    /// * `dim` must be in `1..=65535`.
     /// * `data` must be of the correct length.
     /// * The padding bits must be zero.
     #[allow(unsafe_code)]
     #[inline(always)]
-    pub unsafe fn new_unchecked(dims: u32, data: Vec<u64>) -> Self {
-        Self { dims, data }
+    pub unsafe fn new_unchecked(dim: u32, data: Vec<u64>) -> Self {
+        Self { dim, data }
     }
 }
 
@@ -65,7 +65,7 @@ impl VectorOwned for BVectOwned {
     #[inline(always)]
     fn as_borrowed(&self) -> BVectBorrowed<'_> {
         BVectBorrowed {
-            dims: self.dims,
+            dim: self.dim,
             data: &self.data,
         }
     }
@@ -73,42 +73,42 @@ impl VectorOwned for BVectOwned {
 
 #[derive(Debug, Clone, Copy)]
 pub struct BVectBorrowed<'a> {
-    dims: u32,
+    dim: u32,
     data: &'a [u64],
 }
 
 impl<'a> BVectBorrowed<'a> {
     #[inline(always)]
-    pub fn new(dims: u32, data: &'a [u64]) -> Self {
-        Self::new_checked(dims, data).expect("invalid data")
+    pub fn new(dim: u32, data: &'a [u64]) -> Self {
+        Self::new_checked(dim, data).expect("invalid data")
     }
 
     #[inline(always)]
-    pub fn new_checked(dims: u32, data: &'a [u64]) -> Option<Self> {
-        if !(1..=65535).contains(&dims) {
+    pub fn new_checked(dim: u32, data: &'a [u64]) -> Option<Self> {
+        if !(1..=65535).contains(&dim) {
             return None;
         }
-        if data.len() != dims.div_ceil(BVECTOR_WIDTH) as usize {
+        if data.len() != dim.div_ceil(BVECTOR_WIDTH) as usize {
             return None;
         }
-        if dims % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dims % BVECTOR_WIDTH) != 0 {
+        if dim % BVECTOR_WIDTH != 0 && data[data.len() - 1] >> (dim % BVECTOR_WIDTH) != 0 {
             return None;
         }
         #[allow(unsafe_code)]
         unsafe {
-            Some(Self::new_unchecked(dims, data))
+            Some(Self::new_unchecked(dim, data))
         }
     }
 
     /// # Safety
     ///
-    /// * `dims` must be in `1..=65535`.
+    /// * `dim` must be in `1..=65535`.
     /// * `data` must be of the correct length.
     /// * The padding bits must be zero.
     #[allow(unsafe_code)]
     #[inline(always)]
-    pub unsafe fn new_unchecked(dims: u32, data: &'a [u64]) -> Self {
-        Self { dims, data }
+    pub unsafe fn new_unchecked(dim: u32, data: &'a [u64]) -> Self {
+        Self { dim, data }
     }
 
     #[inline(always)]
@@ -118,7 +118,7 @@ impl<'a> BVectBorrowed<'a> {
 
     #[inline(always)]
     pub fn get(&self, index: u32) -> bool {
-        assert!(index < self.dims);
+        assert!(index < self.dim);
         self.data[(index / BVECTOR_WIDTH) as usize] & (1 << (index % BVECTOR_WIDTH)) != 0
     }
 
@@ -126,7 +126,7 @@ impl<'a> BVectBorrowed<'a> {
     pub fn iter(self) -> impl Iterator<Item = bool> + 'a {
         let mut index = 0_u32;
         std::iter::from_fn(move || {
-            if index < self.dims {
+            if index < self.dim {
                 let result = self.data[(index / BVECTOR_WIDTH) as usize]
                     & (1 << (index % BVECTOR_WIDTH))
                     != 0;
@@ -143,13 +143,13 @@ impl VectorBorrowed for BVectBorrowed<'_> {
     type Owned = BVectOwned;
 
     #[inline(always)]
-    fn dims(&self) -> u32 {
-        self.dims
+    fn dim(&self) -> u32 {
+        self.dim
     }
 
     fn own(&self) -> BVectOwned {
         BVectOwned {
-            dims: self.dims,
+            dim: self.dim,
             data: self.data.to_vec(),
         }
     }
@@ -203,27 +203,27 @@ impl VectorBorrowed for BVectBorrowed<'_> {
     }
 
     fn operator_and(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let data = simd::bit::vector_and(self.data, rhs.data);
-        BVectOwned::new(self.dims, data)
+        BVectOwned::new(self.dim, data)
     }
 
     fn operator_or(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let data = simd::bit::vector_or(self.data, rhs.data);
-        BVectOwned::new(self.dims, data)
+        BVectOwned::new(self.dim, data)
     }
 
     fn operator_xor(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let data = simd::bit::vector_xor(self.data, rhs.data);
-        BVectOwned::new(self.dims, data)
+        BVectOwned::new(self.dim, data)
     }
 }
 
 impl PartialEq for BVectBorrowed<'_> {
     fn eq(&self, other: &Self) -> bool {
-        if self.dims != other.dims {
+        if self.dim != other.dim {
             return false;
         }
         for (&l, &r) in self.data.iter().zip(other.data.iter()) {
@@ -240,7 +240,7 @@ impl PartialEq for BVectBorrowed<'_> {
 impl PartialOrd for BVectBorrowed<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
-        if self.dims != other.dims {
+        if self.dim != other.dim {
             return None;
         }
         for (&l, &r) in self.data.iter().zip(other.data.iter()) {

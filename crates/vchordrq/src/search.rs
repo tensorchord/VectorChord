@@ -20,7 +20,7 @@ use crate::tuples::*;
 use crate::{Opaque, centroids, tape};
 use always_equal::AlwaysEqual;
 use distance::Distance;
-use index::accessor::{FunctionalAccessor, LAccess};
+use index::accessor::{DefaultWithDimension, FunctionalAccessor, LAccess};
 use index::bump::Bump;
 use index::fetch::BorrowedIter;
 use index::packed::{PackedRefMut4, PackedRefMut8};
@@ -51,11 +51,11 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let is_residual = meta_tuple.is_residual();
     let height_of_root = meta_tuple.height_of_root();
     let cells = meta_tuple.cells().to_vec();
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     if height_of_root as usize != 1 + probes.len() {
         panic!(
             "usage: need {} probes, but {} probes provided",
@@ -73,7 +73,10 @@ where
         let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
-            LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+            LAccess::new(
+                O::Vector::unpack(vector),
+                O::DistanceAccessor::default_with_dimension(dim),
+            ),
         );
         let norm = meta_tuple.centroid_norm();
         let first = meta_tuple.first();
@@ -118,7 +121,10 @@ where
                 let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
-                    LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                    LAccess::new(
+                        O::Vector::unpack(vector),
+                        O::DistanceAccessor::default_with_dimension(dim),
+                    ),
                 );
                 cache.push((Reverse(distance), AlwaysEqual(norm), AlwaysEqual(first)));
             }
@@ -212,11 +218,11 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let is_residual = meta_tuple.is_residual();
     let height_of_root = meta_tuple.height_of_root();
     let cells = meta_tuple.cells().to_vec();
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     if height_of_root as usize != 1 + probes.len() {
         panic!(
             "usage: need {} probes, but {} probes provided",
@@ -234,7 +240,10 @@ where
         let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
-            LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+            LAccess::new(
+                O::Vector::unpack(vector),
+                O::DistanceAccessor::default_with_dimension(dim),
+            ),
         );
         let norm = meta_tuple.centroid_norm();
         let first = meta_tuple.first();
@@ -279,7 +288,10 @@ where
                 let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
-                    LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                    LAccess::new(
+                        O::Vector::unpack(vector),
+                        O::DistanceAccessor::default_with_dimension(dim),
+                    ),
                 );
                 cache.push((Reverse(distance), AlwaysEqual(norm), AlwaysEqual(first)));
             }

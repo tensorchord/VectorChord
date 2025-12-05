@@ -209,15 +209,15 @@ fn find_scale<const B: usize>(o: &[f32]) -> f32 {
     assert!((1..=8).contains(&B));
 
     let mask = (1_u32 << (B - 1)) - 1;
-    let dims = o.len();
+    let dim = o.len();
 
-    let mut code = Vec::<u8>::with_capacity(dims);
+    let mut code = Vec::<u8>::with_capacity(dim);
     let mut numerator = 0.0f64;
     let mut sqr_denominator = 0.0f64;
 
     let (mut y_m, mut x_m);
 
-    for i in 0..dims {
+    for i in 0..dim {
         code.push(0);
         let value = 0.5;
         numerator += value * o[i] as f64;
@@ -230,7 +230,7 @@ fn find_scale<const B: usize>(o: &[f32]) -> f32 {
     }
 
     let mut events = Vec::<(f64, usize)>::new();
-    for i in 0..dims {
+    for i in 0..dim {
         for c in 1..=mask {
             let x = (c as f64) / o[i] as f64;
             events.push((x, i));
@@ -254,14 +254,14 @@ fn find_scale<const B: usize>(o: &[f32]) -> f32 {
 fn ugly_find_scale<const B: usize>(o: &[f32]) -> (f32, Vec<i32>) {
     assert!((1..=8).contains(&B));
 
-    let dims = o.len();
+    let dim = o.len();
 
-    let mut code = Vec::<u8>::with_capacity(dims);
+    let mut code = Vec::<u8>::with_capacity(dim);
     let mut numerator_m = 0.0f64;
     let mut sqr_denominator_m = 0.0f64;
 
     let scale = (1 << (B - 1)) as f32 / f32::reduce_min_max_of_x(o).1;
-    for i in 0..dims {
+    for i in 0..dim {
         code.push((o[i] as f64 * scale as f64) as u8);
         let value = code[i] as f64 + 0.5;
         numerator_m += value * o[i] as f64;
@@ -269,9 +269,9 @@ fn ugly_find_scale<const B: usize>(o: &[f32]) -> (f32, Vec<i32>) {
     }
     let mut y_m = numerator_m / sqr_denominator_m.sqrt();
 
-    let mut delta = vec![0_i32; dims];
+    let mut delta = vec![0_i32; dim];
     for _ in 0..8 {
-        for i in 0..dims {
+        for i in 0..dim {
             if code[i] < (1 << (B - 1)) - 1 {
                 let numerator = numerator_m + o[i] as f64;
                 let sqr_denominator = sqr_denominator_m + 2.0 * (code[i] as f64 + 1.0);

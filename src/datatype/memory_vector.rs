@@ -23,7 +23,7 @@ use vector::vect::VectBorrowed;
 #[repr(C)]
 struct VectorHeader {
     varlena: u32,
-    dims: u16,
+    dim: u16,
     unused: u16,
     elements: [f32; 0],
 }
@@ -40,7 +40,7 @@ impl VectorHeader {
             let this = this.as_ptr();
             VectBorrowed::new(std::slice::from_raw_parts(
                 (&raw const (*this).elements).cast(),
-                (&raw const (*this).dims).read() as usize,
+                (&raw const (*this).dim).read() as usize,
             ))
         }
     }
@@ -59,8 +59,8 @@ impl VectorInput<'_> {
             let size = varlena as usize;
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
-            let dims = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(VectorHeader::size_of(dims as _), size);
+            let dim = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(VectorHeader::size_of(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
@@ -94,8 +94,8 @@ impl VectorOutput {
             let size = varlena as usize;
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
-            let dims = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(VectorHeader::size_of(dims as _), size);
+            let dim = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(VectorHeader::size_of(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
@@ -113,7 +113,7 @@ impl VectorOutput {
             (&raw mut (*ptr).varlena).write((size as u32) & 0x3FFFFFFF);
             #[cfg(target_endian = "little")]
             (&raw mut (*ptr).varlena).write((size << 2) as u32);
-            (&raw mut (*ptr).dims).write(vector.dims() as _);
+            (&raw mut (*ptr).dim).write(vector.dim() as _);
             (&raw mut (*ptr).unused).write(0);
             std::ptr::copy_nonoverlapping(
                 slice.as_ptr(),

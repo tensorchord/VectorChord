@@ -47,7 +47,7 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let height_of_root = meta_tuple.height_of_root();
     let freepages_first = meta_tuple.freepages_first();
 
@@ -118,7 +118,7 @@ where
             })
         });
 
-        let mut tape = FrozenTapeWriter::create(&hooked_index, O::Vector::count(dims as _), false);
+        let mut tape = FrozenTapeWriter::create(&hooked_index, O::Vector::count(dim as _), false);
 
         let mut trace_directory = Vec::new();
         let mut trace_forzen = Vec::new();
@@ -182,7 +182,7 @@ where
                 let signs = elements
                     .iter()
                     .flat_map(|x| std::array::from_fn::<_, 64, _>(|i| *x & (1 << i) != 0))
-                    .take(dims as _)
+                    .take(dim as _)
                     .collect::<Vec<_>>();
                 (
                     (

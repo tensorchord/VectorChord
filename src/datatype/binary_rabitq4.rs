@@ -12,14 +12,14 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::datatype::memory_rabitq8::{Rabitq8Input, Rabitq8Output};
+use crate::datatype::memory_rabitq4::{Rabitq4Input, Rabitq4Output};
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Oid;
 use vector::VectorBorrowed;
-use vector::rabitq8::Rabitq8Borrowed;
+use vector::rabitq4::Rabitq4Borrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_rabitq8_send(vector: Rabitq8Input<'_>) -> Vec<u8> {
+fn _vchord_rabitq4_send(vector: Rabitq4Input<'_>) -> Vec<u8> {
     let vector = vector.as_borrowed();
     let mut stream = Vec::<u8>::new();
     stream.extend(vector.dim().to_be_bytes());
@@ -34,7 +34,7 @@ fn _vchord_rabitq8_send(vector: Rabitq8Input<'_>) -> Vec<u8> {
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_rabitq8_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Rabitq8Output {
+fn _vchord_rabitq4_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Rabitq4Output {
     let _ = (oid, typmod);
     let buf = unsafe { internal.get_mut::<pgrx::pg_sys::StringInfoData>().unwrap() };
 
@@ -70,7 +70,7 @@ fn _vchord_rabitq8_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Rabitq
     };
     let packed_code = {
         let mut result = Vec::new();
-        for _ in 0..dim.div_ceil(1) {
+        for _ in 0..dim.div_ceil(2) {
             result.push({
                 assert!(buf.cursor < i32::MAX - 1 && buf.cursor + 1 <= buf.len);
                 let raw = unsafe { buf.data.add(buf.cursor as _).cast::<[u8; 1]>().read() };
@@ -81,7 +81,7 @@ fn _vchord_rabitq8_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Rabitq
         result
     };
 
-    if let Some(x) = Rabitq8Borrowed::new_checked(
+    if let Some(x) = Rabitq4Borrowed::new_checked(
         dim,
         sum_of_x2,
         norm_of_lattice,
@@ -89,7 +89,7 @@ fn _vchord_rabitq8_recv(mut internal: Internal, oid: Oid, typmod: i32) -> Rabitq
         sum_of_abs_x,
         &packed_code,
     ) {
-        Rabitq8Output::new(x)
+        Rabitq4Output::new(x)
     } else {
         pgrx::error!("detect data corruption");
     }

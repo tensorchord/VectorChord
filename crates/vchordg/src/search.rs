@@ -21,7 +21,7 @@ use crate::vectors::{by_prefetch, copy_outs};
 use crate::visited::Visited;
 use always_equal::AlwaysEqual;
 use distance::Distance;
-use index::accessor::LAccess;
+use index::accessor::{DefaultWithDimension, LAccess};
 use index::bump::Bump;
 use index::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use index::relation::{Page, RelationRead};
@@ -46,10 +46,10 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let start = meta_tuple.start();
     let bits = Bits::try_from(meta_tuple.bits()).expect("data corruption");
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     let ef = ef_search;
     let beam = beam_search;
     drop(meta_guard);
@@ -70,7 +70,7 @@ where
         let pointers_s: &[_] = bump.alloc_slice(vertex_tuple.pointers());
         let score_s = O::process(
             bits,
-            dims,
+            dim,
             (vertex_tuple.metadata(), vertex_tuple.elements()),
             &lut,
         );
@@ -80,7 +80,10 @@ where
         while let Some(((_, AlwaysEqual(pointers_u)), guards)) = candidates.pop() {
             let Ok((dis_u, outs_u, payload_u, _)) = crate::vectors::read::<R, O, _, _>(
                 by_prefetch::<R>(guards, pointers_u.iter().copied()),
-                LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                LAccess::new(
+                    O::Vector::unpack(vector),
+                    O::DistanceAccessor::default_with_dimension(dim),
+                ),
                 copy_outs,
             ) else {
                 // the link is broken
@@ -109,7 +112,7 @@ where
                 let pointers_v = bump.alloc_slice(vertex_tuple.pointers());
                 let score_v = O::process(
                     bits,
-                    dims,
+                    dim,
                     (vertex_tuple.metadata(), vertex_tuple.elements()),
                     &lut,
                 );

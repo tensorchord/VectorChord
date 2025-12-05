@@ -18,6 +18,7 @@ use crate::tuples::{MetaTuple, VertexTuple, WithReader};
 use crate::types::DistanceKind;
 use crate::vectors::{by_read, copy_all, copy_nothing, copy_outs, update};
 use always_equal::AlwaysEqual;
+use index::accessor::DefaultWithDimension;
 use index::relation::{Page, PageGuard, RelationRead, RelationWrite};
 use std::cmp::Reverse;
 use vector::VectorOwned;
@@ -29,6 +30,7 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
+    let dim = meta_tuple.dim();
     let m = meta_tuple.m();
     let alpha = meta_tuple.alpha().to_vec();
     let start = meta_tuple.start();
@@ -58,7 +60,7 @@ where
                 'occ: loop {
                     let Ok((vector_u, neighbours_u, _, version)) = crate::vectors::read::<R, O, _, _>(
                         by_read::<R>(index, pointers_u.iter().copied()),
-                        CloneAccessor::<O::Vector>::default(),
+                        CloneAccessor::<O::Vector>::default_with_dimension(dim),
                         copy_all,
                     ) else {
                         // the link is broken
@@ -79,7 +81,7 @@ where
                             drop(vertex_guard);
                             let Ok((vector_v, outs_v, _, _)) = crate::vectors::read::<R, O, _, _>(
                                 by_read::<R>(index, pointers_v.iter().copied()),
-                                CloneAccessor::<O::Vector>::default(),
+                                CloneAccessor::<O::Vector>::default_with_dimension(dim),
                                 copy_outs,
                             ) else {
                                 // the link is broken
@@ -106,7 +108,7 @@ where
                             drop(vertex_guard);
                             let Ok((vector_v, _, _, _)) = crate::vectors::read::<R, O, _, _>(
                                 by_read::<R>(index, pointers_v.iter().copied()),
-                                CloneAccessor::<O::Vector>::default(),
+                                CloneAccessor::<O::Vector>::default_with_dimension(dim),
                                 copy_nothing,
                             ) else {
                                 // the link is broken

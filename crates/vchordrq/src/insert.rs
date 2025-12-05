@@ -12,13 +12,14 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+use crate::closure_lifetime_binder::id_0;
 use crate::linked_vec::LinkedVec;
 use crate::operator::*;
 use crate::tuples::*;
 use crate::{Opaque, centroids, tape, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
-use index::accessor::{FunctionalAccessor, LAccess};
+use index::accessor::{DefaultWithDimension, FunctionalAccessor, LAccess};
 use index::bump::Bump;
 use index::fetch::BorrowedIter;
 use index::prefetcher::{Prefetcher, PrefetcherHeapFamily};
@@ -47,9 +48,9 @@ where
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let rerank_in_heap = meta_tuple.rerank_in_heap();
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     let vectors_first = {
         let l = meta_tuple.vectors_first();
         let n = NonZero::new(l.len()).expect("data corruption");
@@ -80,11 +81,11 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
+    let dim = meta_tuple.dim();
     let is_residual = meta_tuple.is_residual();
     let height_of_root = meta_tuple.height_of_root();
     let freepages_first = meta_tuple.freepages_first();
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     let epsilon = 1.9;
 
     type State = (Reverse<Distance>, AlwaysEqual<f32>, AlwaysEqual<u32>);
@@ -95,7 +96,10 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         let distance = centroids::read::<R, O, _>(
             prefetch.map(|id| index.read(id)),
             head,
-            LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+            LAccess::new(
+                O::Vector::unpack(vector),
+                O::DistanceAccessor::default_with_dimension(dim),
+            ),
         );
         let norm = meta_tuple.centroid_norm();
         let first = meta_tuple.first();
@@ -141,7 +145,10 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 let distance = centroids::read::<R, O, _>(
                     prefetch,
                     head,
-                    LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                    LAccess::new(
+                        O::Vector::unpack(vector),
+                        O::DistanceAccessor::default_with_dimension(dim),
+                    ),
                 );
                 cache.push((Reverse(distance), AlwaysEqual(norm), AlwaysEqual(first)));
             }
@@ -169,7 +176,13 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                     .iter()
                     .map(|&id| index.read(id)),
                 jump_tuple.centroid_head(),
-                FunctionalAccessor::new(Vec::new(), Vec::extend_from_slice, O::Vector::pack),
+                FunctionalAccessor::new(
+                    (dim, Vec::new()),
+                    id_0(|(_, elements): &mut (_, Vec<_>), slice| {
+                        elements.extend_from_slice(slice)
+                    }),
+                    |(dim, elements), metadata| O::Vector::pack(dim, elements, metadata),
+                ),
             )
         }),
     );

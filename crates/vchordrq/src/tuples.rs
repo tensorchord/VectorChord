@@ -49,7 +49,7 @@ pub trait WithWriter: Tuple {
 #[derive(Debug, Clone, PartialEq, FromBytes, IntoBytes, Immutable, KnownLayout)]
 struct MetaTupleHeader {
     version: u64,
-    dims: u32,
+    dim: u32,
     height_of_root: u32,
     is_residual: Bool,
     rerank_in_heap: Bool,
@@ -70,7 +70,7 @@ struct MetaTupleHeader {
 }
 
 pub struct MetaTuple {
-    pub dims: u32,
+    pub dim: u32,
     pub height_of_root: u32,
     pub is_residual: bool,
     pub rerank_in_heap: bool,
@@ -90,7 +90,7 @@ impl Tuple for MetaTuple {
         let mut buffer = Vec::<u8>::new();
         match self {
             MetaTuple {
-                dims,
+                dim,
                 height_of_root,
                 is_residual,
                 rerank_in_heap,
@@ -130,7 +130,7 @@ impl Tuple for MetaTuple {
                 buffer[size_of::<Tag>()..][..size_of::<MetaTupleHeader>()].copy_from_slice(
                     MetaTupleHeader {
                         version: VERSION,
-                        dims: *dims,
+                        dim: *dim,
                         height_of_root: *height_of_root,
                         is_residual: (*is_residual).into(),
                         rerank_in_heap: (*rerank_in_heap).into(),
@@ -195,8 +195,8 @@ pub struct MetaTupleReader<'a> {
 }
 
 impl<'a> MetaTupleReader<'a> {
-    pub fn dims(self) -> u32 {
-        self.header.dims
+    pub fn dim(self) -> u32 {
+        self.header.dim
     }
     pub fn height_of_root(self) -> u32 {
         self.header.height_of_root

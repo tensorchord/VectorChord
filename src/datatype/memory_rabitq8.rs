@@ -23,7 +23,7 @@ use vector::rabitq8::Rabitq8Borrowed;
 #[repr(C)]
 struct Rabitq8Header {
     varlena: u32,
-    dims: u16,
+    dim: u16,
     unused: u16,
     sum_of_x2: f32,
     norm_of_lattice: f32,
@@ -33,7 +33,10 @@ struct Rabitq8Header {
 }
 
 impl Rabitq8Header {
-    fn size_of(len: usize) -> usize {
+    fn size_of_by_dim(dim: usize) -> usize {
+        Self::size_of_by_len(dim.div_ceil(1))
+    }
+    fn size_of_by_len(len: usize) -> usize {
         if len > 65535 {
             panic!("vector is too large");
         }
@@ -43,13 +46,14 @@ impl Rabitq8Header {
         unsafe {
             let this = this.as_ptr();
             Rabitq8Borrowed::new(
+                (&raw const (*this).dim).read() as u32,
                 (&raw const (*this).sum_of_x2).read(),
                 (&raw const (*this).norm_of_lattice).read(),
                 (&raw const (*this).sum_of_code).read(),
                 (&raw const (*this).sum_of_abs_x).read(),
                 std::slice::from_raw_parts(
                     (&raw const (*this).elements).cast(),
-                    (&raw const (*this).dims).read() as usize,
+                    (&raw const (*this).dim).read().div_ceil(1) as usize,
                 ),
             )
         }
@@ -69,8 +73,8 @@ impl Rabitq8Input<'_> {
             let size = varlena as usize;
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
-            let dims = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(Rabitq8Header::size_of(dims as _), size);
+            let dim = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(Rabitq8Header::size_of_by_dim(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
@@ -104,8 +108,8 @@ impl Rabitq8Output {
             let size = varlena as usize;
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
-            let dims = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(Rabitq8Header::size_of(dims as _), size);
+            let dim = q.byte_add(4).cast::<u16>().read();
+            assert_eq!(Rabitq8Header::size_of_by_dim(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
@@ -113,8 +117,8 @@ impl Rabitq8Output {
     }
     pub fn new(vector: Rabitq8Borrowed<'_>) -> Self {
         unsafe {
-            let code = vector.code();
-            let size = Rabitq8Header::size_of(code.len());
+            let packed_code = vector.packed_code();
+            let size = Rabitq8Header::size_of_by_len(packed_code.len());
 
             let ptr = pgrx::pg_sys::palloc0(size) as *mut Rabitq8Header;
             // SET_VARSIZE_4B
@@ -122,16 +126,16 @@ impl Rabitq8Output {
             (&raw mut (*ptr).varlena).write((size as u32) & 0x3FFFFFFF);
             #[cfg(target_endian = "little")]
             (&raw mut (*ptr).varlena).write((size << 2) as u32);
-            (&raw mut (*ptr).dims).write(vector.dims() as _);
+            (&raw mut (*ptr).dim).write(vector.dim() as _);
             (&raw mut (*ptr).unused).write(0);
             (&raw mut (*ptr).sum_of_x2).write(vector.sum_of_x2());
             (&raw mut (*ptr).norm_of_lattice).write(vector.norm_of_lattice());
             (&raw mut (*ptr).sum_of_code).write(vector.sum_of_code());
             (&raw mut (*ptr).sum_of_abs_x).write(vector.sum_of_abs_x());
             std::ptr::copy_nonoverlapping(
-                code.as_ptr(),
+                packed_code.as_ptr(),
                 (&raw mut (*ptr).elements).cast(),
-                code.len(),
+                packed_code.len(),
             );
             Self(NonNull::new(ptr).unwrap())
         }

@@ -395,7 +395,10 @@ pub unsafe extern "C-unwind" fn amrescan(
             | Opfamily::HalfvecIp
             | Opfamily::Rabitq8L2
             | Opfamily::Rabitq8Cosine
-            | Opfamily::Rabitq8Ip => {
+            | Opfamily::Rabitq8Ip
+            | Opfamily::Rabitq4L2
+            | Opfamily::Rabitq4Cosine
+            | Opfamily::Rabitq4Ip => {
                 let mut builder = DefaultBuilder::new(opfamily);
                 for i in 0..(*scan).numberOfOrderBys {
                     let data = (*scan).orderByData.add(i as usize);

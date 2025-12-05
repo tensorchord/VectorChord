@@ -16,5 +16,6 @@ pub mod bit;
 pub mod bits;
 pub mod byte;
 mod extended;
+pub mod halfbyte;
 pub mod packing;
 pub mod rotate;

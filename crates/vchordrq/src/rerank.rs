@@ -18,7 +18,7 @@ use crate::tuples::{MetaTuple, WithReader};
 use crate::{RerankMethod, vectors};
 use always_equal::AlwaysEqual;
 use distance::Distance;
-use index::accessor::{Accessor2, LTryAccess};
+use index::accessor::{Accessor2, DefaultWithDimension, LTryAccess};
 use index::fetch::BorrowedIter;
 use index::packed::PackedRefMut;
 use index::prefetcher::Prefetcher;
@@ -27,7 +27,7 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::marker::PhantomData;
 use std::num::NonZero;
-use vector::VectorOwned;
+use vector::{VectorBorrowed, VectorOwned};
 
 type Result = (Reverse<Distance>, AlwaysEqual<NonZero<u64>>);
 
@@ -89,6 +89,7 @@ pub fn rerank_index<
     vector: O::Vector,
     prefetcher: P,
 ) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P, W> {
+    let dim = vector.as_borrowed().dim();
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
@@ -99,7 +100,7 @@ pub fn rerank_index<
                 payload,
                 LTryAccess::new(
                     O::Vector::unpack(vector.as_borrowed()),
-                    O::DistanceAccessor::default(),
+                    O::DistanceAccessor::default_with_dimension(dim),
                 ),
             )
         }),
@@ -118,6 +119,7 @@ pub fn rerank_heap<
     prefetcher: P,
     mut fetch: impl FnMut(NonZero<u64>) -> Option<O::Vector> + 'b,
 ) -> Reranker<T, impl FnMut(NonZero<u64>, P::Guards, u16) -> Option<Distance>, P, W> {
+    let dim = vector.as_borrowed().dim();
     Reranker {
         prefetcher,
         cache: BinaryHeap::new(),
@@ -125,7 +127,7 @@ pub fn rerank_heap<
             let unpack = O::Vector::unpack(vector.as_borrowed());
             let vector = fetch(payload)?;
             let vector = O::Vector::unpack(vector.as_borrowed());
-            let mut accessor = O::DistanceAccessor::default();
+            let mut accessor = O::DistanceAccessor::default_with_dimension(dim);
             accessor.push(unpack.0, vector.0);
             let distance = accessor.finish(unpack.1, vector.1);
             Some(distance)

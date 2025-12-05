@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use simd::f16;
+use vector::rabitq4::Rabitq4Borrowed;
 use vector::rabitq8::Rabitq8Borrowed;
 use vector::vect::VectBorrowed;
 
@@ -52,7 +53,29 @@ pub fn rabitq8_out(vector: Rabitq8Borrowed<'_>) -> String {
     result.push_str(&vector.sum_of_abs_x().to_string());
     result.push(')');
     result.push('[');
-    for x in vector.code() {
+    for x in vector.unpacked_code() {
+        if !result.ends_with('[') {
+            result.push(',');
+        }
+        result.push_str(&x.to_string());
+    }
+    result.push(']');
+    result
+}
+
+pub fn rabitq4_out(vector: Rabitq4Borrowed<'_>) -> String {
+    let mut result = String::new();
+    result.push('(');
+    result.push_str(&vector.sum_of_x2().to_string());
+    result.push(',');
+    result.push_str(&vector.norm_of_lattice().to_string());
+    result.push(',');
+    result.push_str(&vector.sum_of_code().to_string());
+    result.push(',');
+    result.push_str(&vector.sum_of_abs_x().to_string());
+    result.push(')');
+    result.push('[');
+    for x in vector.unpacked_code() {
         if !result.ends_with('[') {
             result.push(',');
         }
