@@ -15,6 +15,7 @@
 use serde::{Deserialize, Serialize};
 use simd::f16;
 use validator::{Validate, ValidationError};
+use vector::rabitq4::{Rabitq4Borrowed, Rabitq4Owned};
 use vector::rabitq8::{Rabitq8Borrowed, Rabitq8Owned};
 use vector::vect::{VectBorrowed, VectOwned};
 
@@ -57,6 +58,7 @@ pub enum OwnedVector {
     Vecf32(VectOwned<f32>),
     Vecf16(VectOwned<f16>),
     Rabitq8(Rabitq8Owned),
+    Rabitq4(Rabitq4Owned),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +66,7 @@ pub enum BorrowedVector<'a> {
     Vecf32(VectBorrowed<'a, f32>),
     Vecf16(VectBorrowed<'a, f16>),
     Rabitq8(Rabitq8Borrowed<'a>),
+    Rabitq4(Rabitq4Borrowed<'a>),
 }
 
 #[repr(u8)]
@@ -79,14 +82,16 @@ pub enum VectorKind {
     Vecf32,
     Vecf16,
     Rabitq8,
+    Rabitq4,
 }
 
 impl VectorKind {
-    pub fn element_size(self) -> u32 {
+    pub fn number_of_bits_of_an_elements(self) -> u32 {
         match self {
-            VectorKind::Vecf32 => size_of::<f32>() as _,
-            VectorKind::Vecf16 => size_of::<f16>() as _,
-            VectorKind::Rabitq8 => size_of::<u8>() as _,
+            VectorKind::Vecf32 => 32,
+            VectorKind::Vecf16 => 16,
+            VectorKind::Rabitq8 => 8,
+            VectorKind::Rabitq4 => 8,
         }
     }
 }
@@ -95,14 +100,14 @@ impl VectorKind {
 #[validate(schema(function = "Self::validate_self"))]
 pub struct VectorOptions {
     #[validate(range(min = 1))]
-    pub dims: u32,
+    pub dim: u32,
     pub v: VectorKind,
     pub d: DistanceKind,
 }
 
 impl VectorOptions {
     pub fn validate_self(&self) -> Result<(), ValidationError> {
-        match (self.v, self.d, self.dims) {
+        match (self.v, self.d, self.dim) {
             (_, _, 1..=60000) => Ok(()),
             _ => Err(ValidationError::new("invalid vector options")),
         }

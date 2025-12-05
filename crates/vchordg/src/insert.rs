@@ -21,7 +21,7 @@ use crate::types::DistanceKind;
 use crate::vectors::{by_prefetch, by_read, copy_all, copy_nothing, copy_outs, update};
 use crate::visited::Visited;
 use always_equal::AlwaysEqual;
-use index::accessor::LAccess;
+use index::accessor::{DefaultWithDimension, LAccess};
 use index::bump::Bump;
 use index::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use index::relation::{Page, PageGuard, RelationRead, RelationWrite};
@@ -44,8 +44,8 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
     let meta_guard = index.read(0);
     let meta_bytes = meta_guard.get(1).expect("data corruption");
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
-    let dims = meta_tuple.dims();
-    assert_eq!(dims, vector.dims(), "unmatched dimensions");
+    let dim = meta_tuple.dim();
+    assert_eq!(dim, vector.dim(), "unmatched dimensions");
     let start = meta_tuple.start();
     let bits = Bits::try_from(meta_tuple.bits()).expect("data corruption");
     let m = meta_tuple.m();
@@ -149,7 +149,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         let pointers_s: &[_] = bump.alloc_slice(vertex_tuple.pointers());
         let score_s = O::process(
             bits,
-            dims,
+            dim,
             (vertex_tuple.metadata(), vertex_tuple.elements()),
             &lut,
         );
@@ -159,7 +159,10 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
         while let Some(((_, AlwaysEqual((pointers_u, u))), guards)) = candidates.pop() {
             let Ok((dis_u, outs_u, _, _)) = crate::vectors::read::<R, O, _, _>(
                 by_prefetch::<R>(guards, pointers_u.iter().copied()),
-                LAccess::new(O::Vector::unpack(vector), O::DistanceAccessor::default()),
+                LAccess::new(
+                    O::Vector::unpack(vector),
+                    O::DistanceAccessor::default_with_dimension(dim),
+                ),
                 copy_outs,
             ) else {
                 // the link is broken
@@ -188,7 +191,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 let pointers_v: &[_] = bump.alloc_slice(vertex_tuple.pointers());
                 let score_v = O::process(
                     bits,
-                    dims,
+                    dim,
                     (vertex_tuple.metadata(), vertex_tuple.elements()),
                     &lut,
                 );
@@ -218,7 +221,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                 let (Reverse(dis_u), AlwaysEqual((pointers_u, u))) = item;
                 let Ok((vector_u, _, _, _)) = crate::vectors::read::<R, O, _, _>(
                     by_read(index, pointers_u.iter().copied()),
-                    CloneAccessor::<O::Vector>::default(),
+                    CloneAccessor::<O::Vector>::default_with_dimension(dim),
                     copy_nothing,
                 ) else {
                     // the link is broken
@@ -271,7 +274,7 @@ pub fn insert<'b, R: RelationRead + RelationWrite, O: Operator>(
                     let (Reverse(dis_u), AlwaysEqual((pointers_u, u))) = item;
                     let Ok((vector_u, _, _, _)) = crate::vectors::read::<R, O, _, _>(
                         by_read(index, pointers_u.iter().copied()),
-                        CloneAccessor::<O::Vector>::default(),
+                        CloneAccessor::<O::Vector>::default_with_dimension(dim),
                         copy_nothing,
                     ) else {
                         // the link is broken

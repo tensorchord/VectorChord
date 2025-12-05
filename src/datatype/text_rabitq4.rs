@@ -12,13 +12,13 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::datatype::memory_rabitq8::{Rabitq8Input, Rabitq8Output};
+use crate::datatype::memory_rabitq4::{Rabitq4Input, Rabitq4Output};
 use pgrx::pg_sys::Oid;
 use std::ffi::{CStr, CString};
-use vector::rabitq8::Rabitq8Borrowed;
+use vector::rabitq4::Rabitq4Borrowed;
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_rabitq8_in(input: &CStr, oid: Oid, typmod: i32) -> Rabitq8Output {
+fn _vchord_rabitq4_in(input: &CStr, oid: Oid, typmod: i32) -> Rabitq4Output {
     let _ = (oid, typmod);
     let mut input = input.to_bytes().iter();
     let mut p0 = Vec::<f32>::new();
@@ -122,8 +122,8 @@ fn _vchord_rabitq8_in(input: &CStr, oid: Oid, typmod: i32) -> Rabitq8Output {
     let sum_of_code = p0[2];
     let sum_of_abs_x = p0[3];
     let unpacked_code = p1;
-    let packed_code = rabitq::byte::pack_code(&unpacked_code);
-    if let Some(x) = Rabitq8Borrowed::new_checked(
+    let packed_code = rabitq::halfbyte::pack_code(&unpacked_code);
+    if let Some(x) = Rabitq4Borrowed::new_checked(
         unpacked_code.len() as _,
         sum_of_x2,
         norm_of_lattice,
@@ -131,14 +131,14 @@ fn _vchord_rabitq8_in(input: &CStr, oid: Oid, typmod: i32) -> Rabitq8Output {
         sum_of_abs_x,
         &packed_code,
     ) {
-        Rabitq8Output::new(x)
+        Rabitq4Output::new(x)
     } else {
         pgrx::error!("incorrect vector");
     }
 }
 
 #[pgrx::pg_extern(immutable, strict, parallel_safe)]
-fn _vchord_rabitq8_out(vector: Rabitq8Input<'_>) -> CString {
+fn _vchord_rabitq4_out(vector: Rabitq4Input<'_>) -> CString {
     let vector = vector.as_borrowed();
     let mut buffer = String::new();
     buffer.push('(');

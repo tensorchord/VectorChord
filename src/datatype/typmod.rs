@@ -31,11 +31,11 @@ impl Typmod {
             None
         }
     }
-    pub fn dims(self) -> Option<NonZero<u32>> {
+    pub fn dim(self) -> Option<NonZero<u32>> {
         use Typmod::*;
         match self {
             Any => None,
-            Dims(dims) => Some(dims),
+            Dims(dim) => Some(dim),
         }
     }
 }

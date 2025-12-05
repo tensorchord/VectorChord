@@ -211,6 +211,9 @@ pub unsafe extern "C-unwind" fn amcostestimate(
                     | Opfamily::Rabitq8Cosine
                     | Opfamily::Rabitq8Ip
                     | Opfamily::Rabitq8L2
+                    | Opfamily::Rabitq4Cosine
+                    | Opfamily::Rabitq4Ip
+                    | Opfamily::Rabitq4L2
             ) {
                 *index_startup_cost = 0.0;
                 *index_total_cost = 0.0;
@@ -244,9 +247,10 @@ pub unsafe extern "C-unwind" fn amcostestimate(
             let page_count = {
                 let mut pages = 0_f64;
                 pages += 1.0;
-                pages += node_count * cost.dims as f64 / 60000.0;
+                pages += node_count * cost.dim as f64 / 60000.0;
                 pages += probes.iter().sum::<u32>() as f64 * {
-                    let x = opfamily.vector_kind().element_size() * cost.dims;
+                    let x = (opfamily.vector_kind().number_of_bits_of_an_elements() * cost.dim)
+                        .div_ceil(8);
                     x.div_ceil(3840 * x.div_ceil(5120).min(2)) as f64
                 };
                 pages += cost.cells[0] as f64;
@@ -476,7 +480,10 @@ pub unsafe extern "C-unwind" fn amrescan(
             | Opfamily::HalfvecCosine
             | Opfamily::Rabitq8L2
             | Opfamily::Rabitq8Ip
-            | Opfamily::Rabitq8Cosine => {
+            | Opfamily::Rabitq8Cosine
+            | Opfamily::Rabitq4L2
+            | Opfamily::Rabitq4Ip
+            | Opfamily::Rabitq4Cosine => {
                 let mut builder = DefaultBuilder::new(opfamily);
                 for i in 0..(*scan).numberOfOrderBys {
                     let data = (*scan).orderByData.add(i as usize);
@@ -496,7 +503,10 @@ pub unsafe extern "C-unwind" fn amrescan(
                     builder.build(index, options, fetcher, bump, recorder)
                 }))
             }
-            Opfamily::VectorMaxsim | Opfamily::HalfvecMaxsim | Opfamily::Rabitq8Maxsim => {
+            Opfamily::VectorMaxsim
+            | Opfamily::HalfvecMaxsim
+            | Opfamily::Rabitq8Maxsim
+            | Opfamily::Rabitq4Maxsim => {
                 let mut builder = MaxsimBuilder::new(opfamily);
                 for i in 0..(*scan).numberOfOrderBys {
                     let data = (*scan).orderByData.add(i as usize);

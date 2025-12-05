@@ -39,6 +39,7 @@ impl<S: Floating> VectOwned<S> {
     /// # Safety
     ///
     /// * `slice.len()` must not be zero.
+    /// * `slice.len()` must be less than 65536.
     #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(slice: Vec<S>) -> Self {
@@ -92,6 +93,7 @@ impl<'a, S: Floating> VectBorrowed<'a, S> {
     /// # Safety
     ///
     /// * `slice.len()` must not be zero.
+    /// * `slice.len()` must be less than 65536.
     #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(slice: &'a [S]) -> Self {
@@ -108,7 +110,7 @@ impl<S: Floating> VectorBorrowed for VectBorrowed<'_, S> {
     type Owned = VectOwned<S>;
 
     #[inline(always)]
-    fn dims(&self) -> u32 {
+    fn dim(&self) -> u32 {
         self.0.len() as u32
     }
 

@@ -35,7 +35,7 @@ fn _vchord_vector_sphere_l2_in(
     };
     let lhs = lhs.as_borrowed();
     let center = center.as_borrowed();
-    if lhs.dims() != center.dims() {
+    if lhs.dim() != center.dim() {
         pgrx::error!("dimension is not matched");
     }
     let d = VectBorrowed::operator_l2s(lhs, center).to_f32().sqrt();
@@ -59,7 +59,7 @@ fn _vchord_vector_sphere_ip_in(
     };
     let lhs = lhs.as_borrowed();
     let center = center.as_borrowed();
-    if lhs.dims() != center.dims() {
+    if lhs.dim() != center.dim() {
         pgrx::error!("dimension is not matched");
     }
     let d = VectBorrowed::operator_dot(lhs, center).to_f32();
@@ -83,7 +83,7 @@ fn _vchord_vector_sphere_cosine_in(
     };
     let lhs = lhs.as_borrowed();
     let center = center.as_borrowed();
-    if lhs.dims() != center.dims() {
+    if lhs.dim() != center.dim() {
         pgrx::error!("dimension is not matched");
     }
     let d = VectBorrowed::operator_cos(lhs, center).to_f32();

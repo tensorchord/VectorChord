@@ -29,7 +29,7 @@ pub fn build<R: RelationWrite, O: Operator>(
 ) where
     R::Page: Page<Opaque = Opaque>,
 {
-    let dims = vector_options.dims;
+    let dim = vector_options.dim;
     let is_residual = vchordrq_options.residual_quantization;
     let mut meta = TapeWriter::<_, MetaTuple>::create(index, false);
     assert_eq!(meta.first(), 0);
@@ -93,7 +93,7 @@ pub fn build<R: RelationWrite, O: Operator>(
                 });
                 level.push(jump.first());
             } else {
-                let mut tape = H1TapeWriter::create(index, O::Vector::count(dims as _), false);
+                let mut tape = H1TapeWriter::create(index, O::Vector::count(dim as _), false);
                 let centroid = structures[i].centroids[j].as_borrowed();
                 for child in structures[i].children[j].iter().copied() {
                     let vector = structures[i - 1].centroids[child as usize].as_borrowed();
@@ -108,14 +108,14 @@ pub fn build<R: RelationWrite, O: Operator>(
                     });
                 }
                 let (mut tape, chunk) = tape.into_inner();
-                H1TapeWriter::flush(&mut tape, O::Vector::count(dims as _), chunk);
+                H1TapeWriter::flush(&mut tape, O::Vector::count(dim as _), chunk);
                 level.push(tape.first());
             }
         }
         pointer_of_firsts.push(level);
     }
     meta.push(MetaTuple {
-        dims,
+        dim,
         height_of_root: structures.len() as u32,
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,

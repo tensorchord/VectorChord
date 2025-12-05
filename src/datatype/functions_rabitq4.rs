@@ -13,21 +13,21 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use crate::datatype::memory_halfvec::HalfvecInput;
-use crate::datatype::memory_rabitq8::Rabitq8Output;
+use crate::datatype::memory_rabitq4::Rabitq4Output;
 use crate::datatype::memory_vector::VectorInput;
 use simd::{Floating, f16};
 use vector::VectorBorrowed;
-use vector::rabitq8::Rabitq8Borrowed;
+use vector::rabitq4::Rabitq4Borrowed;
 
 #[pgrx::pg_extern(sql = "")]
-fn _vchord_vector_quantize_to_rabitq8(vector: VectorInput) -> Rabitq8Output {
+fn _vchord_vector_quantize_to_rabitq4(vector: VectorInput) -> Rabitq4Output {
     let vector = vector.as_borrowed();
     let dim = vector.dim();
     let mut vector = vector.slice().to_vec();
     rabitq::rotate::rotate_inplace(&mut vector);
-    let (metadata, elements) = rabitq::byte::ugly_code(&vector);
-    let elements = rabitq::byte::pack_code(&elements);
-    Rabitq8Output::new(Rabitq8Borrowed::new(
+    let (metadata, elements) = rabitq::halfbyte::ugly_code(&vector);
+    let elements = rabitq::halfbyte::pack_code(&elements);
+    Rabitq4Output::new(Rabitq4Borrowed::new(
         dim,
         metadata.dis_u_2,
         metadata.norm_of_lattice,
@@ -38,14 +38,14 @@ fn _vchord_vector_quantize_to_rabitq8(vector: VectorInput) -> Rabitq8Output {
 }
 
 #[pgrx::pg_extern(sql = "")]
-fn _vchord_halfvec_quantize_to_rabitq8(vector: HalfvecInput) -> Rabitq8Output {
+fn _vchord_halfvec_quantize_to_rabitq4(vector: HalfvecInput) -> Rabitq4Output {
     let vector = vector.as_borrowed();
     let dim = vector.dim();
     let mut vector = f16::vector_to_f32(vector.slice());
     rabitq::rotate::rotate_inplace(&mut vector);
-    let (metadata, elements) = rabitq::byte::ugly_code(&vector);
-    let elements = rabitq::byte::pack_code(&elements);
-    Rabitq8Output::new(Rabitq8Borrowed::new(
+    let (metadata, elements) = rabitq::halfbyte::ugly_code(&vector);
+    let elements = rabitq::halfbyte::pack_code(&elements);
+    Rabitq4Output::new(Rabitq4Borrowed::new(
         dim,
         metadata.dis_u_2,
         metadata.norm_of_lattice,

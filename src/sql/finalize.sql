@@ -9,6 +9,15 @@ CREATE TYPE rabitq8 (
     STORAGE = external
 );
 
+CREATE TYPE rabitq4 (
+    INPUT = _vchord_rabitq4_in,
+    OUTPUT = _vchord_rabitq4_out,
+    TYPMOD_IN = _vchord_rabitq4_typmod_in,
+    RECEIVE = _vchord_rabitq4_recv,
+    SEND = _vchord_rabitq4_send,
+    STORAGE = external
+);
+
 CREATE TYPE sphere_vector AS (
     center vector,
     radius REAL
@@ -24,10 +33,18 @@ CREATE TYPE sphere_rabitq8 AS (
     radius REAL
 );
 
+CREATE TYPE sphere_rabitq4 AS (
+    center rabitq4,
+    radius REAL
+);
+
 -- List of internal functions
 
 CREATE FUNCTION _vchord_rabitq8_operator_maxsim(rabitq8[], rabitq8[]) RETURNS real
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq8_operator_maxsim_wrapper';
+
+CREATE FUNCTION _vchord_rabitq4_operator_maxsim(rabitq4[], rabitq4[]) RETURNS real
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq4_operator_maxsim_wrapper';
 
 -- List of operators
 
@@ -52,6 +69,27 @@ CREATE OPERATOR <=> (
     COMMUTATOR = <=>
 );
 
+CREATE OPERATOR <-> (
+    PROCEDURE = _vchord_rabitq4_operator_l2,
+    LEFTARG = rabitq4,
+    RIGHTARG = rabitq4,
+    COMMUTATOR = <->
+);
+
+CREATE OPERATOR <#> (
+    PROCEDURE = _vchord_rabitq4_operator_ip,
+    LEFTARG = rabitq4,
+    RIGHTARG = rabitq4,
+    COMMUTATOR = <#>
+);
+
+CREATE OPERATOR <=> (
+    PROCEDURE = _vchord_rabitq4_operator_cosine,
+    LEFTARG = rabitq4,
+    RIGHTARG = rabitq4,
+    COMMUTATOR = <=>
+);
+
 CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_vector_sphere_l2_in,
     LEFTARG = vector,
@@ -70,6 +108,13 @@ CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_rabitq8_sphere_l2_in,
     LEFTARG = rabitq8,
     RIGHTARG = sphere_rabitq8,
+    COMMUTATOR = <<->>
+);
+
+CREATE OPERATOR <<->> (
+    PROCEDURE = _vchord_rabitq4_sphere_l2_in,
+    LEFTARG = rabitq4,
+    RIGHTARG = sphere_rabitq4,
     COMMUTATOR = <<->>
 );
 
@@ -94,6 +139,13 @@ CREATE OPERATOR <<#>> (
     COMMUTATOR = <<#>>
 );
 
+CREATE OPERATOR <<#>> (
+    PROCEDURE = _vchord_rabitq4_sphere_ip_in,
+    LEFTARG = rabitq4,
+    RIGHTARG = sphere_rabitq4,
+    COMMUTATOR = <<#>>
+);
+
 CREATE OPERATOR <<=>> (
     PROCEDURE = _vchord_vector_sphere_cosine_in,
     LEFTARG = vector,
@@ -115,6 +167,13 @@ CREATE OPERATOR <<=>> (
     COMMUTATOR = <<=>>
 );
 
+CREATE OPERATOR <<=>> (
+    PROCEDURE = _vchord_rabitq4_sphere_cosine_in,
+    LEFTARG = rabitq4,
+    RIGHTARG = sphere_rabitq4,
+    COMMUTATOR = <<=>>
+);
+
 CREATE OPERATOR @# (
     PROCEDURE = _vchord_vector_operator_maxsim,
     LEFTARG = vector[],
@@ -133,6 +192,12 @@ CREATE OPERATOR @# (
     RIGHTARG = rabitq8[]
 );
 
+CREATE OPERATOR @# (
+    PROCEDURE = _vchord_rabitq4_operator_maxsim,
+    LEFTARG = rabitq4[],
+    RIGHTARG = rabitq4[]
+);
+
 -- List of functions
 
 CREATE FUNCTION sphere(vector, real) RETURNS sphere_vector
@@ -144,11 +209,20 @@ IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
 CREATE FUNCTION sphere(rabitq8, real) RETURNS sphere_rabitq8
 IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
 
+CREATE FUNCTION sphere(rabitq4, real) RETURNS sphere_rabitq4
+IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
+
 CREATE FUNCTION quantize_to_rabitq8(vector) RETURNS rabitq8
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_quantize_to_rabitq8_wrapper';
 
 CREATE FUNCTION quantize_to_rabitq8(halfvec) RETURNS rabitq8
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_halfvec_quantize_to_rabitq8_wrapper';
+
+CREATE FUNCTION quantize_to_rabitq4(vector) RETURNS rabitq4
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_quantize_to_rabitq4_wrapper';
+
+CREATE FUNCTION quantize_to_rabitq4(halfvec) RETURNS rabitq4
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_halfvec_quantize_to_rabitq4_wrapper';
 
 CREATE FUNCTION vchordrq_sampled_values(regclass) RETURNS SETOF TEXT
 STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_sampled_values_wrapper';
@@ -330,9 +404,13 @@ CREATE OPERATOR FAMILY halfvec_cosine_ops USING vchordrq;
 CREATE OPERATOR FAMILY rabitq8_l2_ops USING vchordrq;
 CREATE OPERATOR FAMILY rabitq8_ip_ops USING vchordrq;
 CREATE OPERATOR FAMILY rabitq8_cosine_ops USING vchordrq;
+CREATE OPERATOR FAMILY rabitq4_l2_ops USING vchordrq;
+CREATE OPERATOR FAMILY rabitq4_ip_ops USING vchordrq;
+CREATE OPERATOR FAMILY rabitq4_cosine_ops USING vchordrq;
 CREATE OPERATOR FAMILY vector_maxsim_ops USING vchordrq;
 CREATE OPERATOR FAMILY halfvec_maxsim_ops USING vchordrq;
 CREATE OPERATOR FAMILY rabitq8_maxsim_ops USING vchordrq;
+CREATE OPERATOR FAMILY rabitq4_maxsim_ops USING vchordrq;
 CREATE OPERATOR FAMILY vector_l2_ops USING vchordg;
 CREATE OPERATOR FAMILY vector_ip_ops USING vchordg;
 CREATE OPERATOR FAMILY vector_cosine_ops USING vchordg;
@@ -342,6 +420,9 @@ CREATE OPERATOR FAMILY halfvec_cosine_ops USING vchordg;
 CREATE OPERATOR FAMILY rabitq8_l2_ops USING vchordg;
 CREATE OPERATOR FAMILY rabitq8_ip_ops USING vchordg;
 CREATE OPERATOR FAMILY rabitq8_cosine_ops USING vchordg;
+CREATE OPERATOR FAMILY rabitq4_l2_ops USING vchordg;
+CREATE OPERATOR FAMILY rabitq4_ip_ops USING vchordg;
+CREATE OPERATOR FAMILY rabitq4_cosine_ops USING vchordg;
 
 -- List of operator classes
 
@@ -399,6 +480,24 @@ CREATE OPERATOR CLASS rabitq8_cosine_ops
     OPERATOR 2 <<=>> (rabitq8, sphere_rabitq8) FOR SEARCH,
     FUNCTION 1 _vchordrq_support_rabitq8_cosine_ops();
 
+CREATE OPERATOR CLASS rabitq4_l2_ops
+    FOR TYPE rabitq4 USING vchordrq FAMILY rabitq4_l2_ops AS
+    OPERATOR 1 <-> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<->> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_rabitq4_l2_ops();
+
+CREATE OPERATOR CLASS rabitq4_ip_ops
+    FOR TYPE rabitq4 USING vchordrq FAMILY rabitq4_ip_ops AS
+    OPERATOR 1 <#> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<#>> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_rabitq4_ip_ops();
+
+CREATE OPERATOR CLASS rabitq4_cosine_ops
+    FOR TYPE rabitq4 USING vchordrq FAMILY rabitq4_cosine_ops AS
+    OPERATOR 1 <=> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<=>> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordrq_support_rabitq4_cosine_ops();
+
 CREATE OPERATOR CLASS vector_maxsim_ops
     FOR TYPE vector[] USING vchordrq FAMILY vector_maxsim_ops AS
     OPERATOR 3 @# (vector[], vector[]) FOR ORDER BY float_ops,
@@ -413,6 +512,11 @@ CREATE OPERATOR CLASS rabitq8_maxsim_ops
     FOR TYPE rabitq8[] USING vchordrq FAMILY rabitq8_maxsim_ops AS
     OPERATOR 3 @# (rabitq8[], rabitq8[]) FOR ORDER BY float_ops,
     FUNCTION 1 _vchordrq_support_rabitq8_maxsim_ops();
+
+CREATE OPERATOR CLASS rabitq4_maxsim_ops
+    FOR TYPE rabitq4[] USING vchordrq FAMILY rabitq4_maxsim_ops AS
+    OPERATOR 3 @# (rabitq4[], rabitq4[]) FOR ORDER BY float_ops,
+    FUNCTION 1 _vchordrq_support_rabitq4_maxsim_ops();
 
 CREATE OPERATOR CLASS vector_l2_ops
     FOR TYPE vector USING vchordg FAMILY vector_l2_ops AS
@@ -467,6 +571,24 @@ CREATE OPERATOR CLASS rabitq8_cosine_ops
     OPERATOR 1 <=> (rabitq8, rabitq8) FOR ORDER BY float_ops,
     OPERATOR 2 <<=>> (rabitq8, sphere_rabitq8) FOR SEARCH,
     FUNCTION 1 _vchordg_support_rabitq8_cosine_ops();
+
+CREATE OPERATOR CLASS rabitq4_l2_ops
+    FOR TYPE rabitq4 USING vchordg FAMILY rabitq4_l2_ops AS
+    OPERATOR 1 <-> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<->> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordg_support_rabitq4_l2_ops();
+
+CREATE OPERATOR CLASS rabitq4_ip_ops
+    FOR TYPE rabitq4 USING vchordg FAMILY rabitq4_ip_ops AS
+    OPERATOR 1 <#> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<#>> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordg_support_rabitq4_ip_ops();
+
+CREATE OPERATOR CLASS rabitq4_cosine_ops
+    FOR TYPE rabitq4 USING vchordg FAMILY rabitq4_cosine_ops AS
+    OPERATOR 1 <=> (rabitq4, rabitq4) FOR ORDER BY float_ops,
+    OPERATOR 2 <<=>> (rabitq4, sphere_rabitq4) FOR SEARCH,
+    FUNCTION 1 _vchordg_support_rabitq4_cosine_ops();
 
 -- List of views
 

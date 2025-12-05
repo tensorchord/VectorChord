@@ -28,6 +28,7 @@ use vchordrq::operator::Op;
 use vchordrq::types::*;
 use vchordrq::{FastHeap, InsertChooser, MaintainChooser};
 use vector::VectorOwned;
+use vector::rabitq4::Rabitq4Owned;
 use vector::rabitq8::Rabitq8Owned;
 use vector::vect::{VectBorrowed, VectOwned};
 
@@ -55,6 +56,12 @@ where
         }
         (VectorKind::Rabitq8, DistanceKind::Dot) => {
             vchordrq::prewarm::<_, Op<Rabitq8Owned, Dot>>(index, height, make_h0_plain_prefetcher)
+        }
+        (VectorKind::Rabitq4, DistanceKind::L2S) => {
+            vchordrq::prewarm::<_, Op<Rabitq4Owned, L2S>>(index, height, make_h0_plain_prefetcher)
+        }
+        (VectorKind::Rabitq4, DistanceKind::Dot) => {
+            vchordrq::prewarm::<_, Op<Rabitq4Owned, Dot>>(index, height, make_h0_plain_prefetcher)
         }
     }
 }
@@ -92,6 +99,14 @@ pub fn bulkdelete<R>(
         (VectorKind::Rabitq8, DistanceKind::Dot) => {
             vchordrq::bulkdelete::<_, Op<Rabitq8Owned, Dot>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<Rabitq8Owned, Dot>>(index, &check, &callback);
+        }
+        (VectorKind::Rabitq4, DistanceKind::L2S) => {
+            vchordrq::bulkdelete::<_, Op<Rabitq4Owned, L2S>>(index, &check, &callback);
+            vchordrq::bulkdelete_vectors::<_, Op<Rabitq4Owned, L2S>>(index, &check, &callback);
+        }
+        (VectorKind::Rabitq4, DistanceKind::Dot) => {
+            vchordrq::bulkdelete::<_, Op<Rabitq4Owned, Dot>>(index, &check, &callback);
+            vchordrq::bulkdelete_vectors::<_, Op<Rabitq4Owned, Dot>>(index, &check, &callback);
         }
     }
 }
@@ -146,6 +161,18 @@ pub fn maintain<R>(
             check,
         ),
         (VectorKind::Rabitq8, DistanceKind::Dot) => vchordrq::maintain::<_, Op<Rabitq8Owned, Dot>>(
+            index,
+            make_h0_plain_prefetcher,
+            chooser,
+            check,
+        ),
+        (VectorKind::Rabitq4, DistanceKind::L2S) => vchordrq::maintain::<_, Op<Rabitq4Owned, L2S>>(
+            index,
+            make_h0_plain_prefetcher,
+            chooser,
+            check,
+        ),
+        (VectorKind::Rabitq4, DistanceKind::Dot) => vchordrq::maintain::<_, Op<Rabitq4Owned, Dot>>(
             index,
             make_h0_plain_prefetcher,
             chooser,
@@ -207,6 +234,18 @@ pub fn build<R>(
             map_structures(structures, Normalize::denormalize),
         ),
         (VectorKind::Rabitq8, DistanceKind::Dot) => vchordrq::build::<_, Op<Rabitq8Owned, Dot>>(
+            vector_options,
+            vchordrq_options,
+            index,
+            map_structures(structures, Normalize::denormalize),
+        ),
+        (VectorKind::Rabitq4, DistanceKind::L2S) => vchordrq::build::<_, Op<Rabitq4Owned, L2S>>(
+            vector_options,
+            vchordrq_options,
+            index,
+            map_structures(structures, Normalize::denormalize),
+        ),
+        (VectorKind::Rabitq4, DistanceKind::Dot) => vchordrq::build::<_, Op<Rabitq4Owned, Dot>>(
             vector_options,
             vchordrq_options,
             index,
@@ -339,6 +378,44 @@ pub fn insert<R>(
                 skip_search,
             );
             vchordrq::insert::<_, Op<Rabitq8Owned, L2S>>(
+                index,
+                payload,
+                vector.as_borrowed(),
+                key,
+                bump,
+                make_h1_plain_prefetcher,
+                skip_freespaces,
+            )
+        }
+        (OwnedVector::Rabitq4(vector), DistanceKind::Dot) => {
+            assert!(opfamily.vector_kind() == VectorKind::Rabitq4);
+            let key = vchordrq::insert_vector::<_, Op<Rabitq4Owned, Dot>>(
+                index,
+                payload,
+                vector.as_borrowed(),
+                chooser,
+                skip_search,
+            );
+            vchordrq::insert::<_, Op<Rabitq4Owned, Dot>>(
+                index,
+                payload,
+                vector.as_borrowed(),
+                key,
+                bump,
+                make_h1_plain_prefetcher,
+                skip_freespaces,
+            )
+        }
+        (OwnedVector::Rabitq4(vector), DistanceKind::L2S) => {
+            assert!(opfamily.vector_kind() == VectorKind::Rabitq4);
+            let key = vchordrq::insert_vector::<_, Op<Rabitq4Owned, L2S>>(
+                index,
+                payload,
+                vector.as_borrowed(),
+                chooser,
+                skip_search,
+            );
+            vchordrq::insert::<_, Op<Rabitq4Owned, L2S>>(
                 index,
                 payload,
                 vector.as_borrowed(),

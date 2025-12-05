@@ -18,20 +18,20 @@ use simd::Floating;
 
 #[derive(Debug, Clone)]
 pub struct SVectOwned<S> {
-    dims: u32,
+    dim: u32,
     indexes: Vec<u32>,
     values: Vec<S>,
 }
 
 impl<S: Floating> SVectOwned<S> {
     #[inline(always)]
-    pub fn new(dims: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
-        Self::new_checked(dims, indexes, values).expect("invalid data")
+    pub fn new(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
+        Self::new_checked(dim, indexes, values).expect("invalid data")
     }
 
     #[inline(always)]
-    pub fn new_checked(dims: u32, indexes: Vec<u32>, values: Vec<S>) -> Option<Self> {
-        if !(1..=1_048_575).contains(&dims) {
+    pub fn new_checked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Option<Self> {
+        if !(1..=1_048_575).contains(&dim) {
             return None;
         }
         if indexes.len() != values.len() {
@@ -43,7 +43,7 @@ impl<S: Floating> SVectOwned<S> {
                 return None;
             }
         }
-        if len != 0 && !(indexes[len - 1] < dims) {
+        if len != 0 && !(indexes[len - 1] < dim) {
             return None;
         }
         if S::reduce_or_of_is_zero_x(&values) {
@@ -51,21 +51,21 @@ impl<S: Floating> SVectOwned<S> {
         }
         #[allow(unsafe_code)]
         unsafe {
-            Some(Self::new_unchecked(dims, indexes, values))
+            Some(Self::new_unchecked(dim, indexes, values))
         }
     }
 
     /// # Safety
     ///
-    /// * `dims` must be in `1..=1_048_575`.
+    /// * `dim` must be in `1..=1_048_575`.
     /// * `indexes.len()` must be equal to `values.len()`.
-    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dims`.
+    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dim`.
     /// * A floating number in `values` must not be positive zero or negative zero.
     #[allow(unsafe_code)]
     #[inline(always)]
-    pub unsafe fn new_unchecked(dims: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
+    pub unsafe fn new_unchecked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
         Self {
-            dims,
+            dim,
             indexes,
             values,
         }
@@ -88,7 +88,7 @@ impl<S: Floating> VectorOwned for SVectOwned<S> {
     #[inline(always)]
     fn as_borrowed(&self) -> SVectBorrowed<'_, S> {
         SVectBorrowed {
-            dims: self.dims,
+            dim: self.dim,
             indexes: &self.indexes,
             values: &self.values,
         }
@@ -97,20 +97,20 @@ impl<S: Floating> VectorOwned for SVectOwned<S> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SVectBorrowed<'a, S> {
-    dims: u32,
+    dim: u32,
     indexes: &'a [u32],
     values: &'a [S],
 }
 
 impl<'a, S: Floating> SVectBorrowed<'a, S> {
     #[inline(always)]
-    pub fn new(dims: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
-        Self::new_checked(dims, indexes, values).expect("invalid data")
+    pub fn new(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
+        Self::new_checked(dim, indexes, values).expect("invalid data")
     }
 
     #[inline(always)]
-    pub fn new_checked(dims: u32, indexes: &'a [u32], values: &'a [S]) -> Option<Self> {
-        if !(1..=1_048_575).contains(&dims) {
+    pub fn new_checked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Option<Self> {
+        if !(1..=1_048_575).contains(&dim) {
             return None;
         }
         if indexes.len() != values.len() {
@@ -122,7 +122,7 @@ impl<'a, S: Floating> SVectBorrowed<'a, S> {
                 return None;
             }
         }
-        if len != 0 && !(indexes[len - 1] < dims) {
+        if len != 0 && !(indexes[len - 1] < dim) {
             return None;
         }
         for i in 0..len {
@@ -132,21 +132,21 @@ impl<'a, S: Floating> SVectBorrowed<'a, S> {
         }
         #[allow(unsafe_code)]
         unsafe {
-            Some(Self::new_unchecked(dims, indexes, values))
+            Some(Self::new_unchecked(dim, indexes, values))
         }
     }
 
     /// # Safety
     ///
-    /// * `dims` must be in `1..=1_048_575`.
+    /// * `dim` must be in `1..=1_048_575`.
     /// * `indexes.len()` must be equal to `values.len()`.
-    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dims`.
+    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dim`.
     /// * A floating number in `values` must not be positive zero or negative zero.
     #[inline(always)]
     #[allow(unsafe_code)]
-    pub unsafe fn new_unchecked(dims: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
+    pub unsafe fn new_unchecked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
         Self {
-            dims,
+            dim,
             indexes,
             values,
         }
@@ -177,14 +177,14 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
     type Owned = SVectOwned<S>;
 
     #[inline(always)]
-    fn dims(&self) -> u32 {
-        self.dims
+    fn dim(&self) -> u32 {
+        self.dim
     }
 
     #[inline(always)]
     fn own(&self) -> SVectOwned<S> {
         SVectOwned {
-            dims: self.dims,
+            dim: self.dim,
             indexes: self.indexes.to_vec(),
             values: self.values.to_vec(),
         }
@@ -242,11 +242,11 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
         }
         indexes.truncate(j);
         values.truncate(j);
-        SVectOwned::new(self.dims, indexes, values)
+        SVectOwned::new(self.dim, indexes, values)
     }
 
     fn operator_add(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let size1 = self.len();
         let size2 = rhs.len();
         let mut pos1 = 0;
@@ -280,11 +280,11 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
         }
         indexes.truncate(pos);
         values.truncate(pos);
-        SVectOwned::new(self.dims, indexes, values)
+        SVectOwned::new(self.dim, indexes, values)
     }
 
     fn operator_sub(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let size1 = self.len();
         let size2 = rhs.len();
         let mut pos1 = 0;
@@ -318,11 +318,11 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
         }
         indexes.truncate(pos);
         values.truncate(pos);
-        SVectOwned::new(self.dims, indexes, values)
+        SVectOwned::new(self.dim, indexes, values)
     }
 
     fn operator_mul(&self, rhs: Self) -> Self::Owned {
-        assert_eq!(self.dims, rhs.dims);
+        assert_eq!(self.dim, rhs.dim);
         let size1 = self.len();
         let size2 = rhs.len();
         let mut pos1 = 0;
@@ -355,7 +355,7 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
         }
         indexes.truncate(pos);
         values.truncate(pos);
-        SVectOwned::new(self.dims, indexes, values)
+        SVectOwned::new(self.dim, indexes, values)
     }
 
     fn operator_and(&self, _: Self) -> Self::Owned {
@@ -373,7 +373,7 @@ impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
 
 impl<S: Floating> PartialEq for SVectBorrowed<'_, S> {
     fn eq(&self, other: &Self) -> bool {
-        if self.dims != other.dims {
+        if self.dim != other.dim {
             return false;
         }
         if self.indexes.len() != other.indexes.len() {
@@ -396,7 +396,7 @@ impl<S: Floating> PartialEq for SVectBorrowed<'_, S> {
 impl<S: Floating> PartialOrd for SVectBorrowed<'_, S> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
-        if self.dims != other.dims {
+        if self.dim != other.dim {
             return None;
         }
         let mut lhs = self

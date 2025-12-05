@@ -13,6 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 pub mod bvect;
+pub mod rabitq4;
 pub mod rabitq8;
 pub mod svect;
 pub mod vect;
@@ -28,7 +29,7 @@ pub trait VectorBorrowed: Copy {
 
     fn own(&self) -> Self::Owned;
 
-    fn dims(&self) -> u32;
+    fn dim(&self) -> u32;
 
     fn norm(&self) -> f32;
 

@@ -16,7 +16,7 @@ use crate::{VectorBorrowed, VectorOwned};
 use distance::Distance;
 
 #[derive(Debug, Clone)]
-pub struct Rabitq8Owned {
+pub struct Rabitq4Owned {
     dim: u32,
     sum_of_x2: f32,
     norm_of_lattice: f32,
@@ -25,7 +25,7 @@ pub struct Rabitq8Owned {
     packed_code: Vec<u8>,
 }
 
-impl Rabitq8Owned {
+impl Rabitq4Owned {
     #[inline(always)]
     pub fn new(
         dim: u32,
@@ -58,7 +58,10 @@ impl Rabitq8Owned {
         if !(1..=65535).contains(&dim) {
             return None;
         }
-        if dim.div_ceil(1) as usize != packed_code.len() {
+        if dim.div_ceil(2) as usize != packed_code.len() {
+            return None;
+        }
+        if dim % 2 == 1 && packed_code.last().copied().unwrap_or_default() >> 4 != 0 {
             return None;
         }
         #[allow(unsafe_code)]
@@ -78,7 +81,8 @@ impl Rabitq8Owned {
     ///
     /// * `dim` must not be zero.
     /// * `dim` must be less than 65536.
-    /// * `dim` must be equal to `code.len()`.
+    /// * `dim` must be equal to 1/2 of `code.len()`, rounding to infinity.
+    /// * `packed_code` is filled with zero bits correctly.
     #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(
@@ -100,12 +104,12 @@ impl Rabitq8Owned {
     }
 }
 
-impl VectorOwned for Rabitq8Owned {
-    type Borrowed<'a> = Rabitq8Borrowed<'a>;
+impl VectorOwned for Rabitq4Owned {
+    type Borrowed<'a> = Rabitq4Borrowed<'a>;
 
     #[inline(always)]
-    fn as_borrowed(&self) -> Rabitq8Borrowed<'_> {
-        Rabitq8Borrowed {
+    fn as_borrowed(&self) -> Rabitq4Borrowed<'_> {
+        Rabitq4Borrowed {
             dim: self.dim,
             sum_of_x2: self.sum_of_x2,
             norm_of_lattice: self.norm_of_lattice,
@@ -117,7 +121,7 @@ impl VectorOwned for Rabitq8Owned {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Rabitq8Borrowed<'a> {
+pub struct Rabitq4Borrowed<'a> {
     dim: u32,
     sum_of_x2: f32,
     norm_of_lattice: f32,
@@ -126,7 +130,7 @@ pub struct Rabitq8Borrowed<'a> {
     packed_code: &'a [u8],
 }
 
-impl<'a> Rabitq8Borrowed<'a> {
+impl<'a> Rabitq4Borrowed<'a> {
     #[inline(always)]
     pub fn new(
         dim: u32,
@@ -156,10 +160,13 @@ impl<'a> Rabitq8Borrowed<'a> {
         sum_of_abs_x: f32,
         packed_code: &'a [u8],
     ) -> Option<Self> {
-        if !(1..=65535).contains(&dim) {
+        if !(1..=65535).contains(&packed_code.len()) {
             return None;
         }
-        if dim.div_ceil(1) as usize != packed_code.len() {
+        if dim.div_ceil(2) as usize != packed_code.len() {
+            return None;
+        }
+        if dim % 2 == 1 && packed_code.last().copied().unwrap_or_default() >> 4 != 0 {
             return None;
         }
         #[allow(unsafe_code)]
@@ -179,7 +186,8 @@ impl<'a> Rabitq8Borrowed<'a> {
     ///
     /// * `dim` must not be zero.
     /// * `dim` must be less than 65536.
-    /// * `dim` must be equal to `code.len()`.
+    /// * `dim` must be equal to 1/2 of `code.len()`, rounding to infinity.
+    /// * `packed_code` is filled with zero bits correctly.
     #[allow(unsafe_code)]
     #[inline(always)]
     pub unsafe fn new_unchecked(
@@ -227,12 +235,15 @@ impl<'a> Rabitq8Borrowed<'a> {
 
     #[inline(always)]
     pub fn unpacked_code(&self) -> impl Iterator<Item = u8> {
-        self.packed_code.iter().copied()
+        self.packed_code
+            .iter()
+            .flat_map(|x| [x & 0xf, x >> 4])
+            .take(self.dim as _)
     }
 }
 
-impl VectorBorrowed for Rabitq8Borrowed<'_> {
-    type Owned = Rabitq8Owned;
+impl VectorBorrowed for Rabitq4Borrowed<'_> {
+    type Owned = Rabitq4Owned;
 
     #[inline(always)]
     fn dim(&self) -> u32 {
@@ -240,8 +251,8 @@ impl VectorBorrowed for Rabitq8Borrowed<'_> {
     }
 
     #[inline(always)]
-    fn own(&self) -> Rabitq8Owned {
-        Rabitq8Owned {
+    fn own(&self) -> Rabitq4Owned {
+        Rabitq4Owned {
             dim: self.dim,
             sum_of_x2: self.sum_of_x2,
             norm_of_lattice: self.norm_of_lattice,
@@ -260,17 +271,17 @@ impl VectorBorrowed for Rabitq8Borrowed<'_> {
     fn operator_dot(self, rhs: Self) -> Distance {
         assert_eq!(self.packed_code.len(), rhs.packed_code.len());
         let n = self.packed_code.len() as u32;
-        let value = rabitq::byte::binary::accumulate(self.packed_code, rhs.packed_code);
+        let value = rabitq::halfbyte::binary::accumulate(self.packed_code, rhs.packed_code);
         Distance::from_f32(
-            rabitq::byte::binary::half_process_dot(
+            rabitq::halfbyte::binary::half_process_dot(
                 n,
                 value,
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: self.sum_of_x2,
                     norm_of_lattice: self.norm_of_lattice,
                     sum_of_code: self.sum_of_code,
                 },
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: rhs.sum_of_x2,
                     norm_of_lattice: rhs.norm_of_lattice,
                     sum_of_code: rhs.sum_of_code,
@@ -284,17 +295,17 @@ impl VectorBorrowed for Rabitq8Borrowed<'_> {
     fn operator_l2s(self, rhs: Self) -> Distance {
         assert_eq!(self.packed_code.len(), rhs.packed_code.len());
         let n = self.packed_code.len() as u32;
-        let value = rabitq::byte::binary::accumulate(self.packed_code, rhs.packed_code);
+        let value = rabitq::halfbyte::binary::accumulate(self.packed_code, rhs.packed_code);
         Distance::from_f32(
-            rabitq::byte::binary::half_process_l2(
+            rabitq::halfbyte::binary::half_process_l2(
                 n,
                 value,
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: self.sum_of_x2,
                     norm_of_lattice: self.norm_of_lattice,
                     sum_of_code: self.sum_of_code,
                 },
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: rhs.sum_of_x2,
                     norm_of_lattice: rhs.norm_of_lattice,
                     sum_of_code: rhs.sum_of_code,
@@ -308,17 +319,17 @@ impl VectorBorrowed for Rabitq8Borrowed<'_> {
     fn operator_cos(self, rhs: Self) -> Distance {
         assert_eq!(self.packed_code.len(), rhs.packed_code.len());
         let n = self.packed_code.len() as u32;
-        let value = rabitq::byte::binary::accumulate(self.packed_code, rhs.packed_code);
+        let value = rabitq::halfbyte::binary::accumulate(self.packed_code, rhs.packed_code);
         Distance::from_f32(
-            rabitq::byte::binary::half_process_cos(
+            rabitq::halfbyte::binary::half_process_cos(
                 n,
                 value,
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: self.sum_of_x2,
                     norm_of_lattice: self.norm_of_lattice,
                     sum_of_code: self.sum_of_code,
                 },
-                rabitq::byte::CodeMetadata {
+                rabitq::halfbyte::CodeMetadata {
                     dis_u_2: rhs.sum_of_x2,
                     norm_of_lattice: rhs.norm_of_lattice,
                     sum_of_code: rhs.sum_of_code,
@@ -339,8 +350,8 @@ impl VectorBorrowed for Rabitq8Borrowed<'_> {
     }
 
     #[inline(always)]
-    fn function_normalize(&self) -> Rabitq8Owned {
-        Rabitq8Owned {
+    fn function_normalize(&self) -> Rabitq4Owned {
+        Rabitq4Owned {
             dim: self.dim,
             sum_of_x2: 1.0,
             norm_of_lattice: self.norm_of_lattice,

@@ -15,42 +15,55 @@
 use pgrx::datum::{FromDatum, IntoDatum};
 use pgrx::pg_sys::{Datum, Oid};
 use pgrx::pgrx_sql_entity_graph::metadata::*;
-use simd::f16;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use vector::VectorBorrowed;
-use vector::vect::VectBorrowed;
+use vector::rabitq4::Rabitq4Borrowed;
 
 #[repr(C)]
-struct HalfvecHeader {
+struct Rabitq4Header {
     varlena: u32,
     dim: u16,
     unused: u16,
-    elements: [f16; 0],
+    sum_of_x2: f32,
+    norm_of_lattice: f32,
+    sum_of_code: f32,
+    sum_of_abs_x: f32,
+    elements: [u8; 0],
 }
 
-impl HalfvecHeader {
-    fn size_of(len: usize) -> usize {
+impl Rabitq4Header {
+    fn size_of_by_dim(dim: usize) -> usize {
+        Self::size_of_by_len(dim.div_ceil(2))
+    }
+    fn size_of_by_len(len: usize) -> usize {
         if len > 65535 {
             panic!("vector is too large");
         }
-        size_of::<Self>() + size_of::<f16>() * len
+        size_of::<Self>() + size_of::<u8>() * len
     }
-    unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> VectBorrowed<'a, f16> {
+    unsafe fn as_borrowed<'a>(this: NonNull<Self>) -> Rabitq4Borrowed<'a> {
         unsafe {
             let this = this.as_ptr();
-            VectBorrowed::new(std::slice::from_raw_parts(
-                (&raw const (*this).elements).cast(),
-                (&raw const (*this).dim).read() as usize,
-            ))
+            Rabitq4Borrowed::new(
+                (&raw const (*this).dim).read() as u32,
+                (&raw const (*this).sum_of_x2).read(),
+                (&raw const (*this).norm_of_lattice).read(),
+                (&raw const (*this).sum_of_code).read(),
+                (&raw const (*this).sum_of_abs_x).read(),
+                std::slice::from_raw_parts(
+                    (&raw const (*this).elements).cast(),
+                    (&raw const (*this).dim).read().div_ceil(2) as usize,
+                ),
+            )
         }
     }
 }
 
-pub struct HalfvecInput<'a>(NonNull<HalfvecHeader>, PhantomData<&'a ()>, bool);
+pub struct Rabitq4Input<'a>(NonNull<Rabitq4Header>, PhantomData<&'a ()>, bool);
 
-impl HalfvecInput<'_> {
-    unsafe fn from_ptr(p: NonNull<HalfvecHeader>) -> Self {
+impl Rabitq4Input<'_> {
+    unsafe fn from_ptr(p: NonNull<Rabitq4Header>) -> Self {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum(p.as_ptr().cast()).cast()).unwrap()
         };
@@ -61,18 +74,18 @@ impl HalfvecInput<'_> {
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
             let dim = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(HalfvecHeader::size_of(dim as _), size);
+            assert_eq!(Rabitq4Header::size_of_by_dim(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
-        HalfvecInput(q, PhantomData, p != q)
+        Rabitq4Input(q, PhantomData, p != q)
     }
-    pub fn as_borrowed(&self) -> VectBorrowed<'_, f16> {
-        unsafe { HalfvecHeader::as_borrowed(self.0) }
+    pub fn as_borrowed(&self) -> Rabitq4Borrowed<'_> {
+        unsafe { Rabitq4Header::as_borrowed(self.0) }
     }
 }
 
-impl Drop for HalfvecInput<'_> {
+impl Drop for Rabitq4Input<'_> {
     fn drop(&mut self) {
         if self.2 {
             unsafe {
@@ -82,10 +95,10 @@ impl Drop for HalfvecInput<'_> {
     }
 }
 
-pub struct HalfvecOutput(NonNull<HalfvecHeader>);
+pub struct Rabitq4Output(NonNull<Rabitq4Header>);
 
-impl HalfvecOutput {
-    unsafe fn from_ptr(p: NonNull<HalfvecHeader>) -> Self {
+impl Rabitq4Output {
+    unsafe fn from_ptr(p: NonNull<Rabitq4Header>) -> Self {
         let q = unsafe {
             NonNull::new(pgrx::pg_sys::pg_detoast_datum_copy(p.as_ptr().cast()).cast()).unwrap()
         };
@@ -96,19 +109,18 @@ impl HalfvecOutput {
             #[cfg(target_endian = "little")]
             let size = varlena as usize >> 2;
             let dim = q.byte_add(4).cast::<u16>().read();
-            assert_eq!(HalfvecHeader::size_of(dim as _), size);
+            assert_eq!(Rabitq4Header::size_of_by_dim(dim as _), size);
             let unused = q.byte_add(6).cast::<u16>().read();
             assert_eq!(unused, 0);
         }
         Self(q)
     }
-    #[expect(dead_code)]
-    pub fn new(vector: VectBorrowed<'_, f16>) -> Self {
+    pub fn new(vector: Rabitq4Borrowed<'_>) -> Self {
         unsafe {
-            let slice = vector.slice();
-            let size = HalfvecHeader::size_of(slice.len());
+            let packed_code = vector.packed_code();
+            let size = Rabitq4Header::size_of_by_len(packed_code.len());
 
-            let ptr = pgrx::pg_sys::palloc0(size) as *mut HalfvecHeader;
+            let ptr = pgrx::pg_sys::palloc0(size) as *mut Rabitq4Header;
             // SET_VARSIZE_4B
             #[cfg(target_endian = "big")]
             (&raw mut (*ptr).varlena).write((size as u32) & 0x3FFFFFFF);
@@ -116,25 +128,29 @@ impl HalfvecOutput {
             (&raw mut (*ptr).varlena).write((size << 2) as u32);
             (&raw mut (*ptr).dim).write(vector.dim() as _);
             (&raw mut (*ptr).unused).write(0);
+            (&raw mut (*ptr).sum_of_x2).write(vector.sum_of_x2());
+            (&raw mut (*ptr).norm_of_lattice).write(vector.norm_of_lattice());
+            (&raw mut (*ptr).sum_of_code).write(vector.sum_of_code());
+            (&raw mut (*ptr).sum_of_abs_x).write(vector.sum_of_abs_x());
             std::ptr::copy_nonoverlapping(
-                slice.as_ptr(),
+                packed_code.as_ptr(),
                 (&raw mut (*ptr).elements).cast(),
-                slice.len(),
+                packed_code.len(),
             );
             Self(NonNull::new(ptr).unwrap())
         }
     }
-    pub fn as_borrowed(&self) -> VectBorrowed<'_, f16> {
-        unsafe { HalfvecHeader::as_borrowed(self.0) }
+    pub fn as_borrowed(&self) -> Rabitq4Borrowed<'_> {
+        unsafe { Rabitq4Header::as_borrowed(self.0) }
     }
-    fn into_raw(self) -> *mut HalfvecHeader {
+    fn into_raw(self) -> *mut Rabitq4Header {
         let result = self.0.as_ptr();
         std::mem::forget(self);
         result
     }
 }
 
-impl Drop for HalfvecOutput {
+impl Drop for Rabitq4Output {
     fn drop(&mut self) {
         unsafe {
             pgrx::pg_sys::pfree(self.0.as_ptr().cast());
@@ -144,7 +160,7 @@ impl Drop for HalfvecOutput {
 
 // FromDatum
 
-impl FromDatum for HalfvecInput<'_> {
+impl FromDatum for Rabitq4Input<'_> {
     unsafe fn from_polymorphic_datum(datum: Datum, is_null: bool, _typoid: Oid) -> Option<Self> {
         if is_null {
             None
@@ -155,7 +171,7 @@ impl FromDatum for HalfvecInput<'_> {
     }
 }
 
-impl FromDatum for HalfvecOutput {
+impl FromDatum for Rabitq4Output {
     unsafe fn from_polymorphic_datum(datum: Datum, is_null: bool, _typoid: Oid) -> Option<Self> {
         if is_null {
             None
@@ -168,7 +184,7 @@ impl FromDatum for HalfvecOutput {
 
 // IntoDatum
 
-impl IntoDatum for HalfvecOutput {
+impl IntoDatum for Rabitq4Output {
     fn into_datum(self) -> Option<Datum> {
         Some(Datum::from(self.into_raw()))
     }
@@ -184,9 +200,9 @@ impl IntoDatum for HalfvecOutput {
 
 // UnboxDatum
 
-unsafe impl<'a> pgrx::datum::UnboxDatum for HalfvecInput<'a> {
+unsafe impl<'a> pgrx::datum::UnboxDatum for Rabitq4Input<'a> {
     type As<'src>
-        = HalfvecInput<'src>
+        = Rabitq4Input<'src>
     where
         'a: 'src;
     #[inline]
@@ -200,8 +216,8 @@ unsafe impl<'a> pgrx::datum::UnboxDatum for HalfvecInput<'a> {
     }
 }
 
-unsafe impl pgrx::datum::UnboxDatum for HalfvecOutput {
-    type As<'src> = HalfvecOutput;
+unsafe impl pgrx::datum::UnboxDatum for Rabitq4Output {
+    type As<'src> = Rabitq4Output;
     #[inline]
     unsafe fn unbox<'src>(datum: pgrx::datum::Datum<'src>) -> Self::As<'src>
     where
@@ -215,27 +231,27 @@ unsafe impl pgrx::datum::UnboxDatum for HalfvecOutput {
 
 // SqlTranslatable
 
-unsafe impl SqlTranslatable for HalfvecInput<'_> {
+unsafe impl SqlTranslatable for Rabitq4Input<'_> {
     fn argument_sql() -> Result<SqlMapping, ArgumentError> {
-        Ok(SqlMapping::As(String::from("halfvec")))
+        Ok(SqlMapping::As(String::from("rabitq4")))
     }
     fn return_sql() -> Result<Returns, ReturnsError> {
-        Ok(Returns::One(SqlMapping::As(String::from("halfvec"))))
+        Ok(Returns::One(SqlMapping::As(String::from("rabitq4"))))
     }
 }
 
-unsafe impl SqlTranslatable for HalfvecOutput {
+unsafe impl SqlTranslatable for Rabitq4Output {
     fn argument_sql() -> Result<SqlMapping, ArgumentError> {
-        Ok(SqlMapping::As(String::from("halfvec")))
+        Ok(SqlMapping::As(String::from("rabitq4")))
     }
     fn return_sql() -> Result<Returns, ReturnsError> {
-        Ok(Returns::One(SqlMapping::As(String::from("halfvec"))))
+        Ok(Returns::One(SqlMapping::As(String::from("rabitq4"))))
     }
 }
 
 // ArgAbi
 
-unsafe impl<'fcx> pgrx::callconv::ArgAbi<'fcx> for HalfvecInput<'fcx> {
+unsafe impl<'fcx> pgrx::callconv::ArgAbi<'fcx> for Rabitq4Input<'fcx> {
     unsafe fn unbox_arg_unchecked(arg: pgrx::callconv::Arg<'_, 'fcx>) -> Self {
         let index = arg.index();
         unsafe {
@@ -247,7 +263,7 @@ unsafe impl<'fcx> pgrx::callconv::ArgAbi<'fcx> for HalfvecInput<'fcx> {
 
 // BoxRet
 
-unsafe impl pgrx::callconv::BoxRet for HalfvecOutput {
+unsafe impl pgrx::callconv::BoxRet for Rabitq4Output {
     unsafe fn box_into<'fcx>(
         self,
         fcinfo: &mut pgrx::callconv::FcInfo<'fcx>,

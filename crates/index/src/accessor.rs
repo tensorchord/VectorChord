@@ -16,6 +16,7 @@ use distance::Distance;
 use rabitq::byte::CodeMetadata;
 use simd::{Floating, f16};
 use std::marker::PhantomData;
+use vector::rabitq4::Rabitq4Owned;
 use vector::rabitq8::Rabitq8Owned;
 use vector::vect::VectOwned;
 
@@ -388,28 +389,32 @@ impl Accessor2<f16, f16, (), ()> for DistanceAccessor<VectOwned<f16>, Dot> {
     }
 }
 
-#[derive(Debug)]
-pub struct DimensionDistanceAccessor<V, D>(
-    u32,
-    u32,
-    PhantomData<fn(V) -> V>,
-    PhantomData<fn(D) -> D>,
-);
+pub trait DefaultWithDimension {
+    fn default_with_dimension(dim: u32) -> Self;
+}
 
-impl<V, D> Default for DimensionDistanceAccessor<V, D> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self(0, 0, PhantomData, PhantomData)
+impl<T: Default> DefaultWithDimension for T {
+    fn default_with_dimension(_dim: u32) -> Self {
+        Self::default()
     }
 }
 
-impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for DimensionDistanceAccessor<Rabitq8Owned, L2S> {
+#[derive(Debug)]
+pub struct ByteDistanceAccessor<V, D>(u32, u32, PhantomData<fn(V) -> V>, PhantomData<fn(D) -> D>);
+
+impl<V, D> DefaultWithDimension for ByteDistanceAccessor<V, D> {
+    #[inline(always)]
+    fn default_with_dimension(dim: u32) -> Self {
+        Self(dim, 0, PhantomData, PhantomData)
+    }
+}
+
+impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for ByteDistanceAccessor<Rabitq8Owned, L2S> {
     type Output = Distance;
 
     #[inline(always)]
     fn push(&mut self, target: &[u8], input: &[u8]) {
-        self.0 += target.len() as u32;
-        self.1 += simd::byte::reduce_sum_of_x_as_u32_y_as_u32(target, input);
+        self.1 += rabitq::byte::binary::accumulate(target, input);
     }
 
     #[inline(always)]
@@ -426,19 +431,77 @@ impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for DimensionDistanceAccessor<Rabitq8
     }
 }
 
-impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for DimensionDistanceAccessor<Rabitq8Owned, Dot> {
+impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for ByteDistanceAccessor<Rabitq8Owned, Dot> {
     type Output = Distance;
 
     #[inline(always)]
     fn push(&mut self, target: &[u8], input: &[u8]) {
-        self.0 += target.len() as u32;
-        self.1 += simd::byte::reduce_sum_of_x_as_u32_y_as_u32(target, input);
+        self.1 += rabitq::byte::binary::accumulate(target, input);
     }
 
     #[inline(always)]
     fn finish(self, target: [f32; 4], input: [f32; 4]) -> Self::Output {
         Distance::from_f32(
             rabitq::byte::binary::half_process_dot(
+                self.0,
+                self.1,
+                CodeMetadata::from_array(std::array::from_fn(|i| target[i])),
+                CodeMetadata::from_array(std::array::from_fn(|i| input[i])),
+            )
+            .0,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct HalfbyteDistanceAccessor<V, D>(
+    u32,
+    u32,
+    PhantomData<fn(V) -> V>,
+    PhantomData<fn(D) -> D>,
+);
+
+impl<V, D> DefaultWithDimension for HalfbyteDistanceAccessor<V, D> {
+    #[inline(always)]
+    fn default_with_dimension(dim: u32) -> Self {
+        Self(dim, 0, PhantomData, PhantomData)
+    }
+}
+
+impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for HalfbyteDistanceAccessor<Rabitq4Owned, L2S> {
+    type Output = Distance;
+
+    #[inline(always)]
+    fn push(&mut self, target: &[u8], input: &[u8]) {
+        self.1 += rabitq::halfbyte::binary::accumulate(target, input);
+    }
+
+    #[inline(always)]
+    fn finish(self, target: [f32; 4], input: [f32; 4]) -> Self::Output {
+        Distance::from_f32(
+            rabitq::halfbyte::binary::half_process_l2(
+                self.0,
+                self.1,
+                CodeMetadata::from_array(std::array::from_fn(|i| target[i])),
+                CodeMetadata::from_array(std::array::from_fn(|i| input[i])),
+            )
+            .0,
+        )
+    }
+}
+
+impl Accessor2<u8, u8, [f32; 4], [f32; 4]> for HalfbyteDistanceAccessor<Rabitq4Owned, Dot> {
+    type Output = Distance;
+
+    #[inline(always)]
+    fn push(&mut self, target: &[u8], input: &[u8]) {
+        self.1 += rabitq::halfbyte::binary::accumulate(target, input);
+    }
+
+    #[inline(always)]
+    fn finish(self, target: [f32; 4], input: [f32; 4]) -> Self::Output {
+        Distance::from_f32(
+            rabitq::halfbyte::binary::half_process_dot(
                 self.0,
                 self.1,
                 CodeMetadata::from_array(std::array::from_fn(|i| target[i])),

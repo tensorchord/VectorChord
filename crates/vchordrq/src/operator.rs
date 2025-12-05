@@ -14,7 +14,8 @@
 
 use distance::Distance;
 use index::accessor::{
-    Accessor1, Accessor2, DimensionDistanceAccessor, DistanceAccessor, Dot, L2S, RAccess,
+    Accessor1, Accessor2, ByteDistanceAccessor, DefaultWithDimension, DistanceAccessor, Dot,
+    HalfbyteDistanceAccessor, L2S, RAccess,
 };
 use rabitq::bit::CodeMetadata;
 use rabitq::bit::binary::BinaryLut;
@@ -22,6 +23,7 @@ use rabitq::bit::block::{BlockLut, STEP};
 use simd::{Floating, f16};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use vector::rabitq4::{Rabitq4Borrowed, Rabitq4Owned};
 use vector::rabitq8::{Rabitq8Borrowed, Rabitq8Owned};
 use vector::vect::{VectBorrowed, VectOwned};
 use vector::{VectorBorrowed, VectorOwned};
@@ -72,7 +74,7 @@ impl<V: Vector> Default for CloneAccessor<V> {
     }
 }
 
-impl<V: Vector> Accessor1<V::Element, V::Metadata> for CloneAccessor<V> {
+impl<V: Vector> Accessor1<V::Element, (V::Metadata, u32)> for CloneAccessor<V> {
     type Output = V;
 
     #[inline(always)]
@@ -81,8 +83,8 @@ impl<V: Vector> Accessor1<V::Element, V::Metadata> for CloneAccessor<V> {
     }
 
     #[inline(always)]
-    fn finish(self, metadata: V::Metadata) -> Self::Output {
-        V::pack(self.0, metadata)
+    fn finish(self, (metadata, dim): (V::Metadata, u32)) -> Self::Output {
+        V::pack(dim, self.0, metadata)
     }
 }
 
@@ -97,7 +99,7 @@ pub trait Vector: VectorOwned {
 
     fn unpack(vector: Self::Borrowed<'_>) -> (&[Self::Element], Self::Metadata);
 
-    fn pack(elements: Vec<Self::Element>, metadata: Self::Metadata) -> Self;
+    fn pack(dim: u32, elements: Vec<Self::Element>, metadata: Self::Metadata) -> Self;
 
     fn block_preprocess(vector: Self::Borrowed<'_>) -> BlockLut;
 
@@ -139,7 +141,7 @@ impl Vector for VectOwned<f32> {
         (vector.slice(), ())
     }
 
-    fn pack(elements: Vec<Self::Element>, (): Self::Metadata) -> Self {
+    fn pack(_: u32, elements: Vec<Self::Element>, (): Self::Metadata) -> Self {
         VectOwned::new(elements)
     }
 
@@ -191,7 +193,7 @@ impl Vector for VectOwned<f16> {
         (vector.slice(), ())
     }
 
-    fn pack(elements: Vec<Self::Element>, (): Self::Metadata) -> Self {
+    fn pack(_: u32, elements: Vec<Self::Element>, (): Self::Metadata) -> Self {
         VectOwned::new(elements)
     }
 
@@ -219,11 +221,11 @@ impl Vector for Rabitq8Owned {
 
     fn split(vector: Self::Borrowed<'_>) -> (Vec<&[u8]>, [f32; 4]) {
         (
-            match vector.code().len() {
+            match vector.packed_code().len() {
                 0 => unreachable!(),
-                1..=3840 => vec![vector.code()],
-                3841..=5120 => vec![&vector.code()[..1280], &vector.code()[1280..]],
-                5121.. => vector.code().chunks(7680).collect(),
+                1..=3840 => vec![vector.packed_code()],
+                3841..=5120 => vec![&vector.packed_code()[..1280], &vector.packed_code()[1280..]],
+                5121.. => vector.packed_code().chunks(7680).collect(),
             },
             [
                 vector.sum_of_x2(),
@@ -245,7 +247,7 @@ impl Vector for Rabitq8Owned {
 
     fn unpack(vector: Self::Borrowed<'_>) -> (&[Self::Element], Self::Metadata) {
         (
-            vector.code(),
+            vector.packed_code(),
             [
                 vector.sum_of_x2(),
                 vector.norm_of_lattice(),
@@ -255,14 +257,14 @@ impl Vector for Rabitq8Owned {
         )
     }
 
-    fn pack(elements: Vec<Self::Element>, [_0, _1, _2, _3]: Self::Metadata) -> Self {
-        Rabitq8Owned::new(_0, _1, _2, _3, elements)
+    fn pack(dim: u32, elements: Vec<Self::Element>, [_0, _1, _2, _3]: Self::Metadata) -> Self {
+        Rabitq8Owned::new(dim, _0, _1, _2, _3, elements)
     }
 
     fn block_preprocess(vector: Self::Borrowed<'_>) -> BlockLut {
         let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
-        let mut result = Vec::with_capacity(vector.dims() as _);
-        for c in vector.code().iter().copied() {
+        let mut result = Vec::with_capacity(vector.dim() as _);
+        for c in vector.unpacked_code() {
             let base = -0.5 * ((1 << 8) - 1) as f32;
             result.push((base + c as f32) * scale);
         }
@@ -271,8 +273,8 @@ impl Vector for Rabitq8Owned {
 
     fn preprocess(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
         let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
-        let mut result = Vec::with_capacity(vector.dims() as _);
-        for c in vector.code().iter().copied() {
+        let mut result = Vec::with_capacity(vector.dim() as _);
+        for c in vector.unpacked_code() {
             let base = -0.5 * ((1 << 8) - 1) as f32;
             result.push((base + c as f32) * scale);
         }
@@ -280,15 +282,15 @@ impl Vector for Rabitq8Owned {
     }
 
     fn code(vector: Self::Borrowed<'_>) -> rabitq::bit::Code {
-        let n = vector.dims();
+        let n = vector.dim();
         let sum_of_abs_x = vector.sum_of_abs_x();
         let sum_of_x_2 = vector.sum_of_x2();
         (
             CodeMetadata {
                 dis_u_2: sum_of_x_2,
                 factor_cnt: {
-                    let cnt_pos = vector.code().iter().filter(|&&x| x >= 128).count();
-                    let cnt_neg = vector.code().iter().filter(|&&x| x <= 127).count();
+                    let cnt_pos = vector.unpacked_code().filter(|&x| x >= 128).count();
+                    let cnt_neg = vector.unpacked_code().filter(|&x| x <= 127).count();
                     cnt_pos as f32 - cnt_neg as f32
                 },
                 factor_ip: sum_of_x_2 / sum_of_abs_x,
@@ -299,11 +301,112 @@ impl Vector for Rabitq8Owned {
                 },
             },
             {
-                let vector = vector.code();
-                let n = vector.len();
+                let vector = vector.unpacked_code();
                 let mut signs = Vec::new();
-                for i in 0..n {
-                    signs.push(vector[i] >= 128);
+                for x in vector {
+                    signs.push(x >= 128);
+                }
+                signs
+            },
+        )
+    }
+
+    fn squared_norm(vector: Self::Borrowed<'_>) -> f32 {
+        vector.sum_of_x2()
+    }
+}
+
+impl Vector for Rabitq4Owned {
+    type Metadata = [f32; 4];
+
+    type Element = u8;
+
+    fn split(vector: Self::Borrowed<'_>) -> (Vec<&[u8]>, [f32; 4]) {
+        (
+            match vector.packed_code().len() {
+                0 => unreachable!(),
+                1..=3840 => vec![vector.packed_code()],
+                3841..=5120 => vec![&vector.packed_code()[..1280], &vector.packed_code()[1280..]],
+                5121.. => vector.packed_code().chunks(7680).collect(),
+            },
+            [
+                vector.sum_of_x2(),
+                vector.norm_of_lattice(),
+                vector.sum_of_code(),
+                vector.sum_of_abs_x(),
+            ],
+        )
+    }
+
+    fn count(n: usize) -> usize {
+        match n {
+            0 => unreachable!(),
+            1..=3840 => 1,
+            3841..=5120 => 2,
+            5121.. => n.div_ceil(7680),
+        }
+    }
+
+    fn unpack(vector: Self::Borrowed<'_>) -> (&[Self::Element], Self::Metadata) {
+        (
+            vector.packed_code(),
+            [
+                vector.sum_of_x2(),
+                vector.norm_of_lattice(),
+                vector.sum_of_code(),
+                vector.sum_of_abs_x(),
+            ],
+        )
+    }
+
+    fn pack(dim: u32, elements: Vec<Self::Element>, [_0, _1, _2, _3]: Self::Metadata) -> Self {
+        Rabitq4Owned::new(dim, _0, _1, _2, _3, elements)
+    }
+
+    fn block_preprocess(vector: Self::Borrowed<'_>) -> BlockLut {
+        let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
+        let mut result = Vec::with_capacity(vector.dim() as _);
+        for c in vector.unpacked_code() {
+            let base = -0.5 * ((1 << 4) - 1) as f32;
+            result.push((base + c as f32) * scale);
+        }
+        rabitq::bit::block::preprocess(&result)
+    }
+
+    fn preprocess(vector: Self::Borrowed<'_>) -> (BlockLut, BinaryLut) {
+        let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
+        let mut result = Vec::with_capacity(vector.dim() as _);
+        for c in vector.unpacked_code() {
+            let base = -0.5 * ((1 << 4) - 1) as f32;
+            result.push((base + c as f32) * scale);
+        }
+        rabitq::bit::preprocess(&result)
+    }
+
+    fn code(vector: Self::Borrowed<'_>) -> rabitq::bit::Code {
+        let n = vector.dim();
+        let sum_of_abs_x = vector.sum_of_abs_x();
+        let sum_of_x_2 = vector.sum_of_x2();
+        (
+            CodeMetadata {
+                dis_u_2: sum_of_x_2,
+                factor_cnt: {
+                    let cnt_pos = vector.unpacked_code().filter(|&x| x >= 8).count();
+                    let cnt_neg = vector.unpacked_code().filter(|&x| x <= 7).count();
+                    cnt_pos as f32 - cnt_neg as f32
+                },
+                factor_ip: sum_of_x_2 / sum_of_abs_x,
+                factor_err: {
+                    let dis_u = sum_of_x_2.sqrt();
+                    let x_0 = sum_of_abs_x / dis_u / (n as f32).sqrt();
+                    dis_u * (1.0 / (x_0 * x_0) - 1.0).sqrt() / (n as f32 - 1.0).sqrt()
+                },
+            },
+            {
+                let vector = vector.unpacked_code();
+                let mut signs = Vec::new();
+                for x in vector {
+                    signs.push(x >= 8);
                 }
                 signs
             },
@@ -318,7 +421,7 @@ impl Vector for Rabitq8Owned {
 pub trait Operator: 'static + Debug + Copy {
     type Vector: Vector;
 
-    type DistanceAccessor: Default
+    type DistanceAccessor: DefaultWithDimension
         + Accessor2<
             <Self::Vector as Vector>::Element,
             <Self::Vector as Vector>::Element,
@@ -413,15 +516,15 @@ impl Operator for Op<VectOwned<f32>, L2S> {
             let code = Self::Vector::code(residual.as_borrowed());
             let delta = {
                 use std::iter::zip;
-                let dims = vector.dims();
+                let dim = vector.dim();
                 let t = zip(&code.1, centroid.slice())
                     .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
                     .sum::<f32>()
-                    / (dims as f32).sqrt();
+                    / (dim as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;
                 let sum_of_abs_x = sum_of_x_2 / code.0.factor_ip;
                 let dis_u = sum_of_x_2.sqrt();
-                let x_0 = sum_of_abs_x / dis_u / (dims as f32).sqrt();
+                let x_0 = sum_of_abs_x / dis_u / (dim as f32).sqrt();
                 2.0 * dis_u * t / x_0
             };
             (code, delta)
@@ -492,15 +595,15 @@ impl Operator for Op<VectOwned<f32>, Dot> {
             let code = Self::Vector::code(residual.as_borrowed());
             let delta = {
                 use std::iter::zip;
-                let dims = vector.dims();
+                let dim = vector.dim();
                 let t = zip(&code.1, centroid.slice())
                     .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
                     .sum::<f32>()
-                    / (dims as f32).sqrt();
+                    / (dim as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;
                 let sum_of_abs_x = sum_of_x_2 / code.0.factor_ip;
                 let dis_u = sum_of_x_2.sqrt();
-                let x_0 = sum_of_abs_x / dis_u / (dims as f32).sqrt();
+                let x_0 = sum_of_abs_x / dis_u / (dim as f32).sqrt();
                 dis_u * t / x_0 - f32::reduce_sum_of_xy(residual.slice(), centroid.slice())
             };
             (code, delta)
@@ -567,16 +670,16 @@ impl Operator for Op<VectOwned<f16>, L2S> {
             let code = Self::Vector::code(residual.as_borrowed());
             let delta = {
                 use std::iter::zip;
-                let dims = vector.dims();
+                let dim = vector.dim();
                 let t = zip(&code.1, centroid.slice())
                     .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
                     .map(simd::F16::_to_f32)
                     .sum::<f32>()
-                    / (dims as f32).sqrt();
+                    / (dim as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;
                 let sum_of_abs_x = sum_of_x_2 / code.0.factor_ip;
                 let dis_u = sum_of_x_2.sqrt();
-                let x_0 = sum_of_abs_x / dis_u / (dims as f32).sqrt();
+                let x_0 = sum_of_abs_x / dis_u / (dim as f32).sqrt();
                 2.0 * dis_u * t / x_0
             };
             (code, delta)
@@ -647,16 +750,16 @@ impl Operator for Op<VectOwned<f16>, Dot> {
             let code = Self::Vector::code(residual.as_borrowed());
             let delta = {
                 use std::iter::zip;
-                let dims = vector.dims();
+                let dim = vector.dim();
                 let t = zip(&code.1, centroid.slice())
                     .map(|(&sign, &num)| std::hint::select_unpredictable(sign, num, -num))
                     .map(simd::F16::_to_f32)
                     .sum::<f32>()
-                    / (dims as f32).sqrt();
+                    / (dim as f32).sqrt();
                 let sum_of_x_2 = code.0.dis_u_2;
                 let sum_of_abs_x = sum_of_x_2 / code.0.factor_ip;
                 let dis_u = sum_of_x_2.sqrt();
-                let x_0 = sum_of_abs_x / dis_u / (dims as f32).sqrt();
+                let x_0 = sum_of_abs_x / dis_u / (dim as f32).sqrt();
                 dis_u * t / x_0 - f16::reduce_sum_of_xy(residual.slice(), centroid.slice())
             };
             (code, delta)
@@ -671,7 +774,7 @@ impl Operator for Op<VectOwned<f16>, Dot> {
 impl Operator for Op<Rabitq8Owned, L2S> {
     type Vector = Rabitq8Owned;
 
-    type DistanceAccessor = DimensionDistanceAccessor<Rabitq8Owned, L2S>;
+    type DistanceAccessor = ByteDistanceAccessor<Rabitq8Owned, L2S>;
 
     fn block_access(
         lut: &BlockLut,
@@ -722,7 +825,7 @@ impl Operator for Op<Rabitq8Owned, L2S> {
 impl Operator for Op<Rabitq8Owned, Dot> {
     type Vector = Rabitq8Owned;
 
-    type DistanceAccessor = DimensionDistanceAccessor<Rabitq8Owned, Dot>;
+    type DistanceAccessor = ByteDistanceAccessor<Rabitq8Owned, Dot>;
 
     fn block_access(
         lut: &BlockLut,
@@ -761,6 +864,108 @@ impl Operator for Op<Rabitq8Owned, Dot> {
 
     fn build(
         vector: Rabitq8Borrowed<'_>,
+        centroid: Option<Self::Vector>,
+    ) -> (rabitq::bit::Code, f32) {
+        if centroid.is_some() {
+            unimplemented!();
+        }
+        (Self::Vector::code(vector), 0.0)
+    }
+}
+
+impl Operator for Op<Rabitq4Owned, L2S> {
+    type Vector = Rabitq4Owned;
+
+    type DistanceAccessor = HalfbyteDistanceAccessor<Rabitq4Owned, L2S>;
+
+    fn block_access(
+        lut: &BlockLut,
+        is_residual: bool,
+        _dis_f: f32,
+        _norm: f32,
+    ) -> impl for<'x> Accessor1<[u8; 16], (&'x [[f32; 32]; 4], &'x [f32; 32]), Output = [(f32, f32); 32]>
+    {
+        assert!(!is_residual);
+        RAccess::new(
+            (&lut.1, ()),
+            BlockAccessor([0_u32; 32], move |value, code, _delta| {
+                rabitq::bit::block::half_process_l2(value, code, lut.0)
+            }),
+        )
+    }
+
+    fn binary_access(
+        lut: &BinaryLut,
+        is_residual: bool,
+        _dis_f: f32,
+        _norm: f32,
+    ) -> impl FnMut([f32; 4], &[u64], f32) -> (f32, f32) {
+        assert!(!is_residual);
+        move |metadata: [f32; 4], elements: &[u64], _delta: f32| {
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
+            let code = CodeMetadata {
+                dis_u_2: metadata[0],
+                factor_cnt: metadata[1],
+                factor_ip: metadata[2],
+                factor_err: metadata[3],
+            };
+            rabitq::bit::binary::half_process_l2(value, code, lut.0)
+        }
+    }
+
+    fn build(
+        vector: Rabitq4Borrowed<'_>,
+        centroid: Option<Self::Vector>,
+    ) -> (rabitq::bit::Code, f32) {
+        if centroid.is_some() {
+            unimplemented!();
+        }
+        (Self::Vector::code(vector), 0.0)
+    }
+}
+
+impl Operator for Op<Rabitq4Owned, Dot> {
+    type Vector = Rabitq4Owned;
+
+    type DistanceAccessor = HalfbyteDistanceAccessor<Rabitq4Owned, Dot>;
+
+    fn block_access(
+        lut: &BlockLut,
+        is_residual: bool,
+        _dis_f: f32,
+        _norm: f32,
+    ) -> impl for<'x> Accessor1<[u8; 16], (&'x [[f32; 32]; 4], &'x [f32; 32]), Output = [(f32, f32); 32]>
+    {
+        assert!(!is_residual);
+        RAccess::new(
+            (&lut.1, ()),
+            BlockAccessor([0_u32; 32], move |value, code, _delta| {
+                rabitq::bit::block::half_process_dot(value, code, lut.0)
+            }),
+        )
+    }
+
+    fn binary_access(
+        lut: &BinaryLut,
+        is_residual: bool,
+        _dis_f: f32,
+        _norm: f32,
+    ) -> impl FnMut([f32; 4], &[u64], f32) -> (f32, f32) {
+        assert!(!is_residual);
+        move |metadata: [f32; 4], elements: &[u64], _delta: f32| {
+            let value = rabitq::bit::binary::accumulate(elements, &lut.1);
+            let code = CodeMetadata {
+                dis_u_2: metadata[0],
+                factor_cnt: metadata[1],
+                factor_ip: metadata[2],
+                factor_err: metadata[3],
+            };
+            rabitq::bit::binary::half_process_dot(value, code, lut.0)
+        }
+    }
+
+    fn build(
+        vector: Rabitq4Borrowed<'_>,
         centroid: Option<Self::Vector>,
     ) -> (rabitq::bit::Code, f32) {
         if centroid.is_some() {

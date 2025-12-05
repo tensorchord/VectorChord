@@ -34,6 +34,7 @@ use std::num::NonZero;
 use std::ops::Deref;
 use vchordrq::types::*;
 use vchordrq::{InsertChooser, MaintainChooser};
+use vector::rabitq4::Rabitq4Owned;
 use vector::rabitq8::Rabitq8Owned;
 use vector::vect::VectOwned;
 
@@ -219,6 +220,10 @@ pub unsafe extern "C-unwind" fn ambuild(
     }
     if vector_options.v == VectorKind::Rabitq8 && vchordrq_options.index.residual_quantization {
         let errors = "residual_quantization is not supported for rabitq8 type";
+        pgrx::error!("error while validating options: {errors}");
+    }
+    if vector_options.v == VectorKind::Rabitq4 && vchordrq_options.index.residual_quantization {
+        let errors = "residual_quantization is not supported for rabitq4 type";
         pgrx::error!("error while validating options: {errors}");
     }
     let opfamily = unsafe { opfamily(index_relation) };
@@ -1230,10 +1235,10 @@ unsafe fn options(
     if atts.len() != 1 {
         pgrx::error!("multicolumn index is not supported");
     }
-    // get dims
+    // get dim
     let typmod = Typmod::new(atts[0].atttypmod).unwrap();
-    let dims = if let Some(dims) = typmod.dims() {
-        dims.get()
+    let dim = if let Some(dim) = typmod.dim() {
+        dim.get()
     } else {
         pgrx::error!(
             "Dimensions type modifier of a vector column is needed for building the index."
@@ -1242,7 +1247,7 @@ unsafe fn options(
     // get v, d
     let opfamily = unsafe { opfamily(index_relation) };
     let vector = VectorOptions {
-        dims,
+        dim,
         v: opfamily.vector_kind(),
         d: opfamily.distance_kind(),
     };
@@ -1266,7 +1271,7 @@ fn make_default_build(
     _default_build: VchordrqDefaultBuildOptions,
 ) -> Vec<Structure<Normalized>> {
     vec![Structure::<Normalized> {
-        centroids: vec![vec![0.0f32; vector_options.dims as usize]],
+        centroids: vec![vec![0.0f32; vector_options.dim as usize]],
         children: vec![vec![]],
     }]
 }
@@ -1281,15 +1286,15 @@ fn make_internal_build(
     use humansize::{BINARY, format_size};
     use std::iter::once;
     let (reduction, sample_dim) = match internal_build.kmeans_dimension {
-        None => (None, vector_options.dims as usize),
-        Some(d) if d < vector_options.dims => (Some(d as usize), d as usize),
+        None => (None, vector_options.dim as usize),
+        Some(d) if d < vector_options.dim => (Some(d as usize), d as usize),
         Some(d) => {
             pgrx::warning!(
                 "ignoring `kmeans_dimension = {}` because it is less than the vector dimension {}",
                 d,
-                vector_options.dims
+                vector_options.dim
             );
-            (None, vector_options.dims as usize)
+            (None, vector_options.dim as usize)
         }
     };
     {
@@ -1328,9 +1333,10 @@ fn make_internal_build(
                             OwnedVector::Vecf32(x) => VectOwned::normalize(x),
                             OwnedVector::Vecf16(x) => VectOwned::normalize(x),
                             OwnedVector::Rabitq8(x) => Rabitq8Owned::normalize(x),
+                            OwnedVector::Rabitq4(x) => Rabitq4Owned::normalize(x),
                         };
                         assert_eq!(
-                            vector_options.dims,
+                            vector_options.dim,
                             x.len() as u32,
                             "invalid vector dimensions"
                         );
@@ -1359,7 +1365,7 @@ fn make_internal_build(
     for w in internal_build.lists.iter().rev().copied().chain(once(1)) {
         let mut input = if let Some(structure) = result.last() {
             let mut input =
-                Square::with_capacity(vector_options.dims as _, structure.centroids.len());
+                Square::with_capacity(vector_options.dim as _, structure.centroids.len());
             for slice in structure.centroids.iter() {
                 input.push_slice(slice);
             }
@@ -1370,7 +1376,7 @@ fn make_internal_build(
             unreachable!()
         };
         let num_points = input.len();
-        let num_dims = input.d();
+        let num_dim = input.d();
         let num_lists = w as usize;
         let num_iterations = internal_build.kmeans_iterations as _;
         if result.is_empty() {
@@ -1382,7 +1388,7 @@ fn make_internal_build(
         }
         if num_lists > 1 {
             pgrx::info!(
-                "clustering: starting, clustering {num_points} vectors of {num_dims} dimension into {num_lists} clusters, in {num_iterations} iterations"
+                "clustering: starting, clustering {num_points} vectors of {num_dim} dimension into {num_lists} clusters, in {num_iterations} iterations"
             );
         }
         let mut f = 'f: {
@@ -1390,7 +1396,7 @@ fn make_internal_build(
             if result.last().is_some() {
                 break 'f k_means::lloyd_k_means(
                     &pool,
-                    num_dims,
+                    num_dim,
                     view,
                     num_lists,
                     [7; 32],
@@ -1400,7 +1406,7 @@ fn make_internal_build(
             match internal_build.kmeans_algorithm {
                 KMeansAlgorithm::Lloyd {} => k_means::lloyd_k_means(
                     &pool,
-                    num_dims,
+                    num_dim,
                     view,
                     num_lists,
                     [7; 32],
@@ -1408,7 +1414,7 @@ fn make_internal_build(
                 ),
                 KMeansAlgorithm::Hierarchical {} => k_means::hierarchical_k_means(
                     &pool,
-                    num_dims,
+                    num_dim,
                     view,
                     num_lists,
                     [7; 32],
@@ -1443,7 +1449,7 @@ fn make_internal_build(
                 let is_spherical = internal_build.spherical_centroids;
                 let num_threads = {
                     let config = internal_build.build_threads as f64;
-                    let ratio = sample_dim as f64 / vector_options.dims as f64;
+                    let ratio = sample_dim as f64 / vector_options.dim as f64;
                     (config * ratio).ceil().max(1.0).min(config) as usize
                 };
                 let (tx, rx) = crossbeam_channel::bounded::<Vec<f32>>(1024);
@@ -1452,7 +1458,7 @@ fn make_internal_build(
                     let mut handles = Vec::with_capacity(num_threads);
                     for _ in 0..num_threads {
                         let rx = rx.clone();
-                        let mut sum = Square::from_zeros(vector_options.dims as _, num_lists);
+                        let mut sum = Square::from_zeros(vector_options.dim as _, num_lists);
                         let mut count = vec![0.0f32; num_lists];
                         handles.push(scope.spawn(move || {
                             while let Ok(sample) = rx.recv() {
@@ -1486,9 +1492,12 @@ fn make_internal_build(
                                                 OwnedVector::Rabitq8(x) => {
                                                     Rabitq8Owned::normalize(x)
                                                 }
+                                                OwnedVector::Rabitq4(x) => {
+                                                    Rabitq4Owned::normalize(x)
+                                                }
                                             };
                                             assert_eq!(
-                                                vector_options.dims,
+                                                vector_options.dim,
                                                 x.len() as u32,
                                                 "invalid vector dimensions"
                                             );
@@ -1510,7 +1519,7 @@ fn make_internal_build(
                         .map(|handle| handle.join().expect("failed to spawn threads"))
                         .collect::<Vec<_>>()
                 });
-                let mut sum = Square::from_zeros(vector_options.dims as _, num_lists);
+                let mut sum = Square::from_zeros(vector_options.dim as _, num_lists);
                 let mut count = vec![0.0f32; num_lists];
                 for (sum_1, count_1) in list {
                     for i in 0..num_lists {
@@ -1624,7 +1633,7 @@ fn make_external_build(
                     "external build: there are at least two lines have same id, id = {id}"
                 );
             }
-            if vector_options.dims != vector.as_borrowed().dims() {
+            if vector_options.dim != vector.as_borrowed().dim() {
                 pgrx::error!("external build: incorrect dimension, id = {id}");
             }
             vectors.insert(id, vector.as_borrowed().slice().to_vec());
@@ -1642,7 +1651,7 @@ fn make_external_build(
         result.push(Structure {
             centroids: vec![{
                 // compute the vector on root, without normalizing it
-                let mut sum = vec![0.0f32; vector_options.dims as _];
+                let mut sum = vec![0.0f32; vector_options.dim as _];
                 for vector in vectors.values() {
                     f32::vector_add_inplace(&mut sum, vector);
                 }

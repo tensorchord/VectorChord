@@ -583,10 +583,10 @@ unsafe fn options(
     if atts.len() != 1 {
         pgrx::error!("multicolumn index is not supported");
     }
-    // get dims
+    // get dim
     let typmod = Typmod::new(atts[0].atttypmod).unwrap();
-    let dims = if let Some(dims) = typmod.dims() {
-        dims.get()
+    let dim = if let Some(dim) = typmod.dim() {
+        dim.get()
     } else {
         pgrx::error!(
             "Dimensions type modifier of a vector column is needed for building the index."
@@ -595,7 +595,7 @@ unsafe fn options(
     // get v, d
     let opfamily = unsafe { opfamily(index_relation) };
     let vector = VectorOptions {
-        dims,
+        dim,
         v: opfamily.vector_kind(),
         d: opfamily.distance_kind(),
     };

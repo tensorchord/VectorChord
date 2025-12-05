@@ -52,7 +52,7 @@ pub fn build<R: RelationWrite, O: Operator>(
     assert_eq!(vector_guard.id(), 2);
     drop(vector_guard);
     let serialized = MetaTuple::serialize(&MetaTuple {
-        dims: vector_options.dims,
+        dim: vector_options.dim,
         bits: index_options.bits,
         m: index_options.m,
         alpha: index_options.alpha,
