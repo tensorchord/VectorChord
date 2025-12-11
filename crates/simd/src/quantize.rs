@@ -18,7 +18,7 @@ mod mul_add_round {
     #[crate::target_cpu(enable = "v4")]
     fn mul_add_round_v4(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let mut r = Vec::<u8>::with_capacity(this.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let lk = _mm512_set1_ps(k);
         let lb = _mm512_set1_ps(b);
         let mut n = this.len();
@@ -78,7 +78,7 @@ mod mul_add_round {
     #[crate::target_cpu(enable = "v3")]
     fn mul_add_round_v3(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let mut r = Vec::<u8>::with_capacity(this.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let cons = _mm256_setr_epi8(
             0, 4, 8, 12, -1, -1, -1, -1, // 0..8
             -1, -1, -1, -1, -1, -1, -1, -1, // 8..15
@@ -149,7 +149,7 @@ mod mul_add_round {
     #[target_feature(enable = "fma")]
     fn mul_add_round_v2_fma(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let mut r = Vec::<u8>::with_capacity(this.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let cons = _mm_setr_epi8(
             0, 4, 8, 12, -1, -1, -1, -1, // 0..8
             -1, -1, -1, -1, -1, -1, -1, -1, // 8..15
@@ -215,7 +215,7 @@ mod mul_add_round {
     #[crate::target_cpu(enable = "a2")]
     fn mul_add_round_a2(this: &[f32], k: f32, b: f32) -> Vec<u8> {
         let mut r = Vec::<u8>::with_capacity(this.len());
-        use std::arch::aarch64::*;
+        use core::arch::aarch64::*;
         #[cfg(target_endian = "little")]
         const CONS: [u8; 16] = [
             0, 4, 8, 12, 0xff, 0xff, 0xff, 0xff, // 0..8

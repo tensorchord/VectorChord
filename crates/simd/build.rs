@@ -18,16 +18,12 @@ use std::error::Error;
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo::rerun-if-changed=cshim");
     let target_arch = var("CARGO_CFG_TARGET_ARCH")?;
-    match target_arch.as_str() {
-        "aarch64" => {
+    let target_endian = var("CARGO_CFG_TARGET_ENDIAN")?;
+    #[allow(clippy::single_match)]
+    match (target_arch.as_str(), target_endian.as_str()) {
+        ("aarch64", "little") => {
             let mut build = cc::Build::new();
-            build.file("./cshim/aarch64.c");
-            build.opt_level(3);
-            build.compile("simd_cshim");
-        }
-        "x86_64" => {
-            let mut build = cc::Build::new();
-            build.file("./cshim/x86_64.c");
+            build.file("./cshim/aarch64_little.c");
             build.opt_level(3);
             build.compile("simd_cshim");
         }

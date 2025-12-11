@@ -93,7 +93,7 @@ mod reduce_sum_of_x_as_u32_y_as_u32 {
         _mm512_reduce_add_epi32(r_6) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_y_as_u32_v4_test() {
         use rand::Rng;
@@ -359,7 +359,7 @@ mod reduce_sum_of_x_as_u32_y_as_u32 {
         sum
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_y_as_u32_a2_test() {
         use rand::Rng;
