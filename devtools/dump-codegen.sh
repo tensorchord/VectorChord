@@ -29,7 +29,7 @@ Datum amhandler() {
   IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
   amroutine->amsupport = 1;
   amroutine->amcanorderbyop = true;
-  (Datum) amroutine;
+  return (Datum) amroutine;
 }
 EOF
 
