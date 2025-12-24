@@ -108,8 +108,8 @@ impl SearchBuilder for MaxsimBuilder {
             pgrx::error!("maxsim search with rerank_in_table is not supported");
         }
         assert!(matches!(opfamily.distance_kind(), DistanceKind::Dot));
-        let search_hints = Hints::default().full(true);
-        let rerank_hints = Hints::default().full(false);
+        let search_hints = Hints::default().full(true).batch(false);
+        let rerank_hints = Hints::default().full(false).batch(true);
         let make_h1_plain_prefetcher = MakeH1PlainPrefetcher { index };
         let make_h0_plain_prefetcher = MakeH0PlainPrefetcher { index };
         let make_h0_simple_prefetcher = MakeH0SimplePrefetcher { index };
