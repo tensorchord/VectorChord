@@ -60,7 +60,7 @@ jobs:
       - name: Install Clang
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
-          sudo update-alternatives --install /usr/bin/clang clang $(which clang-18) 255
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Install PostgreSQL
         run: |

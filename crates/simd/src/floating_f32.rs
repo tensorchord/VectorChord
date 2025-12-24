@@ -965,9 +965,6 @@ mod reduce_sum_of_x2 {
 }
 
 mod reduce_min_max_of_x {
-    // Semanctics of `f32::min` is different from `_mm256_min_ps`,
-    // which may lead to issues...
-
     #[inline]
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4")]

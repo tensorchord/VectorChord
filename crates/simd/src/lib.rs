@@ -14,7 +14,6 @@
 
 #![allow(unsafe_code)]
 #![cfg_attr(feature = "nightly_f16", feature(f16))]
-#![cfg_attr(target_arch = "s390x", feature(stdarch_s390x_feature_detection))]
 #![cfg_attr(target_arch = "s390x", feature(s390x_target_feature))]
 #![cfg_attr(target_arch = "s390x", feature(stdarch_s390x))]
 #![cfg_attr(target_arch = "powerpc64", feature(stdarch_powerpc_feature_detection))]

@@ -23,7 +23,7 @@ jobs:
         run: |
           curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
 
-          curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.18.2/cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
+          curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.19.2/cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.19.2-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
 
       - name: Install Rust
         run: rustup update
@@ -134,8 +134,7 @@ jobs:
 
       - name: Cargo Test (Miri)
         env:
-          # https://github.com/rust-lang/rust/issues/149314
-          RUSTFLAGS: "-Ctarget-cpu=sapphirerapids -Zcodegen-backend=llvm"
+          RUSTFLAGS: "-Ctarget-cpu=sapphirerapids"
           MIRIFLAGS: "-Zmiri-strict-provenance"
         run: |
           cargo miri test --locked --target x86_64-unknown-linux-gnu \
@@ -250,6 +249,9 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
           echo CC=clang-18 >> $GITHUB_ENV
 
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Install PostgreSQL & pgvector
         run: |
           sudo apt-get remove -y '^postgres.*' '^libpq.*'
@@ -283,9 +285,6 @@ jobs:
           echo PG_CONFIG=pg_config >> $GITHUB_ENV
 
           sudo apt-get install -y --no-install-recommends postgresql-${{ matrix.version }}-pgvector
-
-      - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -360,6 +359,9 @@ jobs:
       - name: Install Clang
         run: echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Install PostgreSQL & pgvector
         run: |
           brew install postgresql@${{ matrix.version }}
@@ -377,11 +379,8 @@ jobs:
 
           mkdir ~/pgvector-install
           curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config
-          sudo make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config install
-
-      - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config CC='sccache clang'
+          sudo make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config CC='sccache clang' install
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -455,6 +454,9 @@ jobs:
       - name: Install Rust
         run: rustup update
 
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Install PostgreSQL & pgvector
         run: |
           'PGBIN','PGDATA','PGROOT', 'PGUSER', 'PGPASSWORD' | ForEach-Object { Remove-Item "env:$_" }
@@ -500,8 +502,8 @@ jobs:
           nmake /F Makefile.win PGROOT="D:\postgresql-install\pgsql" install
           Pop-Location
 
-      - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Install Clang
+        run: Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl.exe"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -586,7 +588,12 @@ jobs:
           echo RUSTC_BOOTSTRAP=1 >> $GITHUB_ENV
 
       - name: Install Clang
-        run: sudo apk add --no-cache clang18-dev
+        run: |
+          sudo apk add --no-cache clang18 clang18-dev
+          echo CC=clang-18 >> $GITHUB_ENV
+
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -615,11 +622,8 @@ jobs:
 
           mkdir ~/pgvector-install
           curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config install
-
-      - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18'
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18' install
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -786,7 +790,12 @@ jobs:
           echo RUSTC_BOOTSTRAP=1 >> $GITHUB_ENV
 
       - name: Install Clang
-        run: sudo apt-get install -y clang lld
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
+
+      - name: Set up Sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -825,11 +834,8 @@ jobs:
 
           mkdir ~/pgvector-install
           curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS=""
-          sudo make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC=clang CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
-
-      - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+          make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC='sccache clang' CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS=""
+          sudo make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC='sccache clang' CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -848,7 +854,6 @@ jobs:
               "-Dwarnings",
           ]
           [env]
-          CC_${{ matrix.rust_triple }} = "clang"
           CFLAGS_${{ matrix.rust_triple }} = "--target=${{ matrix.clang_triple }} --sysroot=/sysroot"
           BINDGEN_EXTRA_CLANG_ARGS_${{ matrix.rust_triple }} = "--sysroot=/sysroot"
           EOF
@@ -942,7 +947,9 @@ jobs:
           echo RUSTC_BOOTSTRAP=1 >> $GITHUB_ENV
 
       - name: Install Clang
-        run: sudo pacman -S --noconfirm clang
+        run: |
+          sudo pacman -S --noconfirm clang
+          echo CC=clang >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@v0.0.9
