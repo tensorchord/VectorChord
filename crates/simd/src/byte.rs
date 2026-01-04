@@ -65,7 +65,7 @@ mod reduce_sum_of_x_as_u32_y_as_u32 {
         _mm512_reduce_add_epi32(r_2) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_y_as_u32_v4_test() {
         use rand::Rng;
@@ -283,7 +283,7 @@ mod reduce_sum_of_x_as_u32_y_as_u32 {
         sum
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_y_as_u32_a2_test() {
         use rand::Rng;
@@ -332,7 +332,7 @@ mod reduce_sum_of_x_as_u16 {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_x_as_u16_v4(this: &[u8]) -> u16 {
         use crate::emulate::emulate_mm512_reduce_add_epi16;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm512_set1_epi16(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -351,7 +351,7 @@ mod reduce_sum_of_x_as_u16 {
         emulate_mm512_reduce_add_epi16(sum) as u16
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_as_u16_v4_test() {
         use rand::Rng;
@@ -377,7 +377,7 @@ mod reduce_sum_of_x_as_u16 {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x_as_u16_v3(this: &[u8]) -> u16 {
         use crate::emulate::emulate_mm256_reduce_add_epi16;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm256_set1_epi16(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -425,7 +425,7 @@ mod reduce_sum_of_x_as_u16 {
     #[crate::target_cpu(enable = "v2")]
     fn reduce_sum_of_x_as_u16_v2(this: &[u8]) -> u16 {
         use crate::emulate::emulate_mm_reduce_add_epi16;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm_set1_epi16(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -472,7 +472,7 @@ mod reduce_sum_of_x_as_u16 {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_x_as_u16_a2(this: &[u8]) -> u16 {
-        use std::arch::aarch64::*;
+        use core::arch::aarch64::*;
         let us = vdupq_n_u16(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -494,7 +494,7 @@ mod reduce_sum_of_x_as_u16 {
         sum
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", test))]
     #[test]
     fn reduce_sum_of_x_as_u16_a2_test() {
         use rand::Rng;
@@ -536,7 +536,7 @@ mod reduce_sum_of_x_as_u32 {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_x_as_u32_v4(this: &[u8]) -> u32 {
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm512_set1_epi32(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -555,7 +555,7 @@ mod reduce_sum_of_x_as_u32 {
         _mm512_reduce_add_epi32(sum) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_v4_test() {
         use rand::Rng;
@@ -581,7 +581,7 @@ mod reduce_sum_of_x_as_u32 {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x_as_u32_v3(this: &[u8]) -> u32 {
         use crate::emulate::emulate_mm256_reduce_add_epi32;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm256_set1_epi32(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -629,7 +629,7 @@ mod reduce_sum_of_x_as_u32 {
     #[crate::target_cpu(enable = "v2")]
     fn reduce_sum_of_x_as_u32_v2(this: &[u8]) -> u32 {
         use crate::emulate::emulate_mm_reduce_add_epi32;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let us = _mm_set1_epi32(255);
         let mut n = this.len();
         let mut a = this.as_ptr();
@@ -676,7 +676,7 @@ mod reduce_sum_of_x_as_u32 {
     #[cfg(target_arch = "aarch64")]
     #[crate::target_cpu(enable = "a2")]
     fn reduce_sum_of_x_as_u32_a2(this: &[u8]) -> u32 {
-        use std::arch::aarch64::*;
+        use core::arch::aarch64::*;
         let mut n = this.len();
         let mut a = this.as_ptr();
         let mut sum_0 = vdupq_n_u32(0);
@@ -699,7 +699,7 @@ mod reduce_sum_of_x_as_u32 {
         sum
     }
 
-    #[cfg(all(target_arch = "aarch64", test, not(miri)))]
+    #[cfg(all(target_arch = "aarch64", test))]
     #[test]
     fn reduce_sum_of_x_as_u32_a2_test() {
         use rand::Rng;

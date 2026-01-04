@@ -55,7 +55,7 @@ mod scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
 
         #[inline]
         #[crate::target_cpu(enable = "v4")]
@@ -157,7 +157,7 @@ mod scan {
         result
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn scan_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -187,7 +187,7 @@ mod scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
 
         #[inline]
         #[crate::target_cpu(enable = "v3")]
@@ -260,7 +260,7 @@ mod scan {
         result
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn scan_v3_test() {
         if !crate::is_cpu_detected!("v3") {
@@ -289,7 +289,7 @@ mod scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
 
         let mut accu_0 = _mm_setzero_si128();
         let mut accu_1 = _mm_setzero_si128();
@@ -333,7 +333,7 @@ mod scan {
         result
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn scan_v2_test() {
         if !crate::is_cpu_detected!("v2") {
@@ -362,7 +362,7 @@ mod scan {
         assert_eq!(code.len(), lut.len());
         let n = code.len();
 
-        use std::arch::aarch64::*;
+        use core::arch::aarch64::*;
 
         let mut accu_0 = vdupq_n_u16(0);
         let mut accu_1 = vdupq_n_u16(0);
@@ -435,7 +435,7 @@ mod scan {
             assert_eq!(code.len(), lut.len());
             let n = code.len();
 
-            use std::arch::s390x::*;
+            use core::arch::s390x::*;
             use std::mem::transmute;
             use {vector_unsigned_char as u8x16, vector_unsigned_short as u16x8};
 
@@ -518,7 +518,7 @@ mod scan {
                     assert_eq!(code.len(), lut.len());
                     let n = code.len();
 
-                    use std::arch::powerpc64::*;
+                    use core::arch::powerpc64::*;
                     use std::mem::transmute;
                     use {vector_unsigned_char as u8x16, vector_unsigned_short as u16x8};
 

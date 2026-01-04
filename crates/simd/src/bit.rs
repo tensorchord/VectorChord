@@ -24,7 +24,7 @@ mod reduce_sum_of_and {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn reduce_sum_of_and_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let mut and = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
@@ -46,7 +46,7 @@ mod reduce_sum_of_and {
         _mm512_reduce_add_epi64(and) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_v4_avx512vpopcntdq_test() {
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vpopcntdq") {
@@ -67,7 +67,7 @@ mod reduce_sum_of_and {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_and_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
@@ -108,7 +108,7 @@ mod reduce_sum_of_and {
         _mm512_reduce_add_epi64(sum_and) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -130,7 +130,7 @@ mod reduce_sum_of_and {
     fn reduce_sum_of_and_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
         use crate::emulate::emulate_mm256_reduce_add_epi64;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
@@ -167,7 +167,7 @@ mod reduce_sum_of_and {
         and
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_v3_test() {
         if !crate::is_cpu_detected!("v3") {
@@ -207,7 +207,7 @@ mod reduce_sum_of_or {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn reduce_sum_of_or_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let mut or = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
@@ -229,7 +229,7 @@ mod reduce_sum_of_or {
         _mm512_reduce_add_epi64(or) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_or_v4_avx512vpopcntdq_test() {
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vpopcntdq") {
@@ -250,7 +250,7 @@ mod reduce_sum_of_or {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_or_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
@@ -291,7 +291,7 @@ mod reduce_sum_of_or {
         _mm512_reduce_add_epi64(sum_or) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_or_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -313,7 +313,7 @@ mod reduce_sum_of_or {
     fn reduce_sum_of_or_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
         use crate::emulate::emulate_mm256_reduce_add_epi64;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
@@ -350,7 +350,7 @@ mod reduce_sum_of_or {
         or
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_or_v3_test() {
         if !crate::is_cpu_detected!("v3") {
@@ -390,7 +390,7 @@ mod reduce_sum_of_xor {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn reduce_sum_of_xor_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let mut xor = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
         let mut b = rhs.as_ptr();
@@ -412,7 +412,7 @@ mod reduce_sum_of_xor {
         _mm512_reduce_add_epi64(xor) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_xor_v4_avx512vpopcntdq_test() {
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vpopcntdq") {
@@ -433,7 +433,7 @@ mod reduce_sum_of_xor {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_xor_v4(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
@@ -474,7 +474,7 @@ mod reduce_sum_of_xor {
         _mm512_reduce_add_epi64(sum_xor) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_xor_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -496,7 +496,7 @@ mod reduce_sum_of_xor {
     fn reduce_sum_of_xor_v3(lhs: &[u64], rhs: &[u64]) -> u32 {
         assert!(lhs.len() == rhs.len());
         use crate::emulate::emulate_mm256_reduce_add_epi64;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
@@ -533,7 +533,7 @@ mod reduce_sum_of_xor {
         xor
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_xor_v3_test() {
         if !crate::is_cpu_detected!("v3") {
@@ -573,7 +573,7 @@ mod reduce_sum_of_and_or {
     #[target_feature(enable = "avx512vpopcntdq")]
     fn reduce_sum_of_and_or_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let mut and = _mm512_setzero_si512();
         let mut or = _mm512_setzero_si512();
         let mut a = lhs.as_ptr();
@@ -601,7 +601,7 @@ mod reduce_sum_of_and_or {
         )
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_or_v4_avx512vpopcntdq_test() {
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vpopcntdq") {
@@ -622,7 +622,7 @@ mod reduce_sum_of_and_or {
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_and_or_v4(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
@@ -685,7 +685,7 @@ mod reduce_sum_of_and_or {
         )
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_or_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -707,7 +707,7 @@ mod reduce_sum_of_and_or {
     fn reduce_sum_of_and_or_v3(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {
         assert!(lhs.len() == rhs.len());
         use crate::emulate::emulate_mm256_reduce_add_epi64;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
@@ -756,7 +756,7 @@ mod reduce_sum_of_and_or {
         (and, or)
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_and_or_v3_test() {
         if !crate::is_cpu_detected!("v3") {
@@ -797,7 +797,7 @@ mod reduce_sum_of_x {
     #[crate::target_cpu(enable = "v4")]
     #[target_feature(enable = "avx512vpopcntdq")]
     fn reduce_sum_of_x_v4_avx512vpopcntdq(this: &[u64]) -> u32 {
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         let mut sum = _mm512_setzero_si512();
         let mut a = this.as_ptr();
         let mut n = this.len();
@@ -815,7 +815,7 @@ mod reduce_sum_of_x {
         _mm512_reduce_add_epi64(sum) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_v4_avx512vpopcntdq_test() {
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vpopcntdq") {
@@ -834,7 +834,7 @@ mod reduce_sum_of_x {
     #[cfg(target_arch = "x86_64")]
     #[crate::target_cpu(enable = "v4")]
     fn reduce_sum_of_x_v4(this: &[u64]) -> u32 {
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];
         let lut = unsafe { _mm512_loadu_si512((&raw const LUT).cast()) };
         let mask_0 = _mm512_set1_epi8(0x0f);
@@ -867,7 +867,7 @@ mod reduce_sum_of_x {
         _mm512_reduce_add_epi64(sum) as u32
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_v4_test() {
         if !crate::is_cpu_detected!("v4") {
@@ -887,7 +887,7 @@ mod reduce_sum_of_x {
     #[crate::target_cpu(enable = "v3")]
     fn reduce_sum_of_x_v3(this: &[u64]) -> u32 {
         use crate::emulate::emulate_mm256_reduce_add_epi64;
-        use std::arch::x86_64::*;
+        use core::arch::x86_64::*;
         static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];
         let lut = unsafe { _mm256_loadu_si256((&raw const LUT).cast()) };
         let mask_0 = _mm256_set1_epi8(0x0f);
@@ -918,7 +918,7 @@ mod reduce_sum_of_x {
         sum
     }
 
-    #[cfg(all(target_arch = "x86_64", test, not(miri)))]
+    #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_x_v3_test() {
         if !crate::is_cpu_detected!("v3") {
