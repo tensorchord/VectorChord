@@ -116,8 +116,8 @@ impl SearchBuilder for DefaultBuilder {
         let Some(vector) = vector else {
             return Box::new(std::iter::empty()) as Box<dyn Iterator<Item = (f32, [u16; 3], bool)>>;
         };
-        let vertex_hints = Hints::default().full(true);
-        let vector_hints = Hints::default().full(true);
+        let vertex_hints = Hints::default().full(true).batch(true);
+        let vector_hints = Hints::default().full(true).batch(true);
         let make_vertex_plain_prefetcher = MakePlainPrefetcher { index };
         let make_vertex_simple_prefetcher = MakeSimplePrefetcher { index };
         let make_vertex_stream_prefetcher = MakeStreamPrefetcher {
