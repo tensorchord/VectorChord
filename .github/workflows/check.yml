@@ -23,13 +23,13 @@ jobs:
         run: |
           curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-$(uname -m).gz | gzip -d - | install -m 755 /dev/stdin /usr/local/bin/taplo
 
-          curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.19.2/cargo-deny-0.18.2-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.19.2-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
+          curl -fsSL https://github.com/EmbarkStudios/cargo-deny/releases/download/0.18.9/cargo-deny-0.18.9-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - cargo-deny-0.18.9-$(uname -m)-unknown-linux-musl/cargo-deny | install -m 755 /dev/stdin /usr/local/bin/cargo-deny
 
       - name: Install Rust
         run: rustup update
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Typos
         uses: crate-ci/typos@master
@@ -38,7 +38,7 @@ jobs:
         run: taplo fmt --check
 
       - name: Ruff
-        uses: astral-sh/ruff-action@v1
+        uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
 
       - name: Rustfmt
         run: cargo fmt --check -- --config-path /dev/null --config imports_granularity=Module
@@ -126,11 +126,11 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
-          echo CC=clang-18 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          echo CC=clang-21 >> $GITHUB_ENV
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Cargo Test (Miri)
         env:
@@ -166,9 +166,9 @@ jobs:
           sudo apt-get update
 
           if [ "$(uname -m)" == "x86_64" ]; then
-            wget https://downloadmirror.intel.com/843185/sde-external-9.48.0-2024-11-25-lin.tar.xz -O /tmp/sde-external.tar.xz
+            wget https://downloadmirror.intel.com/859732/sde-external-9.58.0-2025-06-16-lin.tar.xz -O /tmp/sde-external.tar.xz
             sudo tar -xf /tmp/sde-external.tar.xz -C /opt
-            sudo mv /opt/sde-external-9.48.0-2024-11-25-lin /opt/sde
+            sudo mv /opt/sde-external-9.58.0-2025-06-16-lin /opt/sde
           fi
 
           if [ "$(uname -m)" == "aarch64" ]; then          
@@ -180,14 +180,14 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
-          echo CC=clang-18 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          echo CC=clang-21 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Cargo Test
         run: cargo test --locked --workspace --exclude vchord --no-fail-fast -- --no-capture
@@ -222,9 +222,9 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17", "18"]
+        version: ["14", "15", "16", "17", "18"]
         arch: ["x86_64", "aarch64"]
-    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
+    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
 
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -239,18 +239,18 @@ jobs:
         run: |
           sudo apt-get update
 
-          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
       - name: Install Rust
         run: rustup update
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
-          echo CC=clang-18 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          echo CC=clang-21 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -287,7 +287,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-${{ matrix.version }}-pgvector
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -299,7 +299,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-gnu
           path: ./build
@@ -333,7 +333,7 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17", "18"]
+        version: ["14", "15", "16", "17", "18"]
         arch: ["aarch64", "x86_64"]
 
     runs-on: ${{ matrix.arch == 'aarch64' && 'macos-15' || 'macos-15-intel' }}
@@ -351,16 +351,16 @@ jobs:
         run: |
           brew update
 
-          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-${{ matrix.arch }}-apple-darwin.tar.gz | tar -xOzf - ./sqllogictest | tee /usr/local/bin/sqllogictest > /dev/null && chmod 755 /usr/local/bin/sqllogictest
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-${{ matrix.arch }}-apple-darwin.tar.gz | tar -xOzf - ./sqllogictest | tee /usr/local/bin/sqllogictest > /dev/null && chmod 755 /usr/local/bin/sqllogictest
 
       - name: Install Rust
         run: rustup update
 
       - name: Install Clang
-        run: echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
+        run: echo CC=$(brew --prefix llvm@21)/bin/clang >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -383,7 +383,7 @@ jobs:
           sudo make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config CC='sccache clang' install
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -395,7 +395,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin
           path: ./build
@@ -431,7 +431,7 @@ jobs:
 
     strategy:
       matrix:
-        version: ["13", "14", "15", "16", "17", "18"]
+        version: ["14", "15", "16", "17", "18"]
         arch: ["x86_64"]
 
     runs-on: "windows-2022"
@@ -447,7 +447,7 @@ jobs:
     steps:
       - name: Set up Environment
         run: |
-          Invoke-WebRequest -Uri https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-${{ matrix.arch }}-pc-windows-msvc.zip -OutFile "$env:TEMP\sqllogictest-install.zip"
+          Invoke-WebRequest -Uri https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-${{ matrix.arch }}-pc-windows-msvc.zip -OutFile "$env:TEMP\sqllogictest-install.zip"
           Expand-Archive -Path "$env:TEMP\sqllogictest-install.zip" -DestinationPath "D:\sqllogictest-install" -Force
           Add-Content -Path $env:GITHUB_PATH -Value "D:\sqllogictest-install"
 
@@ -455,29 +455,26 @@ jobs:
         run: rustup update
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
           'PGBIN','PGDATA','PGROOT', 'PGUSER', 'PGPASSWORD' | ForEach-Object { Remove-Item "env:$_" }
 
-          if ( "${{ matrix.version }}" -eq "13" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-13.22-1-windows-x64-binaries.zip"
-          }
           if ( "${{ matrix.version }}" -eq "14" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-14.19-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-14.20-2-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "15" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-15.14-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-15.15-2-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "16" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-16.10-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-16.11-2-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "17" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-17.6-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-17.7-2-windows-x64-binaries.zip"
           }
           if ( "${{ matrix.version }}" -eq "18" ) {
-            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-18.0-1-windows-x64-binaries.zip"
+            $postgresql_url = "https://get.enterprisedb.com/postgresql/postgresql-18.1-2-windows-x64-binaries.zip"
           }
           Invoke-WebRequest -Uri $postgresql_url -OutFile "$env:TEMP\postgresql-install.zip"
           Expand-Archive -Path "$env:TEMP\postgresql-install.zip" -DestinationPath "D:\postgresql-install" -Force
@@ -506,7 +503,7 @@ jobs:
         run: Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl.exe"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -518,7 +515,7 @@ jobs:
         run: make install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-pc-windows-msvc
           path: ./build
@@ -579,7 +576,7 @@ jobs:
           mkdir /opt/bin
           ln -s /usr/bin/node /opt/bin/node
 
-          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
       - name: Install Rust
         run: |
@@ -589,11 +586,11 @@ jobs:
 
       - name: Install Clang
         run: |
-          sudo apk add --no-cache clang18 clang18-dev
-          echo CC=clang-18 >> $GITHUB_ENV
+          sudo apk add --no-cache clang21 clang21-dev
+          echo CC=clang-21 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -622,11 +619,11 @@ jobs:
 
           mkdir ~/pgvector-install
           curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18'
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18' install
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-21'
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-21' install
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Patch
         run: |
@@ -648,7 +645,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-musl
           path: ./build
@@ -687,50 +684,44 @@ jobs:
             platform: "s390x"
             clang_triple: "s390x-linux-gnu"
             rust_triple: "s390x-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "17"
             platform: "s390x"
             clang_triple: "s390x-linux-gnu"
             rust_triple: "s390x-unknown-linux-gnu"
             gcc_version: "14"
             debian_version: "trixie"
-          - version: "13"
-            platform: "ppc64le"
-            clang_triple: "powerpc64le-linux-gnu"
-            rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
           - version: "14"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "15"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "16"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "17"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "18"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "12"
-            debian_version: "bookworm"
+            gcc_version: "14"
+            debian_version: "trixie"
           - version: "17"
             platform: "riscv64"
             clang_triple: "riscv64-linux-gnu"
@@ -780,7 +771,7 @@ jobs:
           echo QEMU_LD_PREFIX=$QEMU_LD_PREFIX >> $GITHUB_ENV
           echo QEMU_CPU=$QEMU_CPU >> $GITHUB_ENV
 
-          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
       - name: Install Rust
         run: |
@@ -791,11 +782,11 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
-          echo CC=clang-18 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+          echo CC=clang-21 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -838,7 +829,7 @@ jobs:
           sudo make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC='sccache clang' CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Patch
         run: |
@@ -871,7 +862,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.clang_triple }}
           path: ./build
@@ -938,7 +929,7 @@ jobs:
 
           sudo pacman -S --noconfirm liburing numactl python valgrind
 
-          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.28.4/sqllogictest-bin-v0.28.4-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | sudo install -m 755 /dev/stdin /usr/local/bin/sqllogictest
+          curl -fsSL https://github.com/risinglightdb/sqllogictest-rs/releases/download/v0.29.0/sqllogictest-bin-v0.29.0-$(uname -m)-unknown-linux-musl.tar.gz | tar -xOzf - ./sqllogictest | sudo install -m 755 /dev/stdin /usr/local/bin/sqllogictest
 
       - name: Install Rust
         run: |
@@ -952,7 +943,7 @@ jobs:
           echo CC=clang >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -1035,7 +1026,7 @@ jobs:
           popd
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Cargo Test
         run: cargo test --locked --workspace --exclude vchord --no-fail-fast -- --no-capture

@@ -44,7 +44,7 @@ pgrx = { version = "=0.16.1", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.3.1"
 rand.workspace = true
 rayon.workspace = true
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+rusqlite = { version = "0.38.0", features = ["bundled"] }
 seq-macro.workspace = true
 serde.workspace = true
 toml = "0.9.8"
