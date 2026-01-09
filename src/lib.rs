@@ -55,7 +55,7 @@ unsafe extern "C-unwind" fn _pg_init() {
     index::init();
     recorder::init();
     unsafe {
-        #[cfg(any(feature = "pg14"))]
+        #[cfg(feature = "pg14")]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchord".as_ptr());
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchord".as_ptr());

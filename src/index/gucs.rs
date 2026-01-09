@@ -193,7 +193,7 @@ pub fn init() {
         GucFlags::default(),
     );
     unsafe {
-        #[cfg(any(feature = "pg14"))]
+        #[cfg(feature = "pg14")]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchordrq".as_ptr());
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchordrq".as_ptr());
@@ -253,7 +253,7 @@ pub fn init() {
         GucFlags::default(),
     );
     unsafe {
-        #[cfg(any(feature = "pg14"))]
+        #[cfg(feature = "pg14")]
         pgrx::pg_sys::EmitWarningsOnPlaceholders(c"vchordg".as_ptr());
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchordg".as_ptr());
