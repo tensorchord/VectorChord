@@ -273,20 +273,6 @@ pub unsafe extern "C-unwind" fn amcostestimate(
     }
 }
 
-#[cfg(feature = "pg13")]
-#[pgrx::pg_guard]
-pub unsafe extern "C-unwind" fn aminsert(
-    index_relation: pgrx::pg_sys::Relation,
-    values: *mut Datum,
-    is_null: *mut bool,
-    heap_tid: pgrx::pg_sys::ItemPointer,
-    _heap_relation: pgrx::pg_sys::Relation,
-    _check_unique: pgrx::pg_sys::IndexUniqueCheck::Type,
-    _index_info: *mut pgrx::pg_sys::IndexInfo,
-) -> bool {
-    unsafe { aminsertinner(index_relation, values, is_null, heap_tid) }
-}
-
 #[cfg(any(
     feature = "pg14",
     feature = "pg15",
@@ -364,7 +350,6 @@ pub unsafe extern "C-unwind" fn ambulkdelete(
     let index = unsafe { PostgresRelation::new((*info).index) };
     let check = || unsafe {
         #[cfg(any(
-            feature = "pg13",
             feature = "pg14",
             feature = "pg15",
             feature = "pg16",

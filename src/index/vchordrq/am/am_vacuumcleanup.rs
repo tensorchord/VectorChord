@@ -50,7 +50,6 @@ unsafe fn sequential_vacuumcleanup(
     let index = unsafe { PostgresRelation::new(index_relation) };
     let check = || unsafe {
         #[cfg(any(
-            feature = "pg13",
             feature = "pg14",
             feature = "pg15",
             feature = "pg16",

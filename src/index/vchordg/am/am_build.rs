@@ -561,7 +561,6 @@ unsafe fn options(
 ) -> (VectorOptions, VchordgIndexingOptions) {
     let att = unsafe { &mut *(*index_relation).rd_att };
     #[cfg(any(
-        feature = "pg13",
         feature = "pg14",
         feature = "pg15",
         feature = "pg16",

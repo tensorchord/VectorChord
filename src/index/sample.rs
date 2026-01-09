@@ -264,7 +264,6 @@ static TSM: AssertSync<sys::TsmRoutine> = AssertSync(sys::TsmRoutine {
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
 mod sys {
-    #[cfg(not(feature = "pg13"))]
     #[cfg(not(feature = "pg14"))]
     #[cfg(not(feature = "pg15"))]
     #[cfg(not(feature = "pg16"))]
