@@ -560,12 +560,7 @@ unsafe fn options(
     index_relation: pgrx::pg_sys::Relation,
 ) -> (VectorOptions, VchordgIndexingOptions) {
     let att = unsafe { &mut *(*index_relation).rd_att };
-    #[cfg(any(
-        feature = "pg14",
-        feature = "pg15",
-        feature = "pg16",
-        feature = "pg17"
-    ))]
+    #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16", feature = "pg17"))]
     let atts = unsafe { att.attrs.as_slice(att.natts as _) };
     #[cfg(feature = "pg18")]
     let atts = unsafe {
