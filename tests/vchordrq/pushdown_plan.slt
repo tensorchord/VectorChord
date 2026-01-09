@@ -29,14 +29,6 @@ SELECT val0 FROM t WHERE val0 <<->> sphere('[0, 0, 0]'::vector, 1) ORDER BY val0
 
 # 1 vector key + 0 order_by key + original style
 
-onlyif pg13
-query I
-EXPLAIN (COSTS FALSE, TIMING FALSE) 
-SELECT val0 FROM t WHERE val0 <-> '[0, 0, 0]' < 1;
-----
- Seq Scan on t
-   Filter: ((val0 <-> '[0,0,0]'::vector) < '1'::double precision)
-
 onlyif pg14
 query I
 EXPLAIN (COSTS FALSE, TIMING FALSE) 
@@ -178,12 +170,6 @@ ORDER BY val0 <-> '[0, 0, 0]';
 #    Filter: (val0 <<->> '("[0,0,0]",1)'::sphere_vector)
 
 # 0 vector key + 0 order_by key(variable)
-
-onlyif pg13
-query I
-EXPLAIN (COSTS FALSE, TIMING FALSE) SELECT val0 FROM t;
-----
- Seq Scan on t
 
 onlyif pg14
 query I

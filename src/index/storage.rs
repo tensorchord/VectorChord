@@ -349,7 +349,7 @@ impl<O: Opaque> RelationWrite for PostgresRelation<O> {
                 GENERIC_XLOG_FULL_IMAGE, GenericXLogRegisterBuffer, GenericXLogStart,
             };
             let buf;
-            #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15"))]
+            #[cfg(any(feature = "pg14", feature = "pg15"))]
             {
                 use pgrx::pg_sys::{
                     BUFFER_LOCK_EXCLUSIVE, ExclusiveLock, ForkNumber, LockBuffer,
@@ -515,7 +515,7 @@ where
 {
     type Item = PostgresBufferReadGuard<O>;
 
-    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
+    #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16"))]
     fn next(&mut self) -> Option<Self::Item> {
         unimplemented!()
     }
@@ -575,12 +575,12 @@ where
     type Inner =
         Chain<std::collections::vec_deque::IntoIter<I::Item>, Flatten<std::option::IntoIter<I>>>;
 
-    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
+    #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16"))]
     fn next(&mut self) -> Option<(I::Item, Self::Guards)> {
         panic!("read_stream is not supported on PostgreSQL versions earlier than 17.");
     }
 
-    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
+    #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16"))]
     fn next_if<P: FnOnce(&I::Item) -> bool>(
         &mut self,
         _predicate: P,
@@ -641,7 +641,7 @@ impl<O: Opaque> RelationReadStreamTypes for PostgresRelation<O> {
 }
 
 impl<O: Opaque> RelationReadStream for PostgresRelation<O> {
-    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"))]
+    #[cfg(any(feature = "pg14", feature = "pg15", feature = "pg16"))]
     fn read_stream<'b, I: Iterator>(&'b self, _iter: I, _hints: Hints) -> Self::ReadStream<'b, I>
     where
         I::Item: Fetch<'b>,

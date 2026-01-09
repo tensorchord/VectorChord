@@ -41,7 +41,7 @@ jobs:
       matrix:
         version: ["14", "15", "16", "17", "18"]
         arch: ["x86_64", "aarch64"]
-    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 
     env:
       RUSTUP_AUTO_INSTALL: "0"
@@ -59,8 +59,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          echo CC=clang-21 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Install PostgreSQL
         run: |

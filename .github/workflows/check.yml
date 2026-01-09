@@ -126,8 +126,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          echo CC=clang-21 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -180,8 +180,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          echo CC=clang-21 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
@@ -224,7 +224,7 @@ jobs:
       matrix:
         version: ["14", "15", "16", "17", "18"]
         arch: ["x86_64", "aarch64"]
-    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ matrix.arch == 'x86_64' && 'ubuntu-22.04' || 'ubuntu-22.04-arm' }}
 
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -246,8 +246,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          echo CC=clang-21 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
@@ -357,7 +357,7 @@ jobs:
         run: rustup update
 
       - name: Install Clang
-        run: echo CC=$(brew --prefix llvm@21)/bin/clang >> $GITHUB_ENV
+        run: echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
@@ -586,8 +586,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          sudo apk add --no-cache clang21 clang21-dev
-          echo CC=clang-21 >> $GITHUB_ENV
+          sudo apk add --no-cache clang18 clang18-dev
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
@@ -619,8 +619,8 @@ jobs:
 
           mkdir ~/pgvector-install
           curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.1.tar.gz | tar -xz -C ~/pgvector-install
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-21'
-          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-21' install
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18'
+          make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18' install
 
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -684,8 +684,8 @@ jobs:
             platform: "s390x"
             clang_triple: "s390x-linux-gnu"
             rust_triple: "s390x-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "17"
             platform: "s390x"
             clang_triple: "s390x-linux-gnu"
@@ -696,32 +696,32 @@ jobs:
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "15"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "16"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "17"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "18"
             platform: "ppc64le"
             clang_triple: "powerpc64le-linux-gnu"
             rust_triple: "powerpc64le-unknown-linux-gnu"
-            gcc_version: "14"
-            debian_version: "trixie"
+            gcc_version: "12"
+            debian_version: "bookworm"
           - version: "17"
             platform: "riscv64"
             clang_triple: "riscv64-linux-gnu"
@@ -782,8 +782,8 @@ jobs:
 
       - name: Install Clang
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-          echo CC=clang-21 >> $GITHUB_ENV
+          curl --proto '=https' --tlsv1.2 -sSf https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9

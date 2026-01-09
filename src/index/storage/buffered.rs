@@ -76,7 +76,7 @@ impl<O: Opaque> RelationWrite for BufferedPostgresRelation<O> {
     fn search(&self, freespace: usize) -> Option<Self::WriteGuard<'_>> {
         self.postgres.search(freespace)
     }
-    #[cfg(any(feature = "pg13", feature = "pg14", feature = "pg15"))]
+    #[cfg(any(feature = "pg14", feature = "pg15"))]
     fn extend(&self, opaque: O, tracking_freespace: bool) -> Self::WriteGuard<'_> {
         self.postgres.extend(opaque, tracking_freespace)
     }

@@ -14,7 +14,6 @@ path = "./src/bin/pgrx_embed.rs"
 
 [features]
 default = ["simd/init"]
-pg13 = ["pgrx/pg13", "pgrx-catalog/pg13"]
 pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
 pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
 pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]

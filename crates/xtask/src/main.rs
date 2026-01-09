@@ -100,7 +100,7 @@ impl RustcCfg {
     }
     fn ext_suffix(&self, fork: &str) -> Result<&'static str, Box<dyn Error>> {
         if self.is_macos {
-            Ok(if matches!(fork, "pg13" | "pg14" | "pg15") {
+            Ok(if matches!(fork, "pg14" | "pg15") {
                 ".so"
             } else {
                 ".dylib"

@@ -23,7 +23,7 @@ pub enum Io {
     Plain,
     Simple,
     #[cfg_attr(
-        any(feature = "pg13", feature = "pg14", feature = "pg15", feature = "pg16"),
+        any(feature = "pg14", feature = "pg15", feature = "pg16"),
         expect(dead_code)
     )]
     Stream,
