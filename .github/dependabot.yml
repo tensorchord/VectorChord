@@ -1,20 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: cargo
-    directory: /
-    schedule:
-      interval: weekly
-    # https://blog.yossarian.net/2025/11/21/We-should-all-be-using-dependency-cooldowns
-#    cooldown: # applies only to non-security updates
-#      semver-patch: 7 # wait 7 days before applying patch updates
-#      semver-minor: 14
-#      semver-major: 28
-    # dependabot is forbidden to suggest patch / minor / major updates and let CI test for regressions automatically
-    groups:
-      cargo:
-        applies-to: version-updates
-        exclude-patterns: ["*"]
-
   - package-ecosystem: github-actions
     directory: /
     schedule:

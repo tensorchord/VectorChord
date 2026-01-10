@@ -46,7 +46,7 @@ rayon.workspace = true
 rusqlite = { version = "0.38.0", features = ["bundled"] }
 seq-macro.workspace = true
 serde.workspace = true
-toml = "0.9.8"
+toml = "0.9.11+spec-1.1.0"
 validator.workspace = true
 wyhash.workspace = true
 zerocopy.workspace = true
@@ -66,7 +66,7 @@ version = "0.0.0"
 edition = "2024"
 
 [workspace.dependencies]
-bumpalo = "3.19.0"
+bumpalo = "3.19.1"
 dary_heap = "0.3.8"
 paste = "1.0.15"
 rand = "0.9.2"
@@ -76,7 +76,7 @@ seq-macro = "0.3.6"
 serde = { version = "1.0.228", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
 wyhash = "0.6.0"
-zerocopy = { version = "0.8.27", features = ["derive"] }
+zerocopy = { version = "0.8.33", features = ["derive"] }
 
 [workspace.lints]
 # complexity
