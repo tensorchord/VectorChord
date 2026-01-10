@@ -76,7 +76,7 @@ seq-macro = "0.3.6"
 serde = { version = "1.0.228", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
 wyhash = "0.6.0"
-zerocopy = { version = "0.8.27", features = ["derive"] }
+zerocopy = { version = "0.8.33", features = ["derive"] }
 
 [workspace.lints]
 # complexity
