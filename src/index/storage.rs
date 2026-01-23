@@ -477,7 +477,7 @@ where
             }
             self.window.push_back(e);
         }
-        vec_deque_pop_front_if(&mut self.window, predicate)
+        self.window.pop_front_if(move |x| predicate(x))
     }
     #[allow(dead_code)]
     pub fn pop_item(&mut self) -> Option<I::Item> {
@@ -706,21 +706,6 @@ impl<O: Opaque> RelationReadStream for PostgresRelation<O> {
 fn lp_flags(x: pgrx::pg_sys::ItemIdData) -> u32 {
     let x: u32 = unsafe { std::mem::transmute(x) };
     (x >> 15) & 0b11
-}
-
-// Emulate unstable library feature `vec_deque_pop_if`.
-// See https://github.com/rust-lang/rust/issues/135889.
-
-fn vec_deque_pop_front_if<T>(
-    this: &mut VecDeque<T>,
-    predicate: impl FnOnce(&T) -> bool,
-) -> Option<T> {
-    let first = this.front()?;
-    if predicate(first) {
-        this.pop_front()
-    } else {
-        None
-    }
 }
 
 // Emulate unstable library feature `box_vec_non_null`.

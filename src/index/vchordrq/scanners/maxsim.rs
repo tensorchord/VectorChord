@@ -753,7 +753,7 @@ impl SearchBuilder for MaxsimBuilder {
 // Emulate unstable library feature `binary_heap_into_iter_sorted`.
 // See https://github.com/rust-lang/rust/issues/59278.
 
-pub trait IntoIterSortedPolyfill<T> {
+trait IntoIterSortedPolyfill<T> {
     fn into_iter_sorted_polyfill(self) -> IntoIterSorted<T>;
 }
 
@@ -764,7 +764,7 @@ impl<T> IntoIterSortedPolyfill<T> for BinaryHeap<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct IntoIterSorted<T> {
+struct IntoIterSorted<T> {
     inner: BinaryHeap<T>,
 }
 

@@ -291,7 +291,7 @@ where
             }
             self.window.push_back(e);
         }
-        let e = vec_deque_pop_front_if(&mut self.window, predicate)?;
+        let e = self.window.pop_front_if(move |x| predicate(x))?;
         let list = e.fetch();
         Some((
             e,
@@ -416,19 +416,4 @@ pub trait PrefetcherHeapFamily<'b, R> {
         T: Ord + Fetch<'b>;
 
     fn is_not_plain(&self) -> bool;
-}
-
-// Emulate unstable library feature `vec_deque_pop_if`.
-// See https://github.com/rust-lang/rust/issues/135889.
-
-fn vec_deque_pop_front_if<T>(
-    this: &mut VecDeque<T>,
-    predicate: impl FnOnce(&T) -> bool,
-) -> Option<T> {
-    let first = this.front()?;
-    if predicate(first) {
-        this.pop_front()
-    } else {
-        None
-    }
 }
