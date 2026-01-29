@@ -29,7 +29,7 @@ jobs:
         run: rustup update
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Typos
         uses: crate-ci/typos@master
@@ -130,7 +130,7 @@ jobs:
           echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cargo Test (Miri)
         env:
@@ -187,7 +187,7 @@ jobs:
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cargo Test
         run: cargo test --locked --workspace --exclude vchord --no-fail-fast -- --no-capture
@@ -287,7 +287,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-${{ matrix.version }}-pgvector
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -383,7 +383,7 @@ jobs:
           sudo make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=$(brew --prefix postgresql@${{ matrix.version }})/bin/pg_config CC='sccache clang' install
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -503,7 +503,7 @@ jobs:
         run: Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl.exe"
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Clippy
         run: make PROFILE=dev clippy
@@ -623,7 +623,7 @@ jobs:
           make -C ~/pgvector-install/pgvector-0.8.1 PG_CONFIG=/usr/libexec/postgresql${{ matrix.version }}/pg_config CC='sccache clang-18' install
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Patch
         run: |
@@ -829,7 +829,7 @@ jobs:
           sudo make -C ~/pgvector-install/pgvector-0.8.1 with_llvm=no CC='sccache clang' CFLAGS="-fuse-ld=lld --target=${{ matrix.clang_triple }} --sysroot=/sysroot" OPTFLAGS="" install
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Patch
         run: |
@@ -1026,7 +1026,7 @@ jobs:
           popd
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Cargo Test
         run: cargo test --locked --workspace --exclude vchord --no-fail-fast -- --no-capture
