@@ -118,6 +118,7 @@ For more usage, please read:
 - [Prefilter](https://docs.vectorchord.ai/vectorchord/usage/prefilter.html)
 - [Prefetch](https://docs.vectorchord.ai/vectorchord/usage/prefetch.html)
 - [Rerank in Table](https://docs.vectorchord.ai/vectorchord/usage/rerank-in-table.html)
+- [Partitioning Tuning](https://docs.vectorchord.ai/vectorchord/usage/partitioning-tuning.html)
 - [External Build](https://docs.vectorchord.ai/vectorchord/usage/external-index-precomputation.html)
 
 ## License
