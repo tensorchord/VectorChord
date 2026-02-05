@@ -34,29 +34,105 @@ use std::sync::OnceLock;
 use vchordrq::InsertChooser;
 
 #[repr(C)]
-struct Reloption {
+pub struct Reloption {
     vl_len_: i32,
-    pub options: i32,
+    options: i32,
+    probes: i32,
+    epsilon: f64,
+    maxsim_refine: i32,
+    maxsim_threshold: i32,
 }
 
 impl Reloption {
-    unsafe fn options<'a>(this: *const Self) -> &'a CStr {
+    unsafe fn options<'a>(this: *const Self, default: &'static CStr) -> &'a CStr {
         unsafe {
-            let ptr = this
-                .cast::<u8>()
-                .add((&raw const (*this).options).read() as _);
+            if this.is_null() {
+                return default;
+            }
+            let count = (&raw const (*this).options).read();
+            if count == 0 {
+                return default;
+            }
+            let ptr = this.cast::<u8>().add(count as _);
             CStr::from_ptr(ptr.cast())
+        }
+    }
+    pub unsafe fn probes<'a>(this: *const Self, default: &'static CStr) -> &'a CStr {
+        unsafe {
+            if this.is_null() {
+                return default;
+            }
+            let count = (&raw const (*this).probes).read();
+            if count == 0 {
+                return default;
+            }
+            let ptr = this.cast::<u8>().add(count as _);
+            CStr::from_ptr(ptr.cast())
+        }
+    }
+    pub unsafe fn epsilon(this: *const Self, default: f64) -> f64 {
+        unsafe {
+            if this.is_null() {
+                return default;
+            }
+            (*this).epsilon
+        }
+    }
+    pub unsafe fn maxsim_refine(this: *const Self, default: i32) -> i32 {
+        unsafe {
+            if this.is_null() {
+                return default;
+            }
+            (*this).maxsim_refine
+        }
+    }
+    pub unsafe fn maxsim_threshold(this: *const Self, default: i32) -> i32 {
+        unsafe {
+            if this.is_null() {
+                return default;
+            }
+            (*this).maxsim_threshold
         }
     }
 }
 
-const TABLE: &[pgrx::pg_sys::relopt_parse_elt] = &[pgrx::pg_sys::relopt_parse_elt {
-    optname: c"options".as_ptr(),
-    opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_STRING,
-    offset: std::mem::offset_of!(Reloption, options) as i32,
-    #[cfg(feature = "pg18")]
-    isset_offset: 0,
-}];
+const TABLE: &[pgrx::pg_sys::relopt_parse_elt] = &[
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"options".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_STRING,
+        offset: std::mem::offset_of!(Reloption, options) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"probes".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_STRING,
+        offset: std::mem::offset_of!(Reloption, probes) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"epsilon".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_REAL,
+        offset: std::mem::offset_of!(Reloption, epsilon) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"maxsim_refine".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_INT,
+        offset: std::mem::offset_of!(Reloption, maxsim_refine) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"maxsim_threshold".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_INT,
+        offset: std::mem::offset_of!(Reloption, maxsim_threshold) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+];
 
 static RELOPT_KIND: OnceLock<pgrx::pg_sys::relopt_kind::Type> = OnceLock::new();
 
@@ -71,6 +147,41 @@ pub fn init() {
                 c"Vector index options, represented as a TOML string.".as_ptr(),
                 c"".as_ptr(),
                 None,
+                pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
+            );
+            pgrx::pg_sys::add_string_reloption(
+                kind as _,
+                c"probes".as_ptr(),
+                c"Search parameter `vchordrq.probes`".as_ptr(),
+                c"".as_ptr(),
+                None,
+                pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
+            );
+            pgrx::pg_sys::add_real_reloption(
+                kind as _,
+                c"epsilon".as_ptr(),
+                c"Search parameter `vchordrq.epsilon`".as_ptr(),
+                1.9,
+                0.0,
+                4.0,
+                pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
+            );
+            pgrx::pg_sys::add_int_reloption(
+                kind as _,
+                c"maxsim_refine".as_ptr(),
+                c"Search parameter `vchordrq.maxsim_refine`".as_ptr(),
+                0,
+                0,
+                i32::MAX,
+                pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
+            );
+            pgrx::pg_sys::add_int_reloption(
+                kind as _,
+                c"maxsim_threshold".as_ptr(),
+                c"Search parameter `vchordrq.maxsim_threshold`".as_ptr(),
+                0,
+                0,
+                i32::MAX,
                 pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
             );
         }
@@ -223,7 +334,7 @@ pub unsafe extern "C-unwind" fn amcostestimate(
                 return;
             }
             let index = PostgresRelation::<vchordrq::Opaque>::new(relation.raw());
-            let probes = gucs::vchordrq_probes();
+            let probes = gucs::vchordrq_probes(relation.raw());
             let cost = vchordrq::cost(&index);
             if cost.cells.len() != 1 + probes.len() {
                 panic!(
@@ -414,11 +525,11 @@ pub unsafe extern "C-unwind" fn amrescan(
         let opfamily = opfamily((*scan).indexRelation);
         let index = PostgresRelation::new((*scan).indexRelation);
         let options = SearchOptions {
-            epsilon: gucs::vchordrq_epsilon(),
-            probes: gucs::vchordrq_probes(),
+            epsilon: gucs::vchordrq_epsilon((*scan).indexRelation),
+            probes: gucs::vchordrq_probes((*scan).indexRelation),
             max_scan_tuples: gucs::vchordrq_max_scan_tuples(),
-            maxsim_refine: gucs::vchordrq_maxsim_refine(),
-            maxsim_threshold: gucs::vchordrq_maxsim_threshold(),
+            maxsim_refine: gucs::vchordrq_maxsim_refine((*scan).indexRelation),
+            maxsim_threshold: gucs::vchordrq_maxsim_threshold((*scan).indexRelation),
             io_search: gucs::vchordrq_io_search(),
             io_rerank: gucs::vchordrq_io_rerank(),
             prefilter: gucs::vchordrq_prefilter(),

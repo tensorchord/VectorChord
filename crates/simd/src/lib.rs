@@ -65,12 +65,26 @@ impl F16 for f16 {
 
     #[inline(always)]
     fn _from_f32(x: f32) -> Self {
-        f16::from_f32(x)
+        #[cfg(not(miri))]
+        {
+            f16::from_f32(x)
+        }
+        #[cfg(miri)]
+        {
+            f16::from_f32_const(x)
+        }
     }
 
     #[inline(always)]
     fn _to_f32(self) -> f32 {
-        self.to_f32()
+        #[cfg(not(miri))]
+        {
+            self.to_f32()
+        }
+        #[cfg(miri)]
+        {
+            self.to_f32_const()
+        }
     }
 }
 

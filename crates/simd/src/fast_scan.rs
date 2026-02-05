@@ -165,13 +165,15 @@ mod scan {
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_v4(&code, &lut), fallback(&code, &lut));
                 }
@@ -268,13 +270,15 @@ mod scan {
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_v3(&code, &lut), fallback(&code, &lut));
                 }
@@ -341,13 +345,15 @@ mod scan {
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_v2(&code, &lut), fallback(&code, &lut));
                 }
@@ -414,13 +420,15 @@ mod scan {
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_a2(&code, &lut), fallback(&code, &lut));
                 }
@@ -486,20 +494,22 @@ mod scan {
 
     #[cfg(all(target_arch = "s390x", test))]
     #[test]
-    #[cfg(miri, ignore)]
+    #[cfg_attr(miri, ignore)]
     fn scan_z13_test() {
         if !crate::is_cpu_detected!("z13") {
             println!("test {} ... skipped (z13)", module_path!());
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_z13(&code, &lut), fallback(&code, &lut));
                 }
@@ -608,20 +618,22 @@ mod scan {
 
     #[cfg(all(target_arch = "powerpc64", test))]
     #[test]
-    #[cfg(miri, ignore)]
+    #[cfg_attr(miri, ignore)]
     fn scan_p9_test() {
         if !crate::is_cpu_detected!("p9") {
             println!("test {} ... skipped (p9)", module_path!());
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_p9(&code, &lut), fallback(&code, &lut));
                 }
@@ -634,20 +646,22 @@ mod scan {
 
     #[cfg(all(target_arch = "powerpc64", test))]
     #[test]
-    #[cfg(miri, ignore)]
+    #[cfg_attr(miri, ignore)]
     fn scan_p8_test() {
         if !crate::is_cpu_detected!("p8") {
             println!("test {} ... skipped (p8)", module_path!());
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_p8(&code, &lut), fallback(&code, &lut));
                 }
@@ -660,20 +674,22 @@ mod scan {
 
     #[cfg(all(target_arch = "powerpc64", test))]
     #[test]
-    #[cfg(miri, ignore)]
+    #[cfg_attr(miri, ignore)]
     fn scan_p7_test() {
         if !crate::is_cpu_detected!("p7") {
             println!("test {} ... skipped (p7)", module_path!());
             return;
         }
         for _ in 0..if cfg!(not(miri)) { 256 } else { 1 } {
+            let code = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
+            let lut = (0..110)
+                .map(|_| std::array::from_fn(|_| rand::random()))
+                .collect::<Vec<[u8; 16]>>();
             for n in 90..110 {
-                let code = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
-                let lut = (0..n)
-                    .map(|_| std::array::from_fn(|_| rand::random()))
-                    .collect::<Vec<[u8; 16]>>();
+                let code = &code[..n];
+                let lut = &lut[..n];
                 unsafe {
                     assert_eq!(scan_p7(&code, &lut), fallback(&code, &lut));
                 }

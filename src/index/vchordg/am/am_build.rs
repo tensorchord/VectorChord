@@ -594,18 +594,15 @@ unsafe fn options(
         d: opfamily.distance_kind(),
     };
     // get indexing, segment, optimizing
-    let rabitq = 'rabitq: {
+    let indexing_options = {
         let reloption = unsafe { (*index_relation).rd_options as *const Reloption };
-        if reloption.is_null() || unsafe { (*reloption).options == 0 } {
-            break 'rabitq Default::default();
-        }
-        let s = unsafe { Reloption::options(reloption) }.to_string_lossy();
+        let s = unsafe { Reloption::options(reloption, c"") }.to_string_lossy();
         match toml::from_str::<VchordgIndexingOptions>(&s) {
             Ok(p) => p,
             Err(e) => pgrx::error!("failed to parse options: {}", e),
         }
     };
-    (vector, rabitq)
+    (vector, indexing_options)
 }
 
 mod vchordg_cached {

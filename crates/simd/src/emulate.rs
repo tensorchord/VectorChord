@@ -12,6 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
+#[allow(unused_macros)]
 macro_rules! partial_load {
     (@internal_0) => {
         ::core::mem::zeroed()
@@ -37,6 +38,7 @@ macro_rules! partial_load {
     };
 }
 
+#[allow(unused_imports)]
 pub(crate) use partial_load;
 
 // VP2INTERSECT emulation.

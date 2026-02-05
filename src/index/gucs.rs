@@ -14,7 +14,7 @@
 
 use crate::index::scanners::Io;
 use pgrx::guc::{GucContext, GucFlags, GucRegistry, GucSetting, PostgresGucEnum};
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 #[derive(Debug, Clone, Copy, PostgresGucEnum)]
 pub enum PostgresIo {
@@ -36,6 +36,8 @@ static VCHORDRQ_QUERY_SAMPLING_RATE: GucSetting<f64> = GucSetting::<f64>::new(0.
 static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
+
+static mut VCHORDG_EF_SEARCH_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
 
 static VCHORDG_BEAM_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(1);
 
@@ -59,13 +61,21 @@ static VCHORDRQ_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDRQ_PROBES: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(Some(c""));
 
+static mut VCHORDRQ_PROBES_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+
 static VCHORDRQ_EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
+
+static mut VCHORDRQ_EPSILON_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
 
 static VCHORDRQ_MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 
 static VCHORDRQ_MAXSIM_REFINE: GucSetting<i32> = GucSetting::<i32>::new(0);
 
+static mut VCHORDRQ_MAXSIM_REFINE_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+
 static VCHORDRQ_MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
+
+static mut VCHORDRQ_MAXSIM_THRESHOLD_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
 
 static VCHORDRQ_PREFILTER: GucSetting<bool> = GucSetting::<bool>::new(false);
 
@@ -258,14 +268,85 @@ pub fn init() {
         #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
         pgrx::pg_sys::MarkGUCPrefixReserved(c"vchordg".as_ptr());
     }
+    assert!(crate::is_main());
+    let targets = vec![
+        (c"vchordg.ef_search", &raw mut VCHORDG_EF_SEARCH_CONFIG),
+        (c"vchordrq.epsilon", &raw mut VCHORDRQ_EPSILON_CONFIG),
+        (
+            c"vchordrq.maxsim_refine",
+            &raw mut VCHORDRQ_MAXSIM_REFINE_CONFIG,
+        ),
+        (
+            c"vchordrq.maxsim_threshold",
+            &raw mut VCHORDRQ_MAXSIM_THRESHOLD_CONFIG,
+        ),
+        (c"vchordrq.probes", &raw mut VCHORDRQ_PROBES_CONFIG),
+    ];
+    #[cfg(any(feature = "pg14", feature = "pg15"))]
+    unsafe {
+        let len = pgrx::pg_sys::GetNumConfigOptions() as usize;
+        let arr = sys::get_guc_variables();
+        let mut sources = (0..len).map(|i| arr.add(i).read());
+        debug_assert!(targets.is_sorted_by(|(a, _), (b, _)| guc_name_compare(a, b).is_le()));
+        for (name, ptr) in targets {
+            *ptr = loop {
+                if let Some(source) = sources.next() {
+                    if !(*source).name.is_null() && CStr::from_ptr((*source).name) == name {
+                        break source;
+                    } else {
+                        continue;
+                    }
+                } else {
+                    pgrx::error!("failed to find GUC {name:?}");
+                }
+            };
+            assert!(check(*ptr, name), "failed to find GUC {name:?}");
+        }
+    }
+    #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+    unsafe {
+        use pgrx::pg_sys::PGERROR;
+        for (name, ptr) in targets {
+            *ptr = sys::find_option(name.as_ptr(), false, false, PGERROR as _);
+            assert!(check(*ptr, name), "failed to find GUC {name:?}");
+        }
+    }
+}
+
+unsafe fn check(p: *mut sys::config_generic, name: &CStr) -> bool {
+    if p.is_null() {
+        return false;
+    }
+    if unsafe { (*p).flags } & pgrx::pg_sys::GUC_CUSTOM_PLACEHOLDER as core::ffi::c_int != 0 {
+        return false;
+    }
+    if unsafe { (*p).name }.is_null() {
+        return false;
+    }
+    if unsafe { CStr::from_ptr((*p).name) != name } {
+        return false;
+    }
+    true
 }
 
 pub fn vchordg_enable_scan() -> bool {
     VCHORDG_ENABLE_SCAN.get()
 }
 
-pub fn vchordg_ef_search() -> u32 {
-    VCHORDG_EF_SEARCH.get() as u32
+pub fn vchordg_ef_search(index: pgrx::pg_sys::Relation) -> u32 {
+    fn parse(x: i32) -> u32 {
+        x as u32
+    }
+    assert!(crate::is_main());
+    const DEFAULT: i32 = 64;
+    if unsafe { (*VCHORDG_EF_SEARCH_CONFIG).source } != pgrx::pg_sys::GucSource::PGC_S_DEFAULT {
+        let value = VCHORDG_EF_SEARCH.get();
+        parse(value)
+    } else {
+        use crate::index::vchordg::am::Reloption;
+        let value = unsafe { Reloption::ef_search((*index).rd_options as _, DEFAULT) };
+        parse(value)
+    }
 }
 
 pub fn vchordg_beam_search() -> u32 {
@@ -299,36 +380,55 @@ pub fn vchordrq_enable_scan() -> bool {
     VCHORDRQ_ENABLE_SCAN.get()
 }
 
-pub fn vchordrq_probes() -> Vec<u32> {
-    match VCHORDRQ_PROBES.get() {
-        None => Vec::new(),
-        Some(probes) => {
-            let mut result = Vec::new();
-            let mut current = None;
-            for &c in probes.to_bytes() {
-                match c {
-                    b' ' => continue,
-                    b',' => result.push(current.take().expect("empty probes")),
-                    b'0'..=b'9' => {
-                        if let Some(x) = current.as_mut() {
-                            *x = *x * 10 + (c - b'0') as u32;
-                        } else {
-                            current = Some((c - b'0') as u32);
-                        }
+pub unsafe fn vchordrq_probes(index: pgrx::pg_sys::Relation) -> Vec<u32> {
+    fn parse(value: &CStr) -> Vec<u32> {
+        let mut result = Vec::new();
+        let mut current = None;
+        for &c in value.to_bytes() {
+            match c {
+                b' ' => continue,
+                b',' => result.push(current.take().expect("empty probes")),
+                b'0'..=b'9' => {
+                    if let Some(x) = current.as_mut() {
+                        *x = *x * 10 + (c - b'0') as u32;
+                    } else {
+                        current = Some((c - b'0') as u32);
                     }
-                    c => pgrx::error!("unknown character in probes: ASCII = {c}"),
                 }
+                c => pgrx::error!("unknown character in probes: ASCII = {c}"),
             }
-            if let Some(current) = current {
-                result.push(current);
-            }
-            result
         }
+        if let Some(current) = current {
+            result.push(current);
+        }
+        result
+    }
+    assert!(crate::is_main());
+    const DEFAULT: &CStr = c"";
+    if unsafe { (*VCHORDRQ_PROBES_CONFIG).source } != pgrx::pg_sys::GucSource::PGC_S_DEFAULT {
+        let value = VCHORDRQ_PROBES.get();
+        parse(value.as_deref().unwrap_or(DEFAULT))
+    } else {
+        use crate::index::vchordrq::am::Reloption;
+        let value = unsafe { Reloption::probes((*index).rd_options as _, DEFAULT) };
+        parse(value)
     }
 }
 
-pub fn vchordrq_epsilon() -> f32 {
-    VCHORDRQ_EPSILON.get() as f32
+pub unsafe fn vchordrq_epsilon(index: pgrx::pg_sys::Relation) -> f32 {
+    fn parse(x: f64) -> f32 {
+        x as f32
+    }
+    assert!(crate::is_main());
+    const DEFAULT: f64 = 1.9;
+    if unsafe { (*VCHORDRQ_EPSILON_CONFIG).source } != pgrx::pg_sys::GucSource::PGC_S_DEFAULT {
+        let value = VCHORDRQ_EPSILON.get();
+        parse(value)
+    } else {
+        use crate::index::vchordrq::am::Reloption;
+        let value = unsafe { Reloption::epsilon((*index).rd_options as _, DEFAULT) };
+        parse(value)
+    }
 }
 
 pub fn vchordrq_max_scan_tuples() -> Option<u32> {
@@ -336,12 +436,39 @@ pub fn vchordrq_max_scan_tuples() -> Option<u32> {
     if x < 0 { None } else { Some(x as u32) }
 }
 
-pub fn vchordrq_maxsim_refine() -> u32 {
-    VCHORDRQ_MAXSIM_REFINE.get() as u32
+pub fn vchordrq_maxsim_refine(index: pgrx::pg_sys::Relation) -> u32 {
+    fn parse(x: i32) -> u32 {
+        x as u32
+    }
+    assert!(crate::is_main());
+    const DEFAULT: i32 = 0;
+    if unsafe { (*VCHORDRQ_MAXSIM_REFINE_CONFIG).source } != pgrx::pg_sys::GucSource::PGC_S_DEFAULT
+    {
+        let value = VCHORDRQ_MAXSIM_REFINE.get();
+        parse(value)
+    } else {
+        use crate::index::vchordrq::am::Reloption;
+        let value = unsafe { Reloption::maxsim_refine((*index).rd_options as _, DEFAULT) };
+        parse(value)
+    }
 }
 
-pub fn vchordrq_maxsim_threshold() -> u32 {
-    VCHORDRQ_MAXSIM_THRESHOLD.get() as u32
+pub fn vchordrq_maxsim_threshold(index: pgrx::pg_sys::Relation) -> u32 {
+    fn parse(x: i32) -> u32 {
+        x as u32
+    }
+    assert!(crate::is_main());
+    const DEFAULT: i32 = 0;
+    if unsafe { (*VCHORDRQ_MAXSIM_THRESHOLD_CONFIG).source }
+        != pgrx::pg_sys::GucSource::PGC_S_DEFAULT
+    {
+        let value = VCHORDRQ_MAXSIM_THRESHOLD.get();
+        parse(value)
+    } else {
+        use crate::index::vchordrq::am::Reloption;
+        let value = unsafe { Reloption::maxsim_threshold((*index).rd_options as _, DEFAULT) };
+        parse(value)
+    }
 }
 
 pub fn vchordrq_prefilter() -> bool {
@@ -376,4 +503,156 @@ pub fn vchordrq_query_sampling_max_records() -> u32 {
 
 pub fn vchordrq_query_sampling_rate() -> f64 {
     VCHORDRQ_QUERY_SAMPLING_RATE.get()
+}
+
+#[allow(non_camel_case_types)]
+#[allow(non_snake_case)]
+mod sys {
+    #[cfg(not(feature = "pg14"))]
+    #[cfg(not(feature = "pg15"))]
+    #[cfg(not(feature = "pg16"))]
+    #[cfg(not(feature = "pg17"))]
+    #[cfg(not(feature = "pg18"))]
+    compile_error!("bindings are not checked");
+
+    pub mod config_type {
+        pub type Type = ::core::ffi::c_uint;
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    pub union config_var_val {
+        pub boolval: bool,
+        pub intval: ::core::ffi::c_int,
+        pub realval: f64,
+        pub stringval: *mut ::core::ffi::c_char,
+        pub enumval: ::core::ffi::c_int,
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    pub struct config_var_value {
+        pub val: config_var_val,
+        pub extra: *mut ::core::ffi::c_void,
+    }
+
+    pub mod config_group {
+        pub type Type = ::core::ffi::c_uint;
+    }
+
+    pub mod GucStackState {
+        pub type Type = ::core::ffi::c_uint;
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    pub struct guc_stack {
+        pub prev: *mut guc_stack,
+        pub nest_level: ::core::ffi::c_int,
+        pub state: GucStackState::Type,
+        pub source: pgrx::pg_sys::GucSource::Type,
+        pub scontext: pgrx::pg_sys::GucContext::Type,
+        pub masked_scontext: pgrx::pg_sys::GucContext::Type,
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub srole: pgrx::pg_sys::Oid,
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub masked_srole: pgrx::pg_sys::Oid,
+        pub prior: config_var_value,
+        pub masked: config_var_value,
+    }
+
+    pub type GucStack = guc_stack;
+
+    #[repr(C)]
+    #[derive(Debug, Copy, Clone)]
+    pub struct config_generic {
+        pub name: *const ::core::ffi::c_char,
+        pub context: pgrx::pg_sys::GucContext::Type,
+        pub group: config_group::Type,
+        pub short_desc: *const ::core::ffi::c_char,
+        pub long_desc: *const ::core::ffi::c_char,
+        pub flags: ::core::ffi::c_int,
+        pub vartype: config_type::Type,
+        pub status: ::core::ffi::c_int,
+        pub source: pgrx::pg_sys::GucSource::Type,
+        pub reset_source: pgrx::pg_sys::GucSource::Type,
+        pub scontext: pgrx::pg_sys::GucContext::Type,
+        pub reset_scontext: pgrx::pg_sys::GucContext::Type,
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub srole: pgrx::pg_sys::Oid,
+        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub reset_srole: pgrx::pg_sys::Oid,
+        pub stack: *mut GucStack,
+        pub extra: *mut ::core::ffi::c_void,
+        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub nondef_link: pgrx::pg_sys::dlist_node,
+        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub stack_link: pgrx::pg_sys::slist_node,
+        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+        pub report_link: pgrx::pg_sys::slist_node,
+        pub last_reported: *mut ::core::ffi::c_char,
+        pub sourcefile: *mut ::core::ffi::c_char,
+        pub sourceline: ::core::ffi::c_int,
+    }
+
+    #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
+    #[inline]
+    pub unsafe fn find_option(
+        name: *const ::core::ffi::c_char,
+        create_placeholders: bool,
+        skip_errors: bool,
+        elevel: ::core::ffi::c_int,
+    ) -> *mut config_generic {
+        use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+        #[cfg_attr(target_os = "windows", link(name = "postgres"))]
+        unsafe extern "C-unwind" {
+            #[link_name = "find_option"]
+            unsafe fn f(
+                name: *const ::core::ffi::c_char,
+                create_placeholders: bool,
+                skip_errors: bool,
+                elevel: ::core::ffi::c_int,
+            ) -> *mut config_generic;
+        }
+        #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+        unsafe {
+            pg_guard_ffi_boundary(move || f(name, create_placeholders, skip_errors, elevel))
+        }
+    }
+
+    #[cfg(any(feature = "pg14", feature = "pg15"))]
+    #[inline]
+    pub unsafe fn get_guc_variables() -> *mut *mut config_generic {
+        use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+        #[cfg_attr(target_os = "windows", link(name = "postgres"))]
+        unsafe extern "C-unwind" {
+            #[link_name = "get_guc_variables"]
+            unsafe fn f() -> *mut *mut config_generic;
+        }
+        #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+        unsafe {
+            pg_guard_ffi_boundary(move || f())
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn guc_name_compare(a: &CStr, b: &CStr) -> std::cmp::Ordering {
+    let (a, b) = (a.to_bytes_with_nul(), b.to_bytes_with_nul());
+    let mut i = 0;
+    while a[i] != 0 && b[i] != 0 {
+        let a = a[i].to_ascii_lowercase();
+        let b = b[i].to_ascii_lowercase();
+        if a != b {
+            return Ord::cmp(&a, &b);
+        }
+        i += 1;
+    }
+    if b[i] != 0 {
+        std::cmp::Ordering::Less
+    } else if a[i] != 0 {
+        std::cmp::Ordering::Greater
+    } else {
+        std::cmp::Ordering::Equal
+    }
 }

@@ -1,0 +1,46 @@
+statement ok
+SET enable_seqscan TO off;
+
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) VALUES ('[1,1,1]'), ('[2,2,2]');
+
+statement ok
+CREATE INDEX i ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+build.internal.lists = [2]
+$$, probes = '2');
+
+query T
+SELECT val FROM t ORDER BY val <-> '[0,0,0]' LIMIT 10;
+----
+[1,1,1]
+[2,2,2]
+
+statement ok
+SET vchordrq.probes TO '1';
+
+query T
+SELECT val FROM t ORDER BY val <-> '[0,0,0]' LIMIT 10;
+----
+[1,1,1]
+
+statement ok
+ALTER INDEX i SET (probes = '0');
+
+query T
+SELECT val FROM t ORDER BY val <-> '[0,0,0]' LIMIT 10;
+----
+[1,1,1]
+
+statement ok
+SET vchordrq.probes TO DEFAULT;
+
+query T
+SELECT val FROM t ORDER BY val <-> '[0,0,0]' LIMIT 10;
+----
+
+statement ok
+DROP TABLE t;

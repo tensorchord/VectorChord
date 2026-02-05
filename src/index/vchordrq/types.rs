@@ -177,6 +177,7 @@ pub struct VchordrqIndexingOptions {
     #[serde(flatten)]
     #[validate(nested)]
     pub index: VchordrqIndexOptions,
+    #[serde(default)]
     #[validate(nested)]
     pub build: VchordrqBuildOptions,
 }

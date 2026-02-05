@@ -361,6 +361,8 @@ jobs:
 
       - name: Set up Sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        with:
+          version: "v0.12.0"
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -559,6 +561,7 @@ jobs:
       volumes:
         - /opt:/opt:rw,rshared
         - /opt:/__e/node20:ro,rshared
+        - /opt:/__e/node24:ro,rshared
 
     env:
       SCCACHE_GHA_ENABLED: "true"

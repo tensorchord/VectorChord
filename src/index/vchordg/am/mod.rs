@@ -31,29 +31,52 @@ use std::ptr::NonNull;
 use std::sync::OnceLock;
 
 #[repr(C)]
-struct Reloption {
+pub struct Reloption {
     vl_len_: i32,
-    pub options: i32,
+    options: i32,
+    ef_search: i32,
 }
 
 impl Reloption {
-    unsafe fn options<'a>(this: *const Self) -> &'a CStr {
+    unsafe fn options<'a>(this: *const Self, default: &'static CStr) -> &'a CStr {
         unsafe {
-            let ptr = this
-                .cast::<u8>()
-                .add((&raw const (*this).options).read() as _);
+            if this.is_null() {
+                return default;
+            }
+            let count = (&raw const (*this).options).read();
+            if count == 0 {
+                return default;
+            }
+            let ptr = this.cast::<u8>().add(count as _);
             CStr::from_ptr(ptr.cast())
+        }
+    }
+    pub unsafe fn ef_search(this: *const Self, default: i32) -> i32 {
+        unsafe {
+            if this.is_null() {
+                return default;
+            }
+            (*this).ef_search
         }
     }
 }
 
-const TABLE: &[pgrx::pg_sys::relopt_parse_elt] = &[pgrx::pg_sys::relopt_parse_elt {
-    optname: c"options".as_ptr(),
-    opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_STRING,
-    offset: std::mem::offset_of!(Reloption, options) as i32,
-    #[cfg(feature = "pg18")]
-    isset_offset: 0,
-}];
+const TABLE: &[pgrx::pg_sys::relopt_parse_elt] = &[
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"options".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_STRING,
+        offset: std::mem::offset_of!(Reloption, options) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+    pgrx::pg_sys::relopt_parse_elt {
+        optname: c"ef_search".as_ptr(),
+        opttype: pgrx::pg_sys::relopt_type::RELOPT_TYPE_INT,
+        offset: std::mem::offset_of!(Reloption, ef_search) as i32,
+        #[cfg(feature = "pg18")]
+        isset_offset: 0,
+    },
+];
 
 static RELOPT_KIND: OnceLock<pgrx::pg_sys::relopt_kind::Type> = OnceLock::new();
 
@@ -68,6 +91,15 @@ pub fn init() {
                 c"Vector index options, represented as a TOML string.".as_ptr(),
                 c"".as_ptr(),
                 None,
+                pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
+            );
+            pgrx::pg_sys::add_int_reloption(
+                kind as _,
+                c"ef_search".as_ptr(),
+                c"Search parameter `vchordg.ef_search`".as_ptr(),
+                64,
+                1,
+                65535,
                 pgrx::pg_sys::AccessExclusiveLock as pgrx::pg_sys::LOCKMODE,
             );
         }
@@ -329,7 +361,7 @@ pub unsafe extern "C-unwind" fn amrescan(
         let opfamily = opfamily((*scan).indexRelation);
         let index = PostgresRelation::new((*scan).indexRelation);
         let options = SearchOptions {
-            ef_search: gucs::vchordg_ef_search(),
+            ef_search: gucs::vchordg_ef_search((*scan).indexRelation),
             beam_search: gucs::vchordg_beam_search(),
             max_scan_tuples: gucs::vchordg_max_scan_tuples(),
             io_search: gucs::vchordg_io_search(),
