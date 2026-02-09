@@ -67,8 +67,9 @@ docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d ghcr.io/tensorchord/vchord-postgres:pg18-v1.0.0
+  -d ghcr.io/tensorchord/vchord-postgres:pg18-v1.1.0
 ```
+
 > [!NOTE]
 > In addition to the base image with the VectorChord extension, we provide an all-in-one image, `tensorchord/vchord-suite:pg17-latest`. This comprehensive image includes all official TensorChord extensions, including `VectorChord`, `VectorChord-bm25` and `pg_tokenizer.rs` . Developers should select an image tag that is compatible with their extension's version, as indicated in [the support matrix](https://github.com/tensorchord/VectorChord-images?tab=readme-ov-file#support-matrix).
 
@@ -110,9 +111,11 @@ For more usage, please read:
 - [Indexing](https://docs.vectorchord.ai/vectorchord/usage/indexing.html)
 - [Multi-Vector Retrieval](https://docs.vectorchord.ai/vectorchord/usage/indexing-with-maxsim-operators.html)
 - [Graph Index](https://docs.vectorchord.ai/vectorchord/usage/graph-index.html)
+- [Quantization Types](https://docs.vectorchord.ai/vectorchord/usage/quantization-types.html)
 - [Similarity Filter](https://docs.vectorchord.ai/vectorchord/usage/range-query.html)
 - [PostgreSQL Tuning](https://docs.vectorchord.ai/vectorchord/usage/performance-tuning.html)
 - [Monitoring](https://docs.vectorchord.ai/vectorchord/usage/monitoring.html)
+- [Fallback Parameters](https://docs.vectorchord.ai/vectorchord/usage/fallback-parameters.html)
 - [Measure Recall](https://docs.vectorchord.ai/vectorchord/usage/measure-recall.html)
 - [Prewarm](https://docs.vectorchord.ai/vectorchord/usage/prewarm.html)
 - [Prefilter](https://docs.vectorchord.ai/vectorchord/usage/prefilter.html)
