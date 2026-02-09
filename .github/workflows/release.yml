@@ -110,7 +110,7 @@ jobs:
           Maintainer: Tensorchord <support@tensorchord.ai>
           Description: Vector database plugin for Postgres, written in Rust, specifically designed for LLM
           Homepage: https://vectorchord.ai/
-          License: AGPL-3.0-only or Elastic-2.0" \
+          License: AGPL-3.0-only OR Elastic-2.0" \
           > ~/debian/DEBIAN/control
           (cd ~/debian && find usr -type f -print0 | xargs -0 md5sum) > ~/debian/DEBIAN/md5sums
           dpkg-deb --root-owner-group -Zxz --build ~/debian ~/postgresql-${VERSION}-vchord_${SEMVER}-1_${PLATFORM}.deb

@@ -18,7 +18,6 @@
 // * https://www.postgresql.org/message-id/CACX+KaPOzzRHEt4w_=iqKbTpMKjyrUGVng1C749yP3r6dprtcg@mail.gmail.com
 // * https://github.com/tensorchord/pgvecto.rs/issues/397
 
-#[allow(unused_macros)]
 macro_rules! symbol {
     ($t:ident) => {
         paste::paste! {
@@ -42,3 +41,16 @@ macro_rules! symbol {
         }
     };
 }
+
+symbol!(_vchord_vector_quantize_to_scalar8_wrapper);
+symbol!(_vchord_halfvec_quantize_to_scalar8_wrapper);
+symbol!(_vchord_scalar8_operator_cosine_wrapper);
+symbol!(_vchord_scalar8_operator_ip_wrapper);
+symbol!(_vchord_scalar8_operator_l2_wrapper);
+symbol!(_vchord_scalar8_sphere_cosine_in_wrapper);
+symbol!(_vchord_scalar8_sphere_ip_in_wrapper);
+symbol!(_vchord_scalar8_sphere_l2_in_wrapper);
+symbol!(_vchord_typmod_in_65535_wrapper);
+symbol!(_vchord_typmod_out_wrapper);
+symbol!(_vchord_scalar8_recv_wrapper);
+symbol!(_vchord_scalar8_send_wrapper);

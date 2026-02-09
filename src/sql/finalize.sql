@@ -93,85 +93,73 @@ CREATE OPERATOR <=> (
 CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_vector_sphere_l2_in,
     LEFTARG = vector,
-    RIGHTARG = sphere_vector,
-    COMMUTATOR = <<->>
+    RIGHTARG = sphere_vector
 );
 
 CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_halfvec_sphere_l2_in,
     LEFTARG = halfvec,
-    RIGHTARG = sphere_halfvec,
-    COMMUTATOR = <<->>
+    RIGHTARG = sphere_halfvec
 );
 
 CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_rabitq8_sphere_l2_in,
     LEFTARG = rabitq8,
-    RIGHTARG = sphere_rabitq8,
-    COMMUTATOR = <<->>
+    RIGHTARG = sphere_rabitq8
 );
 
 CREATE OPERATOR <<->> (
     PROCEDURE = _vchord_rabitq4_sphere_l2_in,
     LEFTARG = rabitq4,
-    RIGHTARG = sphere_rabitq4,
-    COMMUTATOR = <<->>
+    RIGHTARG = sphere_rabitq4
 );
 
 CREATE OPERATOR <<#>> (
     PROCEDURE = _vchord_vector_sphere_ip_in,
     LEFTARG = vector,
-    RIGHTARG = sphere_vector,
-    COMMUTATOR = <<#>>
+    RIGHTARG = sphere_vector
 );
 
 CREATE OPERATOR <<#>> (
     PROCEDURE = _vchord_halfvec_sphere_ip_in,
     LEFTARG = halfvec,
-    RIGHTARG = sphere_halfvec,
-    COMMUTATOR = <<#>>
+    RIGHTARG = sphere_halfvec
 );
 
 CREATE OPERATOR <<#>> (
     PROCEDURE = _vchord_rabitq8_sphere_ip_in,
     LEFTARG = rabitq8,
-    RIGHTARG = sphere_rabitq8,
-    COMMUTATOR = <<#>>
+    RIGHTARG = sphere_rabitq8
 );
 
 CREATE OPERATOR <<#>> (
     PROCEDURE = _vchord_rabitq4_sphere_ip_in,
     LEFTARG = rabitq4,
-    RIGHTARG = sphere_rabitq4,
-    COMMUTATOR = <<#>>
+    RIGHTARG = sphere_rabitq4
 );
 
 CREATE OPERATOR <<=>> (
     PROCEDURE = _vchord_vector_sphere_cosine_in,
     LEFTARG = vector,
-    RIGHTARG = sphere_vector,
-    COMMUTATOR = <<=>>
+    RIGHTARG = sphere_vector
 );
 
 CREATE OPERATOR <<=>> (
     PROCEDURE = _vchord_halfvec_sphere_cosine_in,
     LEFTARG = halfvec,
-    RIGHTARG = sphere_halfvec,
-    COMMUTATOR = <<=>>
+    RIGHTARG = sphere_halfvec
 );
 
 CREATE OPERATOR <<=>> (
     PROCEDURE = _vchord_rabitq8_sphere_cosine_in,
     LEFTARG = rabitq8,
-    RIGHTARG = sphere_rabitq8,
-    COMMUTATOR = <<=>>
+    RIGHTARG = sphere_rabitq8
 );
 
 CREATE OPERATOR <<=>> (
     PROCEDURE = _vchord_rabitq4_sphere_cosine_in,
     LEFTARG = rabitq4,
-    RIGHTARG = sphere_rabitq4,
-    COMMUTATOR = <<=>>
+    RIGHTARG = sphere_rabitq4
 );
 
 CREATE OPERATOR @# (

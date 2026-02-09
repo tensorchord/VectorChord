@@ -42,6 +42,8 @@ pgrx::pg_module_magic!(
         const { STR }
     }
 );
+const _: &str = include_str!("./sql/bootstrap.sql");
+const _: &str = include_str!("./sql/finalize.sql");
 pgrx::extension_sql_file!("./sql/bootstrap.sql", bootstrap);
 pgrx::extension_sql_file!("./sql/finalize.sql", finalize);
 

@@ -21,7 +21,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordg\0");
-const VERSION: u64 = 1000;
+const VERSION: u64 = 1001;
 
 #[inline(always)]
 fn tag(source: &[u8]) -> Tag {
