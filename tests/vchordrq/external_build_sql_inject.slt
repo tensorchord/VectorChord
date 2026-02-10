@@ -1,0 +1,11 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement error table name is not well-formed
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+build.external.table = "s; SELECT s"
+$$);
+
+statement ok
+DROP TABLE t;

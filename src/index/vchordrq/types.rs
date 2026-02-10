@@ -109,7 +109,41 @@ impl Default for VchordrqInternalBuildOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct VchordrqExternalBuildOptions {
+    #[validate(custom(function = VchordrqExternalBuildOptions::validate_table))]
     pub table: String,
+}
+
+impl VchordrqExternalBuildOptions {
+    fn validate_table(table: &str) -> Result<(), ValidationError> {
+        let (schema_name, table_name) = if let Some((left, right)) = table.split_once(".") {
+            (Some(left), right)
+        } else {
+            (None, table)
+        };
+        fn check(s: &str) -> bool {
+            if s.is_empty() {
+                return false;
+            }
+            if !matches!(s.as_bytes()[0],  b'A'..=b'Z' | b'a'..=b'z' | b'_') {
+                return false;
+            }
+            for c in s.as_bytes().iter().copied() {
+                if !matches!(c,  b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'_' | b'$') {
+                    return false;
+                }
+            }
+            true
+        }
+        if let Some(schema_name) = schema_name {
+            if !check(schema_name) {
+                return Err(ValidationError::new("table name is not well-formed"));
+            }
+        }
+        if !check(table_name) {
+            return Err(ValidationError::new("table name is not well-formed"));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
