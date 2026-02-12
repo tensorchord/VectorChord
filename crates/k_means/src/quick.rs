@@ -16,7 +16,7 @@ use crate::KMeans;
 use crate::index::flat_index as prefect_index;
 use crate::square::{Square, SquareMut};
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 struct Quick {

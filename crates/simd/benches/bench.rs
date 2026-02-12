@@ -17,7 +17,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 
 fn floating_f32_reduce_sum_of_xy(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     let mut rng = rand::rng();
     let x = (0..4095)
         .map(|_| rng.random_range(-1.0..=1.0f32))
@@ -62,7 +62,7 @@ fn floating_f32_reduce_sum_of_xy(c: &mut Criterion) {
 }
 
 fn floating_f32_reduce_sum_of_d2(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     let mut rng = rand::rng();
     let x = (0..4095)
         .map(|_| rng.random_range(-1.0..=1.0f32))
@@ -107,7 +107,7 @@ fn floating_f32_reduce_sum_of_d2(c: &mut Criterion) {
 }
 
 fn floating_f16_reduce_sum_of_xy(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     use simd::{F16, f16};
     let mut rng = rand::rng();
     let x = (0..4095)
@@ -155,7 +155,7 @@ fn floating_f16_reduce_sum_of_xy(c: &mut Criterion) {
 }
 
 fn floating_f16_reduce_sum_of_d2(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     use simd::{F16, f16};
     let mut rng = rand::rng();
     let x = (0..4095)
@@ -203,7 +203,7 @@ fn floating_f16_reduce_sum_of_d2(c: &mut Criterion) {
 }
 
 fn byte_reduce_sum_of_xy(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     let mut rng = rand::rng();
     let x = (0..4095).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
     let y = (0..4095).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
@@ -248,7 +248,7 @@ fn byte_reduce_sum_of_xy(c: &mut Criterion) {
 }
 
 fn byte_reduce_sum_of_x(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     let mut rng = rand::rng();
     let this = (0..4095).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
     #[cfg(target_arch = "x86_64")]
@@ -278,7 +278,7 @@ fn byte_reduce_sum_of_x(c: &mut Criterion) {
 }
 
 fn halfbyte_reduce_sum_of_xy(c: &mut Criterion) {
-    use rand::Rng;
+    use rand::RngExt;
     let mut rng = rand::rng();
     let x = (0..2047).map(|_| rng.random::<u8>()).collect::<Vec<_>>();
     let y = (0..2047).map(|_| rng.random::<u8>()).collect::<Vec<_>>();

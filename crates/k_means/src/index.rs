@@ -14,7 +14,7 @@
 
 use crate::This;
 use crate::square::{Square, SquareMut};
-use rand::Rng;
+use rand::RngExt;
 use rayon::prelude::*;
 use simd::Floating;
 

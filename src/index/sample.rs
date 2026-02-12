@@ -203,8 +203,8 @@ impl Tuple for HeapTuple<'_> {
 
 fn sample(n: u32) -> Box<dyn Iterator<Item = u32>> {
     let width = (n.ilog2() + 1).next_multiple_of(2);
-    let key_0 = rand::Rng::random(&mut rand::rng());
-    let key_1 = rand::Rng::random(&mut rand::rng());
+    let key_0 = rand::RngExt::random(&mut rand::rng());
+    let key_1 = rand::RngExt::random(&mut rand::rng());
     let secret = move |round: u32, x: u32| {
         let buffer = [round.to_le_bytes(), x.to_le_bytes(), key_0, key_1];
         wyhash::wyhash(buffer.as_flattened(), 0) as u32
@@ -254,80 +254,9 @@ struct AssertSync<T>(T);
 
 unsafe impl<T> Sync for AssertSync<T> {}
 
-static TSM: AssertSync<sys::TsmRoutine> = AssertSync(sys::TsmRoutine {
+static TSM: AssertSync<pgrx::pg_sys::TsmRoutine> = AssertSync(pgrx::pg_sys::TsmRoutine {
     type_: pgrx::pg_sys::NodeTag::T_TsmRoutine,
     NextSampleBlock: Some(feistel_rows_nextsampleblock),
     NextSampleTuple: Some(feistel_rows_nextsampletuple),
     ..unsafe { core::mem::zeroed() }
 });
-
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
-mod sys {
-    #[cfg(not(feature = "pg14"))]
-    #[cfg(not(feature = "pg15"))]
-    #[cfg(not(feature = "pg16"))]
-    #[cfg(not(feature = "pg17"))]
-    #[cfg(not(feature = "pg18"))]
-    compile_error!("bindings are not checked");
-
-    use core::ffi::c_int;
-    use pgrx::pg_sys::{
-        BlockNumber, Datum, List, NodeTag, OffsetNumber, PlannerInfo, RelOptInfo, SampleScanState,
-    };
-
-    pub type SampleScanGetSampleSize_function = Option<
-        unsafe extern "C-unwind" fn(
-            root: *mut PlannerInfo,
-            baserel: *mut RelOptInfo,
-            paramexprs: *mut List,
-            pages: *mut BlockNumber,
-            tuples: *mut f64,
-        ),
-    >;
-
-    pub type InitSampleScan_function =
-        Option<unsafe extern "C-unwind" fn(node: *mut SampleScanState, eflags: c_int)>;
-
-    pub type BeginSampleScan_function = Option<
-        unsafe extern "C-unwind" fn(
-            node: *mut SampleScanState,
-            params: *mut Datum,
-            nparams: c_int,
-            seed: u32,
-        ),
-    >;
-
-    pub type NextSampleBlock_function = Option<
-        unsafe extern "C-unwind" fn(
-            node: *mut SampleScanState,
-            nblocks: BlockNumber,
-        ) -> BlockNumber,
-    >;
-
-    pub type NextSampleTuple_function = Option<
-        unsafe extern "C-unwind" fn(
-            node: *mut SampleScanState,
-            blockno: BlockNumber,
-            maxoffset: OffsetNumber,
-        ) -> OffsetNumber,
-    >;
-
-    pub type EndSampleScan_function =
-        Option<unsafe extern "C-unwind" fn(node: *mut SampleScanState)>;
-
-    #[repr(C)]
-    #[derive(Debug, Copy, Clone)]
-    pub struct TsmRoutine {
-        pub type_: NodeTag,
-        pub parameterTypes: *mut List,
-        pub repeatable_across_queries: bool,
-        pub repeatable_across_scans: bool,
-        pub SampleScanGetSampleSize: SampleScanGetSampleSize_function,
-        pub InitSampleScan: InitSampleScan_function,
-        pub BeginSampleScan: BeginSampleScan_function,
-        pub NextSampleBlock: NextSampleBlock_function,
-        pub NextSampleTuple: NextSampleTuple_function,
-        pub EndSampleScan: EndSampleScan_function,
-    }
-}

@@ -57,7 +57,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_v4_avx512vnni_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512vnni") {
             println!("test {} ... skipped (v4:avx512vnni)", module_path!());
             return;
@@ -127,7 +127,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
@@ -198,7 +198,7 @@ mod reduce_sum_of_xy {
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_xy_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -269,7 +269,7 @@ mod reduce_sum_of_xy {
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_sum_of_xy_v2_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v2") {
             println!("test {} ... skipped (v2)", module_path!());
             return;
@@ -313,7 +313,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_a2_dotprod_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("a2") || !crate::is_feature_detected!("dotprod") {
             println!("test {} ... skipped (a2:dotprod)", module_path!());
             return;
@@ -388,7 +388,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_a2_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("a2") {
             println!("test {} ... skipped (a2)", module_path!());
             return;

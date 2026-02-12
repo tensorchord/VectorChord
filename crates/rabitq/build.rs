@@ -17,7 +17,7 @@ use std::error::Error;
 use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaCha12Rng;
     let mut rng = ChaCha12Rng::from_seed([7; 32]);
     let mut bits = (0..262144).map(|_| rng.random::<u8>()).collect::<Vec<_>>();

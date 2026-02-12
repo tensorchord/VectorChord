@@ -102,8 +102,8 @@ fn is_a_permutation() {
 fn sample() {
     let n = if cfg!(not(miri)) { 6370_u32 } else { 637_u32 };
     let width = (n.ilog2() + 1).next_multiple_of(2);
-    let key_0 = rand::Rng::random(&mut rand::rng());
-    let key_1 = rand::Rng::random(&mut rand::rng());
+    let key_0 = rand::RngExt::random(&mut rand::rng());
+    let key_1 = rand::RngExt::random(&mut rand::rng());
     let secret = move |round: u32, x: u32| {
         let buffer = [round.to_le_bytes(), x.to_le_bytes(), key_0, key_1];
         wyhash::wyhash(buffer.as_flattened(), 0) as u32

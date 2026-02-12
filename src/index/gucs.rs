@@ -37,7 +37,7 @@ static VCHORDG_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDG_EF_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(64);
 
-static mut VCHORDG_EF_SEARCH_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+static mut VCHORDG_EF_SEARCH_CONFIG: *mut pgrx::pg_sys::config_generic = core::ptr::null_mut();
 
 static VCHORDG_BEAM_SEARCH: GucSetting<i32> = GucSetting::<i32>::new(1);
 
@@ -61,21 +61,22 @@ static VCHORDRQ_ENABLE_SCAN: GucSetting<bool> = GucSetting::<bool>::new(true);
 
 static VCHORDRQ_PROBES: GucSetting<Option<CString>> = GucSetting::<Option<CString>>::new(Some(c""));
 
-static mut VCHORDRQ_PROBES_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+static mut VCHORDRQ_PROBES_CONFIG: *mut pgrx::pg_sys::config_generic = core::ptr::null_mut();
 
 static VCHORDRQ_EPSILON: GucSetting<f64> = GucSetting::<f64>::new(1.9);
 
-static mut VCHORDRQ_EPSILON_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+static mut VCHORDRQ_EPSILON_CONFIG: *mut pgrx::pg_sys::config_generic = core::ptr::null_mut();
 
 static VCHORDRQ_MAX_SCAN_TUPLES: GucSetting<i32> = GucSetting::<i32>::new(-1);
 
 static VCHORDRQ_MAXSIM_REFINE: GucSetting<i32> = GucSetting::<i32>::new(0);
 
-static mut VCHORDRQ_MAXSIM_REFINE_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+static mut VCHORDRQ_MAXSIM_REFINE_CONFIG: *mut pgrx::pg_sys::config_generic = core::ptr::null_mut();
 
 static VCHORDRQ_MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
 
-static mut VCHORDRQ_MAXSIM_THRESHOLD_CONFIG: *mut sys::config_generic = core::ptr::null_mut();
+static mut VCHORDRQ_MAXSIM_THRESHOLD_CONFIG: *mut pgrx::pg_sys::config_generic =
+    core::ptr::null_mut();
 
 static VCHORDRQ_PREFILTER: GucSetting<bool> = GucSetting::<bool>::new(false);
 
@@ -285,7 +286,7 @@ pub fn init() {
     #[cfg(any(feature = "pg14", feature = "pg15"))]
     unsafe {
         let len = pgrx::pg_sys::GetNumConfigOptions() as usize;
-        let arr = sys::get_guc_variables();
+        let arr = pgrx::pg_sys::get_guc_variables();
         let mut sources = (0..len).map(|i| arr.add(i).read());
         debug_assert!(targets.is_sorted_by(|(a, _), (b, _)| guc_name_compare(a, b).is_le()));
         for (name, ptr) in targets {
@@ -307,13 +308,13 @@ pub fn init() {
     unsafe {
         use pgrx::pg_sys::PGERROR;
         for (name, ptr) in targets {
-            *ptr = sys::find_option(name.as_ptr(), false, false, PGERROR as _);
+            *ptr = pgrx::pg_sys::find_option(name.as_ptr(), false, false, PGERROR as _);
             assert!(check(*ptr, name), "failed to find GUC {name:?}");
         }
     }
 }
 
-unsafe fn check(p: *mut sys::config_generic, name: &CStr) -> bool {
+unsafe fn check(p: *mut pgrx::pg_sys::config_generic, name: &CStr) -> bool {
     if p.is_null() {
         return false;
     }
@@ -503,137 +504,6 @@ pub fn vchordrq_query_sampling_max_records() -> u32 {
 
 pub fn vchordrq_query_sampling_rate() -> f64 {
     VCHORDRQ_QUERY_SAMPLING_RATE.get()
-}
-
-#[allow(non_camel_case_types)]
-#[allow(non_snake_case)]
-mod sys {
-    #[cfg(not(feature = "pg14"))]
-    #[cfg(not(feature = "pg15"))]
-    #[cfg(not(feature = "pg16"))]
-    #[cfg(not(feature = "pg17"))]
-    #[cfg(not(feature = "pg18"))]
-    compile_error!("bindings are not checked");
-
-    pub mod config_type {
-        pub type Type = ::core::ffi::c_uint;
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    pub union config_var_val {
-        pub boolval: bool,
-        pub intval: ::core::ffi::c_int,
-        pub realval: f64,
-        pub stringval: *mut ::core::ffi::c_char,
-        pub enumval: ::core::ffi::c_int,
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    pub struct config_var_value {
-        pub val: config_var_val,
-        pub extra: *mut ::core::ffi::c_void,
-    }
-
-    pub mod config_group {
-        pub type Type = ::core::ffi::c_uint;
-    }
-
-    pub mod GucStackState {
-        pub type Type = ::core::ffi::c_uint;
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    pub struct guc_stack {
-        pub prev: *mut guc_stack,
-        pub nest_level: ::core::ffi::c_int,
-        pub state: GucStackState::Type,
-        pub source: pgrx::pg_sys::GucSource::Type,
-        pub scontext: pgrx::pg_sys::GucContext::Type,
-        pub masked_scontext: pgrx::pg_sys::GucContext::Type,
-        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub srole: pgrx::pg_sys::Oid,
-        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub masked_srole: pgrx::pg_sys::Oid,
-        pub prior: config_var_value,
-        pub masked: config_var_value,
-    }
-
-    pub type GucStack = guc_stack;
-
-    #[repr(C)]
-    #[derive(Debug, Copy, Clone)]
-    pub struct config_generic {
-        pub name: *const ::core::ffi::c_char,
-        pub context: pgrx::pg_sys::GucContext::Type,
-        pub group: config_group::Type,
-        pub short_desc: *const ::core::ffi::c_char,
-        pub long_desc: *const ::core::ffi::c_char,
-        pub flags: ::core::ffi::c_int,
-        pub vartype: config_type::Type,
-        pub status: ::core::ffi::c_int,
-        pub source: pgrx::pg_sys::GucSource::Type,
-        pub reset_source: pgrx::pg_sys::GucSource::Type,
-        pub scontext: pgrx::pg_sys::GucContext::Type,
-        pub reset_scontext: pgrx::pg_sys::GucContext::Type,
-        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub srole: pgrx::pg_sys::Oid,
-        #[cfg(any(feature = "pg15", feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub reset_srole: pgrx::pg_sys::Oid,
-        pub stack: *mut GucStack,
-        pub extra: *mut ::core::ffi::c_void,
-        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub nondef_link: pgrx::pg_sys::dlist_node,
-        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub stack_link: pgrx::pg_sys::slist_node,
-        #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
-        pub report_link: pgrx::pg_sys::slist_node,
-        pub last_reported: *mut ::core::ffi::c_char,
-        pub sourcefile: *mut ::core::ffi::c_char,
-        pub sourceline: ::core::ffi::c_int,
-    }
-
-    #[cfg(any(feature = "pg16", feature = "pg17", feature = "pg18"))]
-    #[inline]
-    pub unsafe fn find_option(
-        name: *const ::core::ffi::c_char,
-        create_placeholders: bool,
-        skip_errors: bool,
-        elevel: ::core::ffi::c_int,
-    ) -> *mut config_generic {
-        use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
-        #[cfg_attr(target_os = "windows", link(name = "postgres"))]
-        unsafe extern "C-unwind" {
-            #[link_name = "find_option"]
-            unsafe fn f(
-                name: *const ::core::ffi::c_char,
-                create_placeholders: bool,
-                skip_errors: bool,
-                elevel: ::core::ffi::c_int,
-            ) -> *mut config_generic;
-        }
-        #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
-        unsafe {
-            pg_guard_ffi_boundary(move || f(name, create_placeholders, skip_errors, elevel))
-        }
-    }
-
-    #[cfg(any(feature = "pg14", feature = "pg15"))]
-    #[inline]
-    pub unsafe fn get_guc_variables() -> *mut *mut config_generic {
-        use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
-        #[cfg_attr(target_os = "windows", link(name = "postgres"))]
-        unsafe extern "C-unwind" {
-            #[link_name = "get_guc_variables"]
-            unsafe fn f() -> *mut *mut config_generic;
-        }
-        #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
-        unsafe {
-            pg_guard_ffi_boundary(move || f())
-        }
-    }
 }
 
 #[allow(dead_code)]

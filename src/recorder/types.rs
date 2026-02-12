@@ -13,7 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use crate::recorder::worker::push;
-use rand::Rng;
+use rand::RngExt;
 use std::cell::RefMut;
 
 pub trait Recorder {

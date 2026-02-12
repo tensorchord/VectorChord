@@ -22,11 +22,11 @@ seq-macro.workspace = true
 zerocopy.workspace = true
 
 [dev-dependencies]
-criterion = "0.8.1"
+criterion = "0.8.2"
 rand.workspace = true
 
 [build-dependencies]
-cc = "1.2.53"
+cc = "1.2.55"
 which = "8.0.0"
 
 [lints]

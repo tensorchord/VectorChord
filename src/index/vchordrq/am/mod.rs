@@ -24,7 +24,7 @@ use crate::index::vchordrq::scanners::*;
 use crate::recorder::DefaultRecorder;
 use pgrx::datum::Internal;
 use pgrx::pg_sys::Datum;
-use rand::RngCore;
+use rand::RngExt;
 use std::cell::LazyCell;
 use std::ffi::CStr;
 use std::num::NonZero;
@@ -412,9 +412,9 @@ unsafe fn aminsertinner(
     ctid: pgrx::pg_sys::ItemPointer,
 ) -> bool {
     struct RngChooser<T>(T);
-    impl<T: RngCore> InsertChooser for RngChooser<T> {
+    impl<T: RngExt> InsertChooser for RngChooser<T> {
         fn choose(&mut self, n: NonZero<usize>) -> usize {
-            rand::Rng::random_range(&mut self.0, 0..n.get())
+            RngExt::random_range(&mut self.0, 0..n.get())
         }
     }
 
