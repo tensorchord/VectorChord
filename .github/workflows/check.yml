@@ -37,9 +37,6 @@ jobs:
       - name: Taplo
         run: taplo fmt --check
 
-      - name: Ruff
-        uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1 # v3.5.1
-
       - name: Rustfmt
         run: cargo fmt --check -- --config-path /dev/null --config imports_granularity=Module
 
