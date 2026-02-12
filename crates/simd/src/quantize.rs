@@ -50,7 +50,7 @@ mod mul_add_round {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn mul_add_round_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
@@ -122,7 +122,7 @@ mod mul_add_round {
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn mul_add_round_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -189,7 +189,7 @@ mod mul_add_round {
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn mul_add_round_v2_fma_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v2") || !crate::is_feature_detected!("fma") {
             println!("test {} ... skipped (v2:fma)", module_path!());
             return;
@@ -263,7 +263,7 @@ mod mul_add_round {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn mul_add_round_a2_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("a2") {
             println!("test {} ... skipped (a2)", module_path!());
             return;

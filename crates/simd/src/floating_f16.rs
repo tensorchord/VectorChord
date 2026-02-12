@@ -190,7 +190,7 @@ mod reduce_sum_of_x {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_x_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
@@ -238,7 +238,7 @@ mod reduce_sum_of_x {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_x_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -303,7 +303,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_abs_x_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
@@ -352,7 +352,7 @@ mod reduce_sum_of_abs_x {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_abs_x_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -417,7 +417,7 @@ mod reduce_sum_of_x2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_x2_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
@@ -465,7 +465,7 @@ mod reduce_sum_of_x2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_x2_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -535,7 +535,7 @@ mod reduce_min_max_of_x {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_min_max_of_x_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
             return;
@@ -591,7 +591,7 @@ mod reduce_min_max_of_x {
     #[cfg(all(target_arch = "x86_64", test))]
     #[test]
     fn reduce_min_max_of_x_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
             return;
@@ -653,7 +653,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_v4_avx512fp16_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
             println!("test {} ... skipped (v4:avx512fp16)", module_path!());
@@ -711,7 +711,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
@@ -767,7 +767,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -815,7 +815,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_a3_512_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("a3.512") {
             println!("test {} ... skipped (a3.512)", module_path!());
@@ -864,7 +864,7 @@ mod reduce_sum_of_xy {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_xy_a2_fp16_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("a2") || !crate::is_feature_detected!("fp16") {
             println!("test {} ... skipped (a2:fp16)", module_path!());
@@ -929,7 +929,7 @@ mod reduce_sum_of_d2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_d2_v4_avx512fp16_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") || !crate::is_feature_detected!("avx512fp16") {
             println!("test {} ... skipped (v4:avx512fp16)", module_path!());
@@ -989,7 +989,7 @@ mod reduce_sum_of_d2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_d2_v4_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v4") {
             println!("test {} ... skipped (v4)", module_path!());
@@ -1052,7 +1052,7 @@ mod reduce_sum_of_d2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_d2_v3_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("v3") {
             println!("test {} ... skipped (v3)", module_path!());
@@ -1100,7 +1100,7 @@ mod reduce_sum_of_d2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_d2_a3_512_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("a3.512") {
             println!("test {} ... skipped (a3.512)", module_path!());
@@ -1149,7 +1149,7 @@ mod reduce_sum_of_d2 {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn reduce_sum_of_d2_a2_fp16_test() {
-        use rand::Rng;
+        use rand::RngExt;
         const EPSILON: f32 = 2.0;
         if !crate::is_cpu_detected!("a2") || !crate::is_feature_detected!("fp16") {
             println!("test {} ... skipped (a2:fp16)", module_path!());

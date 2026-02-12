@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn fht() {
-        use rand::Rng;
+        use rand::RngExt;
         use std::iter::zip;
         const EPSILON: f32 = 1e-6;
         let mut rng = rand::rng();

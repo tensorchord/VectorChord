@@ -16,7 +16,7 @@ use crate::index::{flat_index as prefect_index, rabitq_index as index};
 use crate::square::{Square, SquareMut};
 use crate::{KMeans, This};
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rayon::prelude::*;
 
 struct RaBitQ<'a> {

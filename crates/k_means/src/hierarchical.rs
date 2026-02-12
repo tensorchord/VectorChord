@@ -266,7 +266,7 @@ fn test_modified_webster_method() {
 
 #[test]
 fn test_partition() {
-    fn gen_random_alloc(rows: usize, groups: usize, rng: &mut impl Rng) -> Vec<Vec<usize>> {
+    fn gen_random_alloc(rows: usize, groups: usize, rng: &mut impl RngExt) -> Vec<Vec<usize>> {
         let mut idx: Vec<usize> = (0..rows).collect();
         idx.shuffle(rng);
         let mut alloc = Vec::with_capacity(groups);
