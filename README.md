@@ -1,13 +1,14 @@
 <div align="center">
-<h1 align=center>VectorChord</h1>
-<h4 align=center>Ready for the Billion-Scale Era. Host 100M vectors on a single i4i.xlarge ($247/mo) and (scale seamlessly to 1B+)[https://blog.vectorchord.ai/scaling-vector-search-to-1-billion-on-postgresql].</h4>
+
+# VectorChord
+
+**Ready for the Billion-Scale Era. Host 100M vectors on a single i4i.xlarge ($247/mo) and [scale seamlessly to 1B+](https://blog.vectorchord.ai/scaling-vector-search-to-1-billion-on-postgresql).**
+
 </div>
 
-<div align=center>
-
+<div align="center">
 
 [Official Site][official-site-link] · [Blog][blog-link] · [Docs][docs-link] · [Feedback][github-issues-link] · [Contact Us][email-link]
-
 
 [![][github-release-shield]][github-release-link]
 [![][docker-release-shield]][docker-release-link]
@@ -19,6 +20,7 @@
 [![][deepwiki-shield]][deepwiki-link]
 [![][license-1-shield]][license-1-link]
 [![][license-2-shield]][license-2-link]
+
 </div>
 
 VectorChord (vchord) is a PostgreSQL extension engineered for scalable, high-performance, and cost-effective vector search.
