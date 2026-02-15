@@ -209,3 +209,21 @@ pub fn emulate_mm256_reduce_add_epi64(mut x: core::arch::x86_64::__m256i) -> i64
     x = _mm256_add_epi64(x, _mm256_permute2f128_si256(x, x, 1));
     _mm256_extract_epi64(x, 0) + _mm256_extract_epi64(x, 1)
 }
+
+#[inline]
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+pub fn emulate_vreinterpret_f16_u16(
+    x: core::arch::aarch64::uint16x4_t,
+) -> core::arch::aarch64::float16x4_t {
+    unsafe { core::mem::transmute(x) }
+}
+
+#[inline]
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+pub fn emulate_vreinterpretq_f16_u16(
+    x: core::arch::aarch64::uint16x8_t,
+) -> core::arch::aarch64::float16x8_t {
+    unsafe { core::mem::transmute(x) }
+}
