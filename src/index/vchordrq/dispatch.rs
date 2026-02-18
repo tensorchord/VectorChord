@@ -179,15 +179,15 @@ pub fn maintain<R>(
             check,
         ),
     };
-    pgrx::info!(
+    pgrx::debug1!(
         "maintain: number_of_formerly_allocated_pages = {}",
         maintain.number_of_formerly_allocated_pages
     );
-    pgrx::info!(
+    pgrx::debug1!(
         "maintain: number_of_freshly_allocated_pages = {}",
         maintain.number_of_freshly_allocated_pages
     );
-    pgrx::info!(
+    pgrx::debug1!(
         "maintain: number_of_freed_pages = {}",
         maintain.number_of_freed_pages
     );
