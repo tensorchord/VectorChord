@@ -102,7 +102,6 @@ impl HalfvecOutput {
         }
         Self(q)
     }
-    #[expect(dead_code)]
     pub fn new(vector: VectBorrowed<'_, f16>) -> Self {
         unsafe {
             let slice = vector.slice();

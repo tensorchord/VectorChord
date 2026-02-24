@@ -206,11 +206,23 @@ IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_
 CREATE FUNCTION quantize_to_rabitq8(halfvec) RETURNS rabitq8
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_halfvec_quantize_to_rabitq8_wrapper';
 
+CREATE FUNCTION dequantize_to_vector(rabitq8) RETURNS vector
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq8_dequantize_to_vector_wrapper';
+
+CREATE FUNCTION dequantize_to_halfvec(rabitq8) RETURNS halfvec
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq8_dequantize_to_halfvec_wrapper';
+
 CREATE FUNCTION quantize_to_rabitq4(vector) RETURNS rabitq4
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_quantize_to_rabitq4_wrapper';
 
 CREATE FUNCTION quantize_to_rabitq4(halfvec) RETURNS rabitq4
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_halfvec_quantize_to_rabitq4_wrapper';
+
+CREATE FUNCTION dequantize_to_vector(rabitq4) RETURNS vector
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq4_dequantize_to_vector_wrapper';
+
+CREATE FUNCTION dequantize_to_halfvec(rabitq4) RETURNS halfvec
+IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_rabitq4_dequantize_to_halfvec_wrapper';
 
 CREATE FUNCTION vchordrq_sampled_values(regclass) RETURNS SETOF TEXT
 STRICT LANGUAGE c AS 'MODULE_PATHNAME', '_vchordrq_sampled_values_wrapper';
