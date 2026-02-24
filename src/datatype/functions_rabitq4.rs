@@ -12,12 +12,13 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-use crate::datatype::memory_halfvec::HalfvecInput;
-use crate::datatype::memory_rabitq4::Rabitq4Output;
-use crate::datatype::memory_vector::VectorInput;
+use crate::datatype::memory_halfvec::{HalfvecInput, HalfvecOutput};
+use crate::datatype::memory_rabitq4::{Rabitq4Input, Rabitq4Output};
+use crate::datatype::memory_vector::{VectorInput, VectorOutput};
 use simd::{Floating, f16};
 use vector::VectorBorrowed;
 use vector::rabitq4::Rabitq4Borrowed;
+use vector::vect::VectBorrowed;
 
 #[pgrx::pg_extern(sql = "")]
 fn _vchord_vector_quantize_to_rabitq4(vector: VectorInput) -> Rabitq4Output {
@@ -53,4 +54,31 @@ fn _vchord_halfvec_quantize_to_rabitq4(vector: HalfvecInput) -> Rabitq4Output {
         f32::reduce_sum_of_abs_x(&vector),
         &elements,
     ))
+}
+
+#[pgrx::pg_extern(sql = "")]
+fn _vchord_rabitq4_dequantize_to_vector(vector: Rabitq4Input) -> VectorOutput {
+    let vector = vector.as_borrowed();
+    let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
+    let mut result = Vec::with_capacity(vector.dim() as _);
+    for c in vector.unpacked_code() {
+        let base = -0.5 * ((1 << 4) - 1) as f32;
+        result.push((base + c as f32) * scale);
+    }
+    rabitq::rotate::rotate_reversed_inplace(&mut result);
+    VectorOutput::new(VectBorrowed::new(&result))
+}
+
+#[pgrx::pg_extern(sql = "")]
+fn _vchord_rabitq4_dequantize_to_halfvec(vector: Rabitq4Input) -> HalfvecOutput {
+    let vector = vector.as_borrowed();
+    let scale = vector.sum_of_x2().sqrt() / vector.norm_of_lattice();
+    let mut result = Vec::with_capacity(vector.dim() as _);
+    for c in vector.unpacked_code() {
+        let base = -0.5 * ((1 << 4) - 1) as f32;
+        result.push((base + c as f32) * scale);
+    }
+    rabitq::rotate::rotate_reversed_inplace(&mut result);
+    let result = f16::vector_from_f32(&result);
+    HalfvecOutput::new(VectBorrowed::new(&result))
 }
