@@ -189,16 +189,16 @@ CREATE OPERATOR @# (
 -- List of functions
 
 CREATE FUNCTION sphere(vector, real) RETURNS sphere_vector
-IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
+IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)::sphere_vector';
 
 CREATE FUNCTION sphere(halfvec, real) RETURNS sphere_halfvec
-IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
+IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)::sphere_halfvec';
 
 CREATE FUNCTION sphere(rabitq8, real) RETURNS sphere_rabitq8
-IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
+IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)::sphere_rabitq8';
 
 CREATE FUNCTION sphere(rabitq4, real) RETURNS sphere_rabitq4
-IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)';
+IMMUTABLE PARALLEL SAFE LANGUAGE sql AS 'SELECT ROW($1, $2)::sphere_rabitq4';
 
 CREATE FUNCTION quantize_to_rabitq8(vector) RETURNS rabitq8
 IMMUTABLE STRICT PARALLEL SAFE LANGUAGE c AS 'MODULE_PATHNAME', '_vchord_vector_quantize_to_rabitq8_wrapper';
