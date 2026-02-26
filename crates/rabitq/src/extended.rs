@@ -112,7 +112,7 @@ pub fn ugly_code<const BITS: usize>(vector: &[f32]) -> Code {
             f32::vector_mul_scalar_inplace(&mut vector, 1.0 / dis_u_2.sqrt());
             vector
         };
-        let (scale, delta) = {
+        let scale = {
             let mut o = normalized_vector.clone();
             f32::vector_abs_inplace(&mut o);
             ugly_find_scale::<BITS>(&o)
@@ -120,7 +120,6 @@ pub fn ugly_code<const BITS: usize>(vector: &[f32]) -> Code {
         let mut code = Vec::with_capacity(n as _);
         for i in 0..n {
             let v = scale * normalized_vector[i];
-            let v = v + v.signum() * delta[i] as f32;
             let c = v.floor().clamp(min as f32, max as f32) as i32;
             code.push((c + (1 << (BITS - 1))) as _);
         }
@@ -251,55 +250,10 @@ fn find_scale<const B: usize>(o: &[f32]) -> f32 {
     x_m as f32 + f32::EPSILON
 }
 
-fn ugly_find_scale<const B: usize>(o: &[f32]) -> (f32, Vec<i32>) {
+fn ugly_find_scale<const B: usize>(o: &[f32]) -> f32 {
     assert!((1..=8).contains(&B));
 
-    let dim = o.len();
-
-    let mut code = Vec::<u8>::with_capacity(dim);
-    let mut numerator_m = 0.0f64;
-    let mut sqr_denominator_m = 0.0f64;
-
-    let scale = (1 << (B - 1)) as f32 / f32::reduce_min_max_of_x(o).1;
-    for i in 0..dim {
-        code.push((o[i] as f64 * scale as f64) as u8);
-        let value = code[i] as f64 + 0.5;
-        numerator_m += value * o[i] as f64;
-        sqr_denominator_m += value * value;
-    }
-    let mut y_m = numerator_m / sqr_denominator_m.sqrt();
-
-    let mut delta = vec![0_i32; dim];
-    for _ in 0..8 {
-        for i in 0..dim {
-            if code[i] < (1 << (B - 1)) - 1 {
-                let numerator = numerator_m + o[i] as f64;
-                let sqr_denominator = sqr_denominator_m + 2.0 * (code[i] as f64 + 1.0);
-                let y = numerator / sqr_denominator.sqrt();
-                if y > y_m {
-                    y_m = y;
-                    numerator_m = numerator;
-                    sqr_denominator_m = sqr_denominator;
-                    code[i] += 1;
-                    delta[i] += 1;
-                }
-            }
-            if code[i] > 0 {
-                let numerator = numerator_m - o[i] as f64;
-                let sqr_denominator = sqr_denominator_m - 2.0 * code[i] as f64;
-                let y = numerator / sqr_denominator.sqrt();
-                if y > y_m {
-                    y_m = y;
-                    numerator_m = numerator;
-                    sqr_denominator_m = sqr_denominator;
-                    code[i] -= 1;
-                    delta[i] -= 1;
-                }
-            }
-        }
-    }
-
-    (scale, delta)
+    (1 << (B - 1)) as f32 / f32::reduce_min_max_of_x(o).1
 }
 
 pub fn pack_code<const BITS: usize>(input: &[u8]) -> [Vec<u64>; BITS] {
