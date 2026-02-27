@@ -1009,7 +1009,8 @@ jobs:
           sudo -iu postgres createuser -s -r $(whoami)
           sudo -iu postgres createdb -O $(whoami) $(whoami)
           if [ "${{ matrix.version }}" -ge "18" ]; then
-            sudo -iu postgres psql -c 'ALTER SYSTEM SET io_method = io_uring'
+            # valgrind works not well
+            sudo -iu postgres psql -c 'ALTER SYSTEM SET io_method = worker'
           fi
           sudo -iu postgres psql -c 'ALTER SYSTEM SET max_worker_processes = 1024'
           sudo -iu postgres psql -c 'ALTER SYSTEM SET shared_preload_libraries = "vchord"'
