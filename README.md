@@ -57,7 +57,7 @@ docker run \
   --name vectorchord-demo \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -p 5432:5432 \
-  -d ghcr.io/tensorchord/vchord-postgres:pg18-v1.1.0
+  -d ghcr.io/tensorchord/vchord-postgres:pg18-v1.1.1
 ```
 
 > [!NOTE]
