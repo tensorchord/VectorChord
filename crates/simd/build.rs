@@ -23,19 +23,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     match target_arch.as_str() {
         "aarch64" => {
             let mut build = cc::Build::new();
-            build.file("./cshim/aarch64_fp16.c");
             build.file("./cshim/aarch64_byte.c");
             build.file("./cshim/aarch64_halfbyte.c");
             if target_endian == "little" {
                 build.file("./cshim/aarch64_sve_fp16.c");
                 build.file("./cshim/aarch64_sve_fp32.c");
             }
-            build.opt_level(3);
-            build.compile("simd_cshim");
-        }
-        "x86_64" => {
-            let mut build = cc::Build::new();
-            build.file("./cshim/x86_64_fp16.c");
             build.opt_level(3);
             build.compile("simd_cshim");
         }
