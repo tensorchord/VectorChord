@@ -296,7 +296,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-gnu
           path: ./build
@@ -394,7 +394,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-apple-darwin
           path: ./build
@@ -514,7 +514,7 @@ jobs:
         run: make install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-pc-windows-msvc
           path: ./build
@@ -645,7 +645,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.arch }}-linux-musl
           path: ./build
@@ -862,7 +862,7 @@ jobs:
         run: sudo make PG_CONFIG=$PG_CONFIG install
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgresql-${{ matrix.version }}-vchord_0.0.0_${{ matrix.clang_triple }}
           path: ./build
