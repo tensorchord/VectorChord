@@ -13,12 +13,12 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use crate::index::vchordg::opclass::Opfamily;
-use index::accessor::{Dot, L2S};
 use index::fetch::Fetch;
 use index::prefetcher::*;
 use index::relation::{
     Hints, Page, RelationPrefetch, RelationRead, RelationReadStream, RelationWrite,
 };
+use index_accessor::{Dot, L2S};
 use simd::f16;
 use std::num::NonZero;
 use vchordg::operator::Op;

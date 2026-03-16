@@ -13,7 +13,7 @@
 // Copyright (c) 2025 TensorChord Inc.
 
 use distance::Distance;
-use index::accessor::{
+use index_accessor::{
     Accessor1, Accessor2, ByteDistanceAccessor, DefaultWithDimension, DistanceAccessor, Dot,
     HalfbyteDistanceAccessor, L2S, RAccess,
 };

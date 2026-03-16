@@ -25,6 +25,7 @@ always_equal = { path = "./crates/always_equal" }
 distance = { path = "./crates/distance" }
 feistel = { path = "./crates/feistel" }
 index = { path = "./crates/index" }
+index_accessor = { path = "./crates/index_accessor" }
 k_means = { path = "./crates/k_means" }
 rabitq = { path = "./crates/rabitq" }
 simd = { path = "./crates/simd" }

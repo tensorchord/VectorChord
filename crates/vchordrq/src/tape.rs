@@ -14,9 +14,9 @@
 
 use crate::tuples::*;
 use crate::{Opaque, freepages};
-use index::accessor::Accessor1;
 use index::prefetcher::{Prefetcher, PrefetcherSequenceFamily};
 use index::relation::{Page, PageGuard, RelationRead, RelationWrite};
+use index_accessor::Accessor1;
 use std::marker::PhantomData;
 use std::num::NonZero;
 

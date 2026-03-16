@@ -402,15 +402,6 @@ pub unsafe extern "C-unwind" fn aminsert(
     _index_unchanged: bool,
     _index_info: *mut pgrx::pg_sys::IndexInfo,
 ) -> bool {
-    unsafe { aminsertinner(index_relation, values, is_null, heap_tid) }
-}
-
-unsafe fn aminsertinner(
-    index_relation: pgrx::pg_sys::Relation,
-    values: *mut Datum,
-    is_null: *mut bool,
-    ctid: pgrx::pg_sys::ItemPointer,
-) -> bool {
     struct RngChooser<T>(T);
     impl<T: RngExt> InsertChooser for RngChooser<T> {
         fn choose(&mut self, n: NonZero<usize>) -> usize {
@@ -421,7 +412,7 @@ unsafe fn aminsertinner(
     let opfamily = unsafe { opfamily(index_relation) };
     let index = unsafe { PostgresRelation::new(index_relation) };
     let datum = unsafe { (!is_null.add(0).read()).then_some(values.add(0).read()) };
-    let ctid = unsafe { ctid.read() };
+    let ctid = unsafe { heap_tid.read() };
     if let Some(store) = unsafe { datum.and_then(|x| opfamily.store(x)) } {
         for (vector, extra) in store {
             let key = ctid_to_key(ctid);

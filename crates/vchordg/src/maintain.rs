@@ -18,8 +18,8 @@ use crate::tuples::{MetaTuple, VertexTuple, WithReader};
 use crate::types::DistanceKind;
 use crate::vectors::{by_read, copy_all, copy_nothing, copy_outs, update};
 use always_equal::AlwaysEqual;
-use index::accessor::DefaultWithDimension;
 use index::relation::{Page, PageGuard, RelationRead, RelationWrite};
+use index_accessor::DefaultWithDimension;
 use std::cmp::Reverse;
 use vector::VectorOwned;
 

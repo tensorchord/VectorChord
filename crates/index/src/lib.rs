@@ -12,7 +12,7 @@
 //
 // Copyright (c) 2025 TensorChord Inc.
 
-pub mod accessor;
+// pub mod accessor;
 pub mod bump;
 pub mod fetch;
 pub mod packed;

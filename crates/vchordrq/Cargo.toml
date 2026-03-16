@@ -8,6 +8,7 @@ publish = false
 always_equal = { path = "../always_equal" }
 distance = { path = "../distance" }
 index = { path = "../index" }
+index_accessor = { path = "../index_accessor" }
 rabitq = { path = "../rabitq" }
 simd = { path = "../simd" }
 vector = { path = "../vector" }

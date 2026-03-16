@@ -1,19 +1,17 @@
 [package]
-name = "index"
+name = "index_accessor"
 version.workspace = true
 edition.workspace = true
 publish = false
 
+[lib]
+path = "../index/src/accessor.rs"
+
 [dependencies]
-always_equal = { path = "../always_equal" }
 distance = { path = "../distance" }
 rabitq = { path = "../rabitq" }
-small_iter = { path = "../small_iter" }
+simd = { path = "../simd" }
 vector = { path = "../vector" }
-
-bumpalo.workspace = true
-dary_heap.workspace = true
-zerocopy.workspace = true
 
 [lints]
 workspace = true

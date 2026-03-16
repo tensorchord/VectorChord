@@ -14,8 +14,8 @@
 
 use crate::operator::*;
 use crate::tuples::*;
-use index::accessor::Accessor1;
 use index::relation::{Page, RelationRead};
+use index_accessor::Accessor1;
 
 pub fn read<
     'a,

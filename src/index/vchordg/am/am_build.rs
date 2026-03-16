@@ -593,7 +593,7 @@ unsafe fn options(
         v: opfamily.vector_kind(),
         d: opfamily.distance_kind(),
     };
-    // get indexing, segment, optimizing
+    // get indexing options
     let indexing_options = {
         let reloption = unsafe { (*index_relation).rd_options as *const Reloption };
         let s = unsafe { Reloption::options(reloption, c"") }.to_string_lossy();

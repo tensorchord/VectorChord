@@ -17,9 +17,9 @@ use crate::operator::Operator;
 use crate::tape::{by_directory, by_next};
 use crate::tuples::*;
 use crate::{Opaque, centroids, tape};
-use index::accessor::FunctionalAccessor;
 use index::prefetcher::PrefetcherSequenceFamily;
 use index::relation::{Page, RelationRead};
+use index_accessor::FunctionalAccessor;
 use std::fmt::Write;
 
 pub fn prewarm<'b, R: RelationRead, O: Operator>(

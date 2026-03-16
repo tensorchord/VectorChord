@@ -841,10 +841,19 @@ dependencies = [
  "dary_heap",
  "distance",
  "rabitq",
- "simd",
  "small_iter",
  "vector",
  "zerocopy",
+]
+
+[[package]]
+name = "index_accessor"
+version = "0.0.0"
+dependencies = [
+ "distance",
+ "rabitq",
+ "simd",
+ "vector",
 ]
 
 [[package]]
@@ -1942,6 +1951,7 @@ dependencies = [
  "feistel",
  "humansize",
  "index",
+ "index_accessor",
  "k_means",
  "mimalloc",
  "paste",
@@ -1971,6 +1981,7 @@ dependencies = [
  "always_equal",
  "distance",
  "index",
+ "index_accessor",
  "min-max-heap",
  "rabitq",
  "rand",
@@ -1988,6 +1999,7 @@ dependencies = [
  "always_equal",
  "distance",
  "index",
+ "index_accessor",
  "pin-project",
  "rabitq",
  "rand",

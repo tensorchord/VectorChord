@@ -17,8 +17,8 @@ use crate::operator::Operator;
 use crate::tape::by_next;
 use crate::tuples::*;
 use crate::{Opaque, tape};
-use index::accessor::FunctionalAccessor;
 use index::relation::{Page, RelationRead, RelationWrite};
+use index_accessor::FunctionalAccessor;
 use std::num::NonZero;
 
 pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(

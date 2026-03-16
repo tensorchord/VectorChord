@@ -17,11 +17,11 @@ use crate::operator::{Operator, Vector};
 use crate::tape_writer::{DirectoryTapeWriter, FrozenTapeWriter};
 use crate::tuples::*;
 use crate::{Branch, Opaque, freepages, tape};
-use index::accessor::FunctionalAccessor;
 use index::prefetcher::PrefetcherSequenceFamily;
 use index::relation::{
     Page, PageGuard, Relation, RelationRead, RelationReadTypes, RelationWrite, RelationWriteTypes,
 };
+use index_accessor::FunctionalAccessor;
 use rabitq::packing::unpack;
 use std::cell::RefCell;
 

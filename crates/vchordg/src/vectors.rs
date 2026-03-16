@@ -15,8 +15,8 @@
 use crate::operator::{Operator, Vector};
 use crate::tuples::*;
 use distance::Distance;
-use index::accessor::Accessor1;
 use index::relation::{Page, RelationRead, RelationWrite};
+use index_accessor::Accessor1;
 use std::collections::VecDeque;
 use std::num::{NonZero, Wrapping};
 

@@ -14,13 +14,13 @@
 
 use crate::index::vchordrq::build::{Normalize, Normalized};
 use crate::index::vchordrq::opclass::Opfamily;
-use index::accessor::{Dot, L2S};
 use index::bump::Bump;
 use index::fetch::Fetch;
 use index::prefetcher::*;
 use index::relation::{
     Hints, Page, RelationPrefetch, RelationRead, RelationReadStream, RelationWrite,
 };
+use index_accessor::{Dot, L2S};
 use simd::f16;
 use std::collections::BinaryHeap;
 use std::num::NonZero;

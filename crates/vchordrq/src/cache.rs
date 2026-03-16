@@ -15,8 +15,8 @@
 use crate::closure_lifetime_binder::{id_0, id_1};
 use crate::tuples::{MetaTuple, WithReader};
 use crate::{Opaque, tape};
-use index::accessor::FunctionalAccessor;
 use index::relation::{Page, PageGuard, RelationRead};
+use index_accessor::FunctionalAccessor;
 
 pub fn cache<R: RelationRead>(index: &R, level: i32) -> Vec<u32>
 where
