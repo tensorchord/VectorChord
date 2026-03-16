@@ -29,7 +29,6 @@ index_accessor = { path = "./crates/index_accessor" }
 k_means = { path = "./crates/k_means" }
 rabitq = { path = "./crates/rabitq" }
 simd = { path = "./crates/simd" }
-small_iter = { path = "./crates/small_iter" }
 vchordg = { path = "./crates/vchordg" }
 vchordrq = { path = "./crates/vchordrq" }
 vector = { path = "./crates/vector" }
@@ -44,10 +43,10 @@ pgrx = { version = "=0.17.0", default-features = false, features = ["cshim"] }
 pgrx-catalog = "0.3.2"
 rand.workspace = true
 rayon.workspace = true
-rusqlite = { version = "0.38.0", features = ["bundled"] }
+rusqlite = { version = "0.39.0", features = ["bundled"] }
 seq-macro.workspace = true
 serde.workspace = true
-toml = "1.0.0"
+toml = "1.0.6"
 validator.workspace = true
 wyhash.workspace = true
 zerocopy.workspace = true
@@ -67,7 +66,7 @@ version = "0.0.0"
 edition = "2024"
 
 [workspace.dependencies]
-bumpalo = "3.19.1"
+bumpalo = "3.20.2"
 dary_heap = "0.3.8"
 paste = "1.0.15"
 rand = "0.10.0"
@@ -77,7 +76,7 @@ seq-macro = "0.3.6"
 serde = { version = "1.0.228", features = ["derive"] }
 validator = { version = "0.20.0", features = ["derive"] }
 wyhash = "0.6.0"
-zerocopy = { version = "0.8.39", features = ["derive"] }
+zerocopy = { version = "0.8.42", features = ["derive"] }
 
 [workspace.lints]
 # complexity

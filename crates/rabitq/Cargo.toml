@@ -7,8 +7,6 @@ publish = false
 [dependencies]
 simd = { path = "../simd" }
 
-rand.workspace = true
-rand_chacha.workspace = true
 zerocopy.workspace = true
 
 [build-dependencies]

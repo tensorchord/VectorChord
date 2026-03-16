@@ -13,7 +13,7 @@ rabitq = { path = "../rabitq" }
 simd = { path = "../simd" }
 vector = { path = "../vector" }
 
-pin-project = "1.1.10"
+pin-project = "1.1.11"
 serde.workspace = true
 validator.workspace = true
 zerocopy.workspace = true
