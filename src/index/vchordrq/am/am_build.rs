@@ -517,9 +517,10 @@ mod vchordrq_cached {
                     }
                     let pages_s = buffer.len();
                     buffer.extend(pages.iter().flat_map(|x| unsafe {
-                        std::mem::transmute::<&PostgresPage<vchordrq::Opaque>, &[u8; 8192]>(
-                            x.as_ref(),
-                        )
+                        std::mem::transmute::<
+                            &PostgresPage<vchordrq::Opaque>,
+                            &[u8; pgrx::pg_sys::BLCKSZ as usize],
+                        >(x.as_ref())
                     }));
                     let pages_e = buffer.len();
                     while buffer.len() % ALIGN != 0 {
