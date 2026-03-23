@@ -32,6 +32,12 @@ fn get<'a>() -> Option<RefMut<'a, rusqlite::Connection>> {
     if database_oid == 0 {
         return None;
     }
+    // Skip if vchord extension is not installed in this database
+    if unsafe { pgrx::pg_sys::get_extension_oid(c"vchord".as_ptr(), true) }
+        == pgrx::pg_sys::InvalidOid
+    {
+        return None;
+    }
     let mut connection = CONNECTION.borrow_mut();
     if connection.is_none()
         && let Err(err) = || -> rusqlite::Result<()> {
