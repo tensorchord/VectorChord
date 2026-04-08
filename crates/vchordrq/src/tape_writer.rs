@@ -37,11 +37,13 @@ where
         }
     }
     pub fn push(&mut self, branch: &[u32]) {
-        let mut remain = branch.to_vec();
+        let mut remain = branch;
         loop {
             let freespace = self.tape.freespace();
             if DirectoryTuple::estimate_size_0(remain.len()) <= freespace as usize {
-                self.tape.tape_put(DirectoryTuple::_0 { elements: remain });
+                self.tape.tape_put(DirectoryTuple::_0 {
+                    elements: remain.to_vec(),
+                });
                 break;
             }
             if let Some(w) = DirectoryTuple::fit_1(freespace) {
@@ -49,7 +51,7 @@ where
                 self.tape.tape_put(DirectoryTuple::_1 {
                     elements: left.to_vec(),
                 });
-                remain = right.to_vec();
+                remain = right;
             } else {
                 self.tape.tape_move();
             }
@@ -84,8 +86,9 @@ where
     pub fn push(&mut self, branch: Branch<u32>) {
         self.branches.push(branch);
         if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
-            let mut remain =
+            let elements =
                 padding_pack(chunk.iter().map(|x| rabitq::packing::pack_to_u4(&x.code.1)));
+            let mut remain = elements.as_slice();
             loop {
                 let freespace = self.tape.freespace();
                 if H1Tuple::estimate_size_0(self.prefetch, remain.len()) <= freespace as usize {
@@ -102,7 +105,7 @@ where
                         head: chunk.each_ref().map(|x| x.head),
                         first: chunk.each_ref().map(|x| x.extra),
                         len: chunk.len() as _,
-                        elements: remain,
+                        elements: remain.to_vec(),
                     });
                     break;
                 }
@@ -111,7 +114,7 @@ where
                     self.tape.tape_put(H1Tuple::_1 {
                         elements: left.to_vec(),
                     });
-                    remain = right.to_vec();
+                    remain = right;
                 } else {
                     self.tape.tape_move();
                 }
@@ -184,8 +187,9 @@ where
     pub fn push(&mut self, branch: Branch<NonZero<u64>>) {
         self.branches.push(branch);
         if let Ok(chunk) = <&[_; 32]>::try_from(self.branches.as_slice()) {
-            let mut remain =
+            let elements =
                 padding_pack(chunk.iter().map(|x| rabitq::packing::pack_to_u4(&x.code.1)));
+            let mut remain = elements.as_slice();
             loop {
                 let freespace = self.tape.freespace();
                 if FrozenTuple::estimate_size_0(self.prefetch, remain.len()) <= freespace as usize {
@@ -200,7 +204,7 @@ where
                         prefetch: fix_good(chunk.each_ref().map(|x| x.prefetch.as_slice())),
                         head: chunk.each_ref().map(|x| x.head),
                         payload: chunk.each_ref().map(|x| Some(x.extra)),
-                        elements: remain,
+                        elements: remain.to_vec(),
                     });
                     break;
                 }
@@ -209,7 +213,7 @@ where
                     self.tape.tape_put(FrozenTuple::_1 {
                         elements: left.to_vec(),
                     });
-                    remain = right.to_vec();
+                    remain = right;
                 } else {
                     self.tape.tape_move();
                 }

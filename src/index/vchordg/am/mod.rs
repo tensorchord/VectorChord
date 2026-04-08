@@ -214,38 +214,21 @@ pub unsafe extern "C-unwind" fn amcostestimate(
     }
 }
 
-#[cfg(any(
-    feature = "pg14",
-    feature = "pg15",
-    feature = "pg16",
-    feature = "pg17",
-    feature = "pg18"
-))]
 #[pgrx::pg_guard]
 pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
     values: *mut Datum,
     is_null: *mut bool,
     heap_tid: pgrx::pg_sys::ItemPointer,
-    heap_relation: pgrx::pg_sys::Relation,
+    _heap_relation: pgrx::pg_sys::Relation,
     _check_unique: pgrx::pg_sys::IndexUniqueCheck::Type,
     _index_unchanged: bool,
     _index_info: *mut pgrx::pg_sys::IndexInfo,
 ) -> bool {
-    unsafe { aminsertinner(index_relation, heap_relation, values, is_null, heap_tid) }
-}
-
-unsafe fn aminsertinner(
-    index_relation: pgrx::pg_sys::Relation,
-    _heap_relation: pgrx::pg_sys::Relation,
-    values: *mut Datum,
-    is_null: *mut bool,
-    ctid: pgrx::pg_sys::ItemPointer,
-) -> bool {
     let opfamily = unsafe { opfamily(index_relation) };
     let index = unsafe { PostgresRelation::new(index_relation) };
     let datum = unsafe { (!is_null.add(0).read()).then_some(values.add(0).read()) };
-    let ctid = unsafe { ctid.read() };
+    let ctid = unsafe { heap_tid.read() };
     if let Some(store) = unsafe { datum.and_then(|x| opfamily.store(x)) } {
         for (vector, extra) in store {
             let key = ctid_to_key(ctid);

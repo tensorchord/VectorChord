@@ -384,13 +384,6 @@ pub unsafe extern "C-unwind" fn amcostestimate(
     }
 }
 
-#[cfg(any(
-    feature = "pg14",
-    feature = "pg15",
-    feature = "pg16",
-    feature = "pg17",
-    feature = "pg18"
-))]
 #[pgrx::pg_guard]
 pub unsafe extern "C-unwind" fn aminsert(
     index_relation: pgrx::pg_sys::Relation,
