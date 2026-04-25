@@ -52,6 +52,8 @@ VectorChord introduces remarkable enhancements over pgvecto.rs and pgvector:
 
 For new users, we recommend using the Docker image to get started quickly. If you do not prefer Docker, please read [installation guide](https://docs.vectorchord.ai/vectorchord/getting-started/installation.html) for other installation methods.
 
+Windows users: a native MSVC build (no Docker, no WSL2) is documented in [docs/WINDOWS.md](./docs/WINDOWS.md). Toolchain: VS2022 + LLVM + Rust 1.95+ + PostgreSQL 17.
+
 ```bash
 docker run \
   --name vectorchord-demo \
