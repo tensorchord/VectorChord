@@ -1,0 +1,426 @@
+# Tests for amcostestimate in src/index/vchordrq/am/mod.rs.
+#
+# The cost estimator must:
+#   1. Use the baserel's planner-computed row estimate to derive filter
+#      selectivity, then report index selectivity from the candidate count
+#      that the scan is expected to retrieve.
+#   2. Cap the candidate-processing term (`next_count`) by the IVF candidate
+#      budget (`node_count`), so absurdly small selectivity cannot inflate
+#      the reported cost past the work the index actually does.
+#   3. Degrade safely when planner stats are missing or extreme.
+#
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+statement ok
+SET enable_seqscan = off;
+
+statement ok
+SET max_parallel_workers_per_gather = 0;
+
+statement ok
+SET random_page_cost = 1.1;
+
+statement ok
+CREATE TABLE cost_test (
+  id        int PRIMARY KEY,
+  category  int  NOT NULL,
+  v         vector(3) NOT NULL
+);
+
+# 10 000 rows, 100 evenly-sized categories. category=k matches 1% of rows.
+# Vectors are deterministic per row so the test is reproducible.
+statement ok
+INSERT INTO cost_test
+SELECT i,
+       (i % 100),
+       ARRAY[
+         (i % 97) / 97.0,
+         (i % 89) / 89.0,
+         (i % 83) / 83.0
+       ]::real[]::vector
+FROM generate_series(1, 10000) i;
+
+statement ok
+CREATE INDEX cost_test_v ON cost_test USING vchordrq (v vector_l2_ops);
+
+statement ok
+CREATE INDEX cost_test_cat ON cost_test (category);
+
+# A predicate with an explicitly high procost that PG can't optimize away.
+# Three things matter here:
+#   * `LANGUAGE plpgsql` — prevents SQL inlining (an inlined `IS NOT NULL`
+#     check on a PRIMARY KEY column gets folded to `true` and dropped from
+#     the plan, defeating the test).
+#   * `COST 10000` — sets `pg_proc.procost` so cost_index() charges
+#     10000 * cpu_operator_cost ≈ 25 cost-units per tuple of filter eval.
+#     This mimics PostGIS ST_DWithin, JSONB containment, expensive regex,
+#     etc. — the real-world shapes where the bug bites.
+#   * Body is `mod($1,7) <> 99` so the result is always true but PG can't
+#     prove that across the function boundary, so the filter survives
+#     constant-folding.
+statement ok
+CREATE OR REPLACE FUNCTION slow_true(int) RETURNS boolean
+  LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE COST 10000 AS
+$$ BEGIN RETURN mod($1, 7) <> 99; END $$;
+
+statement ok
+ANALYZE cost_test;
+
+# Helper: returns the index name used at the top of the plan, or NULL if
+# no Index Scan / Bitmap Index Scan appears. Robust across PG versions.
+statement ok
+CREATE OR REPLACE FUNCTION plan_top_index(query text) RETURNS text
+  LANGUAGE plpgsql AS $$
+DECLARE
+  line text;
+  m    text[];
+BEGIN
+  FOR line IN EXECUTE 'EXPLAIN (FORMAT TEXT, COSTS OFF) ' || query LOOP
+    -- 'Index Scan using <name> on ...' or 'Index Only Scan using <name> on ...'
+    m := regexp_match(line, 'Index (?:Only )?Scan using (\S+) on ');
+    IF m IS NOT NULL THEN RETURN m[1]; END IF;
+    -- 'Bitmap Index Scan on <name>'
+    m := regexp_match(line, 'Bitmap Index Scan on (\S+)');
+    IF m IS NOT NULL THEN RETURN m[1]; END IF;
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+# Helper: returns the top plan node's total cost.
+statement ok
+CREATE OR REPLACE FUNCTION top_total_cost(query text) RETURNS double precision
+  LANGUAGE plpgsql AS $$
+DECLARE
+  rec text;
+  m   text[];
+BEGIN
+  FOR rec IN EXECUTE 'EXPLAIN ' || query LOOP
+    m := regexp_match(rec, '\.\.([0-9]+(?:\.[0-9]+)?) rows=');
+    IF m IS NOT NULL THEN RETURN m[1]::double precision; END IF;
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+# Helper: returns total cost for the first plan node matching `pat`.
+statement ok
+CREATE OR REPLACE FUNCTION plan_node_total_cost(query text, pat text) RETURNS double precision
+  LANGUAGE plpgsql AS $$
+DECLARE
+  rec text;
+  m   text[];
+BEGIN
+  FOR rec IN EXECUTE 'EXPLAIN ' || query LOOP
+    IF rec LIKE pat THEN
+      m := regexp_match(rec, '\.\.([0-9]+(?:\.[0-9]+)?) rows=');
+      IF m IS NOT NULL THEN RETURN m[1]::double precision; END IF;
+    END IF;
+  END LOOP;
+  RETURN NULL;
+END $$;
+
+# ---------------------------------------------------------------------------
+# Case 1: pure ORDER BY, no filter.
+# Vchord must win. (Passes pre- and post-fix; sanity check.)
+# ---------------------------------------------------------------------------
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+);
+----
+cost_test_v
+
+# ---------------------------------------------------------------------------
+# Case 2: tight filter (selectivity 1%) with an alternative index.
+# Btree must still beat vchord — the IVF candidate budget is too large
+# to be competitive at this selectivity. (Passes pre- and post-fix.)
+# This guards against over-correction: the fix must not make vchord win
+# on tight filters, which was the original motivation for PR #234.
+# ---------------------------------------------------------------------------
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE category = 42
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+);
+----
+cost_test_cat
+
+statement ok
+DROP INDEX cost_test_cat;
+
+# ---------------------------------------------------------------------------
+# Case 3: selective heap filter combined with an expensive predicate and no
+# supporting non-vector index. Pre-fix: index_selectivity=1.0 charges
+# filter eval against every table row, so seq scan + sort can look cheaper.
+# Post-fix: vchord estimates the candidates needed for the LIMIT and wins.
+# The node-cost floor guards against under-pricing the scan as if it fetched
+# only the final surviving rows.
+# ---------------------------------------------------------------------------
+
+statement ok
+SET enable_seqscan = on;
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE category = 42 AND slow_true(id)
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+);
+----
+cost_test_v
+
+query B
+SELECT plan_node_total_cost(
+  'SELECT id FROM cost_test WHERE category = 42 AND slow_true(id)
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10',
+  '%Index Scan using cost_test_v on cost_test%'
+) > 10000;
+----
+t
+
+statement ok
+SET enable_seqscan = off;
+
+# ---------------------------------------------------------------------------
+# Case 4: filter on a column with no supporting non-vector index, combined
+# with the expensive predicate. The only alternatives are seq scan (disabled)
+# or vchord. Vchord must be chosen. Pre-fix this still picks vchord because
+# seq is disabled, but the *reported* cost must drop enough that LIMIT-aware
+# planners above this node (joins, gather, partitions) don't overestimate.
+# We assert plan shape + that the cost is bounded below 1e9 (disable_cost).
+# ---------------------------------------------------------------------------
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE slow_true(id)
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+);
+----
+cost_test_v
+
+# disable_cost in PG 14-18 is 1.0e10; a healthy estimate is well below that.
+query B
+SELECT top_total_cost(
+  'SELECT id FROM cost_test WHERE slow_true(id)
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+) < 1e9;
+----
+t
+
+# ---------------------------------------------------------------------------
+# Case 5: no LIMIT clause. PlannerInfo.limit_tuples is -1, so the
+# estimator should fall back to the IVF candidate budget instead of doing
+# LIMIT/selectivity math.
+# ---------------------------------------------------------------------------
+
+query B
+SELECT top_total_cost(
+  'SELECT id FROM cost_test ORDER BY v <-> ''[0,0,0]''::vector'
+) IS NOT NULL;
+----
+t
+
+# ---------------------------------------------------------------------------
+# Case 6: LIMIT larger than the number of expected survivors.
+# The `next_count.min(node_count)` clamp must hold — the AM cannot claim
+# to process more candidates than the IVF visits.
+# ---------------------------------------------------------------------------
+
+query B
+SELECT top_total_cost(
+  'SELECT id FROM cost_test WHERE category = 42
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 100000'
+) IS NOT NULL;
+----
+t
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE category + 0 = 42
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 100000'
+);
+----
+cost_test_v
+
+query B
+SELECT plan_node_total_cost(
+  'SELECT id FROM cost_test WHERE category + 0 = 42
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 100000',
+  '%Index Scan using cost_test_v on cost_test%'
+) < 100000;
+----
+t
+
+# ---------------------------------------------------------------------------
+# Case 7: near-zero filter selectivity. The fix clamps to 1e-9 instead of
+# 0 so 1/selectivity does not produce +Inf.
+# ---------------------------------------------------------------------------
+
+query B
+SELECT top_total_cost(
+  'SELECT id FROM cost_test WHERE category = -1
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+) IS NOT NULL;
+----
+t
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE category = -1
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+);
+----
+cost_test_v
+
+query B
+SELECT plan_node_total_cost(
+  'SELECT id FROM cost_test WHERE category = -1
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10',
+  '%Index Scan using cost_test_v on cost_test%'
+) < 100000;
+----
+t
+
+# ---------------------------------------------------------------------------
+# Case 8: empty table. baserel->tuples is 0, fix falls back to
+# selectivity = 1.0. Plan and result must not crash.
+# ---------------------------------------------------------------------------
+
+statement ok
+CREATE TABLE cost_test_empty (id int, v vector(3));
+
+statement ok
+CREATE INDEX ON cost_test_empty USING vchordrq (v vector_l2_ops);
+
+statement ok
+ANALYZE cost_test_empty;
+
+query I
+SELECT count(*) FROM (
+  SELECT id FROM cost_test_empty ORDER BY v <-> '[0,0,0]'::vector LIMIT 10
+) t;
+----
+0
+
+# ---------------------------------------------------------------------------
+# Case 9: never-ANALYZE'd table. baserel->tuples may be negative or zero
+# in the planner's view. The fallback in the fix returns 1.0, matching the
+# pre-fix behavior exactly so we don't regress on cold tables.
+# ---------------------------------------------------------------------------
+
+statement ok
+CREATE TABLE cost_test_cold (id int, v vector(3));
+
+statement ok
+INSERT INTO cost_test_cold
+SELECT i, ARRAY[(i%7)/7.0, (i%11)/11.0, (i%13)/13.0]::real[]::vector
+FROM generate_series(1, 100) i;
+
+statement ok
+CREATE INDEX ON cost_test_cold USING vchordrq (v vector_l2_ops);
+
+# Intentionally no ANALYZE.
+
+query B
+SELECT top_total_cost(
+  'SELECT id FROM cost_test_cold ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+) IS NOT NULL;
+----
+t
+
+# ---------------------------------------------------------------------------
+# Case 10: partial vchord index. The filter-selectivity estimate reflects
+# baserestrictinfo, including clauses that overlap the partial-index
+# predicate. We verify that this builds, plans, and runs.
+# ---------------------------------------------------------------------------
+
+statement ok
+CREATE TABLE cost_test_partial (id int, kind int, v vector(3));
+
+statement ok
+INSERT INTO cost_test_partial
+SELECT i, (i % 3), ARRAY[(i%7)/7.0, (i%11)/11.0, (i%13)/13.0]::real[]::vector
+FROM generate_series(1, 2000) i;
+
+statement ok
+CREATE INDEX cost_test_partial_v ON cost_test_partial USING vchordrq (v vector_l2_ops)
+  WHERE kind = 0;
+
+statement ok
+ANALYZE cost_test_partial;
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test_partial WHERE kind = 0
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 5'
+);
+----
+cost_test_partial_v
+
+# ---------------------------------------------------------------------------
+# Case 11: vchordrq.enable_scan = off must still disable the path
+# regardless of selectivity. Re-enable seqscan inside this case so there is
+# a non-disabled alternative for the planner to fall back to — otherwise on
+# PG18 every path looks "disabled" and the planner picks vchord by default.
+# Use IS DISTINCT FROM so a seq-scan top (plan_top_index returns NULL)
+# still compares as "not vchord."
+# ---------------------------------------------------------------------------
+
+statement ok
+SET enable_seqscan = on;
+
+statement ok
+SET vchordrq.enable_scan = off;
+
+query B
+SELECT plan_top_index(
+  'SELECT id FROM cost_test WHERE category = 42 AND slow_true(id)
+     ORDER BY v <-> ''[0,0,0]''::vector LIMIT 10'
+) IS DISTINCT FROM 'cost_test_v';
+----
+t
+
+statement ok
+RESET vchordrq.enable_scan;
+
+statement ok
+RESET enable_seqscan;
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+statement ok
+DROP TABLE cost_test;
+
+statement ok
+DROP TABLE cost_test_empty;
+
+statement ok
+DROP TABLE cost_test_cold;
+
+statement ok
+DROP TABLE cost_test_partial;
+
+statement ok
+DROP FUNCTION slow_true(int);
+
+statement ok
+DROP FUNCTION plan_top_index(text);
+
+statement ok
+DROP FUNCTION plan_node_total_cost(text, text);
+
+statement ok
+DROP FUNCTION top_total_cost(text);
+
+statement ok
+RESET enable_seqscan;
+
+statement ok
+RESET max_parallel_workers_per_gather;
+
+statement ok
+RESET random_page_cost;
