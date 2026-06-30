@@ -56,7 +56,7 @@ impl VchordgIndexOptions {
         if !alpha.iter().all(|x| (1.0..2.0).contains(x)) {
             return Err(ValidationError::new("alpha is too large or too small"));
         }
-        if alpha[0] != 1.0 {
+        if alpha.first() != Some(&1.0) {
             return Err(ValidationError::new("`alpha` should contain `1.0`"));
         }
         Ok(())
@@ -142,5 +142,27 @@ impl<V> Structure<V> {
     }
     pub fn is_empty(&self) -> bool {
         self.children.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VchordgIndexOptions;
+
+    #[test]
+    fn validate_alpha_handles_empty_without_panicking() {
+        let empty: &[f32] = &[];
+        assert!(VchordgIndexOptions::validate_alpha(empty).is_err());
+    }
+
+    #[test]
+    fn validate_alpha_accepts_default() {
+        assert!(VchordgIndexOptions::validate_alpha(&[1.0, 1.2]).is_ok());
+    }
+
+    #[test]
+    fn validate_alpha_rejects_unsorted_or_out_of_range() {
+        assert!(VchordgIndexOptions::validate_alpha(&[1.2, 1.0]).is_err());
+        assert!(VchordgIndexOptions::validate_alpha(&[2.0]).is_err());
     }
 }
