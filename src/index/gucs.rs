@@ -388,7 +388,10 @@ pub unsafe fn vchordrq_probes(index: pgrx::pg_sys::Relation) -> Vec<u32> {
         for &c in value.to_bytes() {
             match c {
                 b' ' => continue,
-                b',' => result.push(current.take().expect("empty probes")),
+                b',' => match current.take() {
+                    Some(value) => result.push(value),
+                    None => pgrx::error!("empty entry in probes"),
+                },
                 b'0'..=b'9' => {
                     if let Some(x) = current.as_mut() {
                         *x = *x * 10 + (c - b'0') as u32;
