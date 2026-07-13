@@ -1,0 +1,341 @@
+# Phase 3B tensor-source registration must bind to a real MaxSim index by
+# relation/attribute OID, reject incompatible descriptors, and fail closed when
+# a bound index/table column is dropped.
+
+statement ok
+CREATE TABLE maxsim_source_test (
+  id bigint PRIMARY KEY,
+  model_contract text NOT NULL,
+  embedding vector(2)[] NOT NULL,
+  single_embedding vector(2) NOT NULL,
+  tensor_ref text NOT NULL,
+  tensor_rows integer NOT NULL,
+  tensor_dim integer NOT NULL,
+  tensor_dtype text NOT NULL,
+  tensor_checksum text NOT NULL,
+  application_note text
+);
+
+statement ok
+INSERT INTO maxsim_source_test VALUES (
+  1,
+  'colqwen@test',
+  ARRAY['[1,0]'::vector, '[0,1]'::vector],
+  '[1,0]'::vector,
+  'tensor://1',
+  2,
+  2,
+  'float32',
+  'sha256:test'
+);
+
+statement ok
+CREATE INDEX maxsim_source_test_idx
+ON maxsim_source_test
+USING vchordrq (embedding vector_maxsim_ops)
+WITH (options = $$
+[build.internal]
+lists = [1]
+$$);
+
+statement ok
+CREATE INDEX maxsim_source_wrong_idx
+ON maxsim_source_test
+USING vchordrq (single_embedding vector_l2_ops)
+WITH (options = $$
+[build.internal]
+lists = [1]
+$$);
+
+statement error not a valid single-key vchordrq MaxSim index
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_wrong_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'heap_array',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id'
+);
+
+statement error tensor rows column tensor_dtype must be a NOT NULL integer column
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'external_ref',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id',
+  tensor_ref_column => 'tensor_ref',
+  tensor_rows_column => 'tensor_dtype',
+  tensor_dim_column => 'tensor_dim',
+  tensor_dtype_column => 'tensor_dtype',
+  tensor_checksum_column => 'tensor_checksum'
+);
+
+statement ok
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => ' colqwen@test ',
+  storage => 'EXTERNAL_REF',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id',
+  tensor_ref_column => 'tensor_ref',
+  tensor_rows_column => 'tensor_rows',
+  tensor_dim_column => 'tensor_dim',
+  tensor_dtype_column => 'tensor_dtype',
+  tensor_checksum_column => 'tensor_checksum'
+);
+
+query TT
+SELECT s.storage, s.model_contract_id
+FROM _vchordrq_maxsim_sources AS s
+WHERE s.index_oid = 'maxsim_source_test_idx'::regclass;
+----
+external_ref colqwen@test
+
+query TTT
+SELECT source_storage, tensor_ref_column::text, public_id_column::text
+FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+----
+external_ref tensor_ref id
+
+# Production external tensors may live in a compact descriptor relation keyed
+# by the stable application public ID, avoiding a rewrite of the indexed heap.
+statement ok
+CREATE TABLE maxsim_descriptor_no_unique (
+  public_id bigint NOT NULL,
+  tensor_ref text NOT NULL,
+  tensor_rows integer NOT NULL,
+  tensor_dim integer NOT NULL,
+  tensor_dtype text NOT NULL,
+  tensor_checksum text NOT NULL
+);
+
+statement error must have a non-partial single-key unique index
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'external_relation',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id',
+  tensor_ref_column => 'tensor_ref',
+  tensor_rows_column => 'tensor_rows',
+  tensor_dim_column => 'tensor_dim',
+  tensor_dtype_column => 'tensor_dtype',
+  tensor_checksum_column => 'tensor_checksum',
+  descriptor_relation => 'maxsim_descriptor_no_unique'::regclass,
+  descriptor_public_id_column => 'public_id'
+);
+
+statement ok
+CREATE TABLE maxsim_descriptor_test (
+  public_id bigint PRIMARY KEY,
+  tensor_ref text NOT NULL,
+  tensor_rows integer NOT NULL,
+  tensor_dim integer NOT NULL,
+  tensor_dtype text NOT NULL,
+  tensor_checksum text NOT NULL
+);
+
+statement ok
+INSERT INTO maxsim_descriptor_test VALUES (
+  1, 'tensor://1', 2, 2, 'float32', 'sha256:test'
+);
+
+statement ok
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'external_relation',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id',
+  tensor_ref_column => 'tensor_ref',
+  tensor_rows_column => 'tensor_rows',
+  tensor_dim_column => 'tensor_dim',
+  tensor_dtype_column => 'tensor_dtype',
+  tensor_checksum_column => 'tensor_checksum',
+  descriptor_relation => 'maxsim_descriptor_test'::regclass,
+  descriptor_public_id_column => 'public_id'
+);
+
+query TTTT
+SELECT source_storage, descriptor_relation::text,
+       descriptor_public_id_column::text, tensor_ref_column::text
+FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+----
+external_relation maxsim_descriptor_test public_id tensor_ref
+
+statement ok
+ALTER TABLE maxsim_descriptor_test RENAME tensor_ref TO tensor_location;
+
+query T
+SELECT tensor_ref_column::text
+FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+----
+tensor_location
+
+statement ok
+ALTER TABLE maxsim_descriptor_test DROP COLUMN tensor_checksum;
+
+query I
+SELECT count(*)
+FROM _vchordrq_maxsim_sources
+WHERE index_oid = 'maxsim_source_test_idx'::regclass;
+----
+0
+
+statement ok
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'external_ref',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id',
+  tensor_ref_column => 'tensor_ref',
+  tensor_rows_column => 'tensor_rows',
+  tensor_dim_column => 'tensor_dim',
+  tensor_dtype_column => 'tensor_dtype',
+  tensor_checksum_column => 'tensor_checksum'
+);
+
+# Unbound application columns are outside the registry contract. Dropping one
+# must not invalidate an otherwise live source binding.
+statement ok
+ALTER TABLE maxsim_source_test DROP COLUMN application_note;
+
+query T
+SELECT model_contract_id
+FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+----
+colqwen@test
+
+# The explicit score surface validates bounded work and exact query/index type
+# before any sidecar access.
+statement error candidate_limit must be between 1 and 65536
+SELECT * FROM vchordrq_maxsim_search(
+  'maxsim_source_test_idx'::regclass,
+  ARRAY['[1,0]'::vector],
+  0,
+  1
+);
+
+statement error top_k must be positive and no greater than candidate_limit
+SELECT * FROM vchordrq_maxsim_search(
+  'maxsim_source_test_idx'::regclass,
+  ARRAY['[1,0]'::vector],
+  1,
+  2
+);
+
+statement ok
+SET vchordrq.maxsim_backend = 'gpu';
+
+statement error MaxSim tensor kind or dimension is not matched
+SELECT * FROM vchordrq_maxsim_search(
+  'maxsim_source_test_idx'::regclass,
+  ARRAY['[1,0]'::halfvec],
+  1,
+  1
+);
+
+statement ok
+SET vchordrq.maxsim_backend = 'coarse_only';
+
+query T
+SELECT a.attname
+FROM _vchordrq_maxsim_sources AS s
+JOIN pg_catalog.pg_attribute AS a
+  ON a.attrelid = s.heap_oid AND a.attnum = s.tensor_ref_attnum
+WHERE s.index_oid = 'maxsim_source_test_idx'::regclass;
+----
+tensor_ref
+
+# Attribute numbers survive renames, so bindings do not depend on SQL text.
+statement ok
+ALTER TABLE maxsim_source_test RENAME tensor_ref TO tensor_location;
+
+query T
+SELECT a.attname
+FROM _vchordrq_maxsim_sources AS s
+JOIN pg_catalog.pg_attribute AS a
+  ON a.attrelid = s.heap_oid AND a.attnum = s.tensor_ref_attnum
+WHERE s.index_oid = 'maxsim_source_test_idx'::regclass;
+----
+tensor_location
+
+query T
+SELECT tensor_ref_column::text
+FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+----
+tensor_location
+
+# Type-altering DDL does not drop an attribute, so runtime resolution must
+# revalidate the complete descriptor and fail closed.
+statement ok
+ALTER TABLE maxsim_source_test
+ALTER COLUMN tensor_dtype TYPE varchar(16);
+
+statement error registered MaxSim tensor source has invalid descriptor columns
+SELECT * FROM vchordrq_maxsim_source_info('maxsim_source_test_idx'::regclass);
+
+statement ok
+ALTER TABLE maxsim_source_test
+ALTER COLUMN tensor_dtype TYPE text;
+
+# Dropping a bound descriptor column invalidates the complete binding.
+statement ok
+ALTER TABLE maxsim_source_test DROP COLUMN tensor_checksum;
+
+query I
+SELECT count(*)
+FROM _vchordrq_maxsim_sources
+WHERE index_oid = 'maxsim_source_test_idx'::regclass;
+----
+0
+
+statement ok
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'heap_array',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id'
+);
+
+query B
+SELECT tensor_ref_attnum IS NULL
+FROM _vchordrq_maxsim_sources
+WHERE index_oid = 'maxsim_source_test_idx'::regclass;
+----
+t
+
+query B
+SELECT vchordrq_unregister_maxsim_source('maxsim_source_test_idx'::regclass);
+----
+t
+
+query B
+SELECT vchordrq_unregister_maxsim_source('maxsim_source_test_idx'::regclass);
+----
+f
+
+statement ok
+SELECT vchordrq_register_maxsim_source(
+  index_relation => 'maxsim_source_test_idx'::regclass,
+  model_contract_id => 'colqwen@test',
+  storage => 'heap_array',
+  model_contract_column => 'model_contract',
+  public_id_column => 'id'
+);
+
+statement ok
+DROP INDEX maxsim_source_test_idx;
+
+query I
+SELECT count(*) FROM _vchordrq_maxsim_sources;
+----
+0
+
+statement ok
+DROP TABLE maxsim_source_test;
+
+statement ok
+DROP TABLE maxsim_descriptor_test, maxsim_descriptor_no_unique;

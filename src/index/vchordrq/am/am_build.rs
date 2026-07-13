@@ -349,9 +349,10 @@ pub unsafe extern "C-unwind" fn ambuild(
                     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Inserting));
                     order
                 },
-                |indtuples| {
+                |indtuples, indexed_vectors| {
                     reporter.tuples_done(indtuples);
                     reporter.tuples_total(indtuples);
+                    vchordrq::set_indexed_vectors(&index, indexed_vectors);
                     // enter the barrier
                     let shared = leader.vchordrqshared;
                     pgrx::pg_sys::SpinLockAcquire(&raw mut (*shared).mutex);
@@ -429,9 +430,10 @@ pub unsafe extern "C-unwind" fn ambuild(
                 || {
                     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Inserting));
                 },
-                |indtuples| {
+                |indtuples, indexed_vectors| {
                     reporter.tuples_done(indtuples);
                     reporter.tuples_total(indtuples);
+                    vchordrq::set_indexed_vectors(&index, indexed_vectors);
                     reporter.phase(BuildPhase::from_code(BuildPhaseCode::Compacting));
                 },
                 || {},
@@ -460,6 +462,7 @@ struct VchordrqShared {
     barrier_enter_0: i32,
     nparticipants: u32,
     indtuples: u64,
+    indexed_vectors: u64,
     barrier_leave_0: bool,
     barrier_enter_1: i32,
     barrier_leave_1: bool,
@@ -721,6 +724,7 @@ impl VchordrqLeader {
                 barrier_leave_2: false,
                 mutex: std::mem::zeroed(),
                 indtuples: 0,
+                indexed_vectors: 0,
             });
             pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordrqshared).condvar_barrier_enter_0);
             pgrx::pg_sys::ConditionVariableInit(&raw mut (*vchordrqshared).condvar_barrier_leave_0);
@@ -875,7 +879,7 @@ pub unsafe extern "C-unwind" fn vchordrq_parallel_build_main(
                 pgrx::pg_sys::ConditionVariableCancelSleep();
                 order
             },
-            |_| {
+            |_, _| {
                 // enter the barrier
                 let shared = vchordrqshared;
                 pgrx::pg_sys::SpinLockAcquire(&raw mut (*shared).mutex);
@@ -941,7 +945,7 @@ unsafe fn parallel_build(
     vchordrqcached: *const u8,
     mut callback: impl FnMut(u64),
     sync_0: impl FnOnce() -> u32,
-    sync_1: impl FnOnce(u64),
+    sync_1: impl FnOnce(u64, u64),
     sync_2: impl FnOnce(),
 ) {
     use vchordrq_cached::VchordrqCachedReader;
@@ -989,6 +993,7 @@ unsafe fn parallel_build(
                 let store = value
                     .and_then(|x| unsafe { opfamily.store(x) })
                     .unwrap_or_default();
+                let indexed_vectors = store.len() as u64;
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
@@ -1010,6 +1015,7 @@ unsafe fn parallel_build(
                     {
                         pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
                         (*vchordrqshared).indtuples += 1;
+                        (*vchordrqshared).indexed_vectors += indexed_vectors;
                         indtuples = (*vchordrqshared).indtuples;
                         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
                     }
@@ -1029,6 +1035,7 @@ unsafe fn parallel_build(
                 let store = value
                     .and_then(|x| unsafe { opfamily.store(x) })
                     .unwrap_or_default();
+                let indexed_vectors = store.len() as u64;
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
@@ -1050,6 +1057,7 @@ unsafe fn parallel_build(
                     {
                         pgrx::pg_sys::SpinLockAcquire(&raw mut (*vchordrqshared).mutex);
                         (*vchordrqshared).indtuples += 1;
+                        (*vchordrqshared).indexed_vectors += indexed_vectors;
                         indtuples = (*vchordrqshared).indtuples;
                         pgrx::pg_sys::SpinLockRelease(&raw mut (*vchordrqshared).mutex);
                     }
@@ -1065,7 +1073,13 @@ unsafe fn parallel_build(
 
     drop(index);
 
-    sync_1(unsafe { (*vchordrqshared).indtuples });
+    let (indtuples, indexed_vectors) = unsafe {
+        (
+            (*vchordrqshared).indtuples,
+            (*vchordrqshared).indexed_vectors,
+        )
+    };
+    sync_1(indtuples, indexed_vectors);
 
     let index = unsafe { PostgresRelation::new(index_relation) };
 
@@ -1085,7 +1099,7 @@ unsafe fn sequential_build(
     vchordrqcached: &[u8],
     mut callback: impl FnMut(u64),
     sync_0: impl FnOnce(),
-    sync_1: impl FnOnce(u64),
+    sync_1: impl FnOnce(u64, u64),
     sync_2: impl FnOnce(),
 ) {
     use vchordrq_cached::VchordrqCachedReader;
@@ -1125,6 +1139,7 @@ unsafe fn sequential_build(
     let index = unsafe { BufferedPostgresRelation::new(index_relation) };
 
     let mut indtuples = 0;
+    let mut indexed_vectors = 0_u64;
     match cached {
         VchordrqCachedReader::_0(_) => {
             traverser.traverse(true, |tuple: &mut dyn crate::index::traverse::Tuple| {
@@ -1134,6 +1149,7 @@ unsafe fn sequential_build(
                 let store = value
                     .and_then(|x| unsafe { opfamily.store(x) })
                     .unwrap_or_default();
+                indexed_vectors += store.len() as u64;
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
@@ -1166,6 +1182,7 @@ unsafe fn sequential_build(
                 let store = value
                     .and_then(|x| unsafe { opfamily.store(x) })
                     .unwrap_or_default();
+                indexed_vectors += store.len() as u64;
                 for (vector, extra) in store {
                     let key = ctid_to_key(ctid);
                     let payload = kv_to_pointer((key, extra));
@@ -1194,7 +1211,7 @@ unsafe fn sequential_build(
 
     drop(index);
 
-    sync_1(indtuples);
+    sync_1(indtuples, indexed_vectors);
 
     let index = unsafe { PostgresRelation::new(index_relation) };
 

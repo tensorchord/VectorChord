@@ -27,6 +27,18 @@ pub enum PostgresIo {
     ReadStream,
 }
 
+#[derive(Debug, Clone, Copy, PostgresGucEnum)]
+pub enum PostgresMaxsimBackend {
+    #[name = c"coarse_only"]
+    CoarseOnly,
+    #[name = c"cpu_exact"]
+    CpuExact,
+    #[name = c"gpu"]
+    Gpu,
+    #[name = c"auto"]
+    Auto,
+}
+
 static VCHORDRQ_QUERY_SAMPLING_ENABLE: GucSetting<bool> = GucSetting::<bool>::new(false);
 
 static VCHORDRQ_QUERY_SAMPLING_MAX_RECORDS: GucSetting<i32> = GucSetting::<i32>::new(0);
@@ -77,6 +89,24 @@ static VCHORDRQ_MAXSIM_THRESHOLD: GucSetting<i32> = GucSetting::<i32>::new(0);
 
 static mut VCHORDRQ_MAXSIM_THRESHOLD_CONFIG: *mut pgrx::pg_sys::config_generic =
     core::ptr::null_mut();
+
+static VCHORDRQ_MAXSIM_CANDIDATE_LIMIT: GucSetting<i32> = GucSetting::<i32>::new(-1);
+
+static VCHORDRQ_MAXSIM_PLANNER_QUERY_TOKENS: GucSetting<i32> = GucSetting::<i32>::new(32);
+
+static VCHORDRQ_MAXSIM_PLANNER_DOCUMENT_TOKENS: GucSetting<i32> = GucSetting::<i32>::new(256);
+
+static VCHORDRQ_MAXSIM_BACKEND: GucSetting<PostgresMaxsimBackend> =
+    GucSetting::<PostgresMaxsimBackend>::new(PostgresMaxsimBackend::CoarseOnly);
+
+static VCHORDRQ_MAXSIM_GPU_ENDPOINT: GucSetting<Option<CString>> =
+    GucSetting::<Option<CString>>::new(Some(c""));
+
+static VCHORDRQ_MAXSIM_GPU_TIMEOUT_MS: GucSetting<i32> = GucSetting::<i32>::new(2000);
+
+static VCHORDRQ_MAXSIM_GPU_MAX_BATCH_TOKENS: GucSetting<i32> = GucSetting::<i32>::new(1_000_000);
+
+static VCHORDRQ_MAXSIM_GPU_MAX_BATCH_BYTES: GucSetting<i32> = GucSetting::<i32>::new(1_073_741_824);
 
 static VCHORDRQ_PREFILTER: GucSetting<bool> = GucSetting::<bool>::new(false);
 
@@ -149,6 +179,82 @@ pub fn init() {
         0,
         i32::MAX,
         GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_candidate_limit",
+        c"Maximum number of page candidates produced by MaxSim aggregation.",
+        c"Use -1 for no page-candidate limit.",
+        &VCHORDRQ_MAXSIM_CANDIDATE_LIMIT,
+        -1,
+        i32::MAX,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_planner_query_tokens",
+        c"Expected MaxSim query-token count used by the planner.",
+        c"Set this to the measured deployment average until expression statistics are available.",
+        &VCHORDRQ_MAXSIM_PLANNER_QUERY_TOKENS,
+        1,
+        65_536,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_planner_document_tokens",
+        c"Fallback MaxSim document-token count used by the planner.",
+        c"Used for indexes that predate the native indexed-vector statistic; set it to the measured deployment average.",
+        &VCHORDRQ_MAXSIM_PLANNER_DOCUMENT_TOKENS,
+        1,
+        65_536,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_enum_guc(
+        c"vchordrq.maxsim_backend",
+        c"Page-level MaxSim rerank backend.",
+        c"GPU and auto modes require the native sidecar integration.",
+        &VCHORDRQ_MAXSIM_BACKEND,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_string_guc(
+        c"vchordrq.maxsim_gpu_endpoint",
+        c"Unix-socket endpoint for the TileMaxSim sidecar.",
+        c"An empty endpoint disables GPU transport.",
+        &VCHORDRQ_MAXSIM_GPU_ENDPOINT,
+        GucContext::Suset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_gpu_timeout_ms",
+        c"Overall TileMaxSim sidecar deadline in milliseconds.",
+        c"The deadline covers connection, request write, and response read.",
+        &VCHORDRQ_MAXSIM_GPU_TIMEOUT_MS,
+        1,
+        600_000,
+        GucContext::Suset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_gpu_max_batch_tokens",
+        c"Maximum query plus document tokens in one TileMaxSim request.",
+        c"Requests exceeding the limit fail before connecting to the sidecar.",
+        &VCHORDRQ_MAXSIM_GPU_MAX_BATCH_TOKENS,
+        1,
+        i32::MAX,
+        GucContext::Suset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_int_guc(
+        c"vchordrq.maxsim_gpu_max_batch_bytes",
+        c"Maximum encoded TileMaxSim request size in bytes.",
+        c"Requests exceeding the limit fail before connecting to the sidecar.",
+        &VCHORDRQ_MAXSIM_GPU_MAX_BATCH_BYTES,
+        1024,
+        i32::MAX,
+        GucContext::Suset,
         GucFlags::default(),
     );
     GucRegistry::define_bool_guc(
@@ -473,6 +579,39 @@ pub fn vchordrq_maxsim_threshold(index: pgrx::pg_sys::Relation) -> u32 {
         let value = unsafe { Reloption::maxsim_threshold((*index).rd_options as _, DEFAULT) };
         parse(value)
     }
+}
+
+pub fn vchordrq_maxsim_candidate_limit() -> Option<u32> {
+    let value = VCHORDRQ_MAXSIM_CANDIDATE_LIMIT.get();
+    if value < 0 { None } else { Some(value as u32) }
+}
+
+pub fn vchordrq_maxsim_planner_query_tokens() -> u32 {
+    VCHORDRQ_MAXSIM_PLANNER_QUERY_TOKENS.get() as u32
+}
+
+pub fn vchordrq_maxsim_planner_document_tokens() -> u32 {
+    VCHORDRQ_MAXSIM_PLANNER_DOCUMENT_TOKENS.get() as u32
+}
+
+pub fn vchordrq_maxsim_backend() -> PostgresMaxsimBackend {
+    VCHORDRQ_MAXSIM_BACKEND.get()
+}
+
+pub fn vchordrq_maxsim_gpu_endpoint() -> Option<CString> {
+    VCHORDRQ_MAXSIM_GPU_ENDPOINT.get()
+}
+
+pub fn vchordrq_maxsim_gpu_timeout_ms() -> u32 {
+    VCHORDRQ_MAXSIM_GPU_TIMEOUT_MS.get() as u32
+}
+
+pub fn vchordrq_maxsim_gpu_max_batch_tokens() -> u32 {
+    VCHORDRQ_MAXSIM_GPU_MAX_BATCH_TOKENS.get() as u32
+}
+
+pub fn vchordrq_maxsim_gpu_max_batch_bytes() -> u32 {
+    VCHORDRQ_MAXSIM_GPU_MAX_BATCH_BYTES.get() as u32
 }
 
 pub fn vchordrq_prefilter() -> bool {

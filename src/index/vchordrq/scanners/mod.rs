@@ -15,7 +15,9 @@
 mod default;
 mod maxsim;
 
+use crate::index::gucs::PostgresMaxsimBackend;
 use crate::index::scanners::Io;
+use std::ffi::CString;
 
 pub use default::DefaultBuilder;
 pub use maxsim::MaxsimBuilder;
@@ -27,6 +29,12 @@ pub struct SearchOptions {
     pub max_scan_tuples: Option<u32>,
     pub maxsim_refine: u32,
     pub maxsim_threshold: u32,
+    pub maxsim_candidate_limit: Option<u32>,
+    pub maxsim_backend: PostgresMaxsimBackend,
+    pub maxsim_gpu_endpoint: Option<CString>,
+    pub maxsim_gpu_timeout_ms: u32,
+    pub maxsim_gpu_max_batch_tokens: u32,
+    pub maxsim_gpu_max_batch_bytes: u32,
     pub io_search: Io,
     pub io_rerank: Io,
     pub prefilter: bool,

@@ -12,12 +12,14 @@
 //
 // Copyright (c) 2025-2026 TensorChord Inc.
 
+use distance::Distance;
 use serde::{Deserialize, Serialize};
 use simd::f16;
 use validator::{Validate, ValidationError};
 use vector::rabitq4::{Rabitq4Borrowed, Rabitq4Owned};
 use vector::rabitq8::{Rabitq8Borrowed, Rabitq8Owned};
 use vector::vect::{VectBorrowed, VectOwned};
+use vector::{VectorBorrowed, VectorOwned};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +61,38 @@ pub enum OwnedVector {
     Vecf16(VectOwned<f16>),
     Rabitq8(Rabitq8Owned),
     Rabitq4(Rabitq4Owned),
+}
+
+impl OwnedVector {
+    pub fn dim(&self) -> u32 {
+        match self {
+            Self::Vecf32(vector) => vector.as_borrowed().dim(),
+            Self::Vecf16(vector) => vector.as_borrowed().dim(),
+            Self::Rabitq8(vector) => vector.as_borrowed().dim(),
+            Self::Rabitq4(vector) => vector.as_borrowed().dim(),
+        }
+    }
+
+    pub fn operator_dot(&self, rhs: &Self) -> Option<Distance> {
+        if self.dim() != rhs.dim() {
+            return None;
+        }
+        match (self, rhs) {
+            (Self::Vecf32(lhs), Self::Vecf32(rhs)) => {
+                Some(lhs.as_borrowed().operator_dot(rhs.as_borrowed()))
+            }
+            (Self::Vecf16(lhs), Self::Vecf16(rhs)) => {
+                Some(lhs.as_borrowed().operator_dot(rhs.as_borrowed()))
+            }
+            (Self::Rabitq8(lhs), Self::Rabitq8(rhs)) => {
+                Some(lhs.as_borrowed().operator_dot(rhs.as_borrowed()))
+            }
+            (Self::Rabitq4(lhs), Self::Rabitq4(rhs)) => {
+                Some(lhs.as_borrowed().operator_dot(rhs.as_borrowed()))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

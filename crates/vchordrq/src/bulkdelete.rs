@@ -25,7 +25,8 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
     index: &R,
     check: impl Fn(),
     callback: impl Fn(NonZero<u64>) -> bool,
-) where
+) -> u64
+where
     R::Page: Page<Opaque = Opaque>,
 {
     let meta_guard = index.read(0);
@@ -37,6 +38,8 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
     let mut state: State = vec![meta_tuple.first()];
 
     drop(meta_guard);
+
+    let mut live = 0_u64;
 
     let step = |state: State| {
         let mut results = Vec::new();
@@ -64,19 +67,21 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
             while current != u32::MAX {
                 check();
                 let read = index.read(current);
-                let flag = 'flag: {
+                let (flag, page_live) = 'scan: {
+                    let mut page_live = 0_u64;
                     for i in 1..=read.len() {
                         let bytes = read.get(i).expect("data corruption");
                         let tuple = FrozenTuple::deserialize_ref(bytes);
                         if let FrozenTupleReader::_0(tuple) = tuple {
                             for p in tuple.payload().iter() {
                                 if Some(true) == p.map(&callback) {
-                                    break 'flag true;
+                                    break 'scan (true, 0);
                                 }
+                                page_live += u64::from(p.is_some());
                             }
                         }
                     }
-                    false
+                    (false, page_live)
                 };
                 if flag {
                     drop(read);
@@ -89,9 +94,12 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
                                 if Some(true) == p.map(&callback) {
                                     *p = None;
                                 }
+                                live += u64::from(p.is_some());
                             }
                         }
                     }
+                } else {
+                    live += page_live;
                 }
                 current = directory.next().unwrap_or(u32::MAX);
             }
@@ -101,16 +109,18 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
             while current != u32::MAX {
                 check();
                 let read = index.read(current);
-                let flag = 'flag: {
+                let (flag, page_live) = 'scan: {
+                    let mut page_live = 0_u64;
                     for i in 1..=read.len() {
                         let bytes = read.get(i).expect("data corruption");
                         let tuple = AppendableTuple::deserialize_ref(bytes);
                         let p = tuple.payload();
                         if Some(true) == p.map(&callback) {
-                            break 'flag true;
+                            break 'scan (true, 0);
                         }
+                        page_live += u64::from(p.is_some());
                     }
-                    false
+                    (false, page_live)
                 };
                 if flag {
                     drop(read);
@@ -122,14 +132,18 @@ pub fn bulkdelete<R: RelationRead + RelationWrite, O: Operator>(
                         if Some(true) == p.map(&callback) {
                             *p = None;
                         }
+                        live += u64::from(p.is_some());
                     }
                     current = write.get_opaque().next;
                 } else {
+                    live += page_live;
                     current = read.get_opaque().next;
                 }
             }
         }
     }
+
+    live
 }
 
 pub fn bulkdelete_vectors<R: RelationRead + RelationWrite, O: Operator>(

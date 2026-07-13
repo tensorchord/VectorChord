@@ -24,9 +24,11 @@ mod freepages;
 mod insert;
 mod linked_vec;
 mod maintain;
+mod maxsim_cost;
 mod prewarm;
 mod rerank;
 mod search;
+mod statistics;
 mod tape;
 mod tape_writer;
 mod tuples;
@@ -43,9 +45,13 @@ pub use cost::cost;
 pub use fast_heap::FastHeap;
 pub use insert::{InsertChooser, insert, insert_vector};
 pub use maintain::{MaintainChooser, maintain};
+pub use maxsim_cost::{
+    MaxsimCostBackend, MaxsimCostEstimate, MaxsimCostInput, estimate_maxsim_cost,
+};
 pub use prewarm::prewarm;
 pub use rerank::{how, rerank_heap, rerank_index};
 pub use search::{default_search, maxsim_search};
+pub use statistics::set_indexed_vectors;
 
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 

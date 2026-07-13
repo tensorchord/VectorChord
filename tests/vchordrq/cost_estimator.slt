@@ -389,6 +389,174 @@ statement ok
 RESET enable_seqscan;
 
 # ---------------------------------------------------------------------------
+# Case 12: MaxSim must have a nonzero, query-token-aware, backend-aware cost.
+# The old special branch returned total_cost=0 and selectivity=1 for every
+# MaxSim path, hiding all token expansion and exact rerank work.
+# ---------------------------------------------------------------------------
+
+statement ok
+CREATE TABLE cost_test_maxsim (
+  id int PRIMARY KEY,
+  v vector(3)[] NOT NULL
+);
+
+statement ok
+INSERT INTO cost_test_maxsim
+SELECT i, ARRAY[
+  '[1,0,0]'::vector,
+  '[0,1,0]'::vector,
+  '[0,0,1]'::vector,
+  '[0.5,0.5,0]'::vector
+]
+FROM generate_series(1, 1000) i;
+
+statement ok
+CREATE INDEX cost_test_maxsim_v
+ON cost_test_maxsim
+USING vchordrq (v vector_maxsim_ops)
+WITH (options = $$
+[build.internal]
+lists = [4]
+$$);
+
+statement ok
+ANALYZE cost_test_maxsim;
+
+statement ok
+SET enable_seqscan = off;
+
+statement ok
+SET vchordrq.probes = '4';
+
+statement ok
+SET vchordrq.maxsim_planner_document_tokens = 4;
+
+statement ok
+CREATE TEMP TABLE maxsim_cost_observations (
+  name text PRIMARY KEY,
+  value double precision NOT NULL
+);
+
+statement ok
+SET vchordrq.maxsim_backend = 'coarse_only';
+
+statement ok
+SET vchordrq.maxsim_planner_query_tokens = 1;
+
+# A newly built index has a native indexed-vector count. The document-token
+# GUC is only a compatibility fallback for pre-statistics indexes, so changing
+# it must not change this index's cost.
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'native_document_4', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+statement ok
+SET vchordrq.maxsim_planner_document_tokens = 4096;
+
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'native_document_4096', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+query B
+SELECT
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'native_document_4')
+  =
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'native_document_4096');
+----
+t
+
+statement ok
+SET vchordrq.maxsim_planner_document_tokens = 4;
+
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'query_1', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+statement ok
+SET vchordrq.maxsim_planner_query_tokens = 64;
+
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'query_64', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+query B
+SELECT
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'query_64')
+  >
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'query_1');
+----
+t
+
+statement ok
+SET vchordrq.maxsim_planner_query_tokens = 32;
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = 16;
+
+statement ok
+SET vchordrq.maxsim_backend = 'cpu_exact';
+
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'cpu_16', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = 256;
+
+statement ok
+INSERT INTO maxsim_cost_observations
+SELECT 'cpu_256', top_total_cost(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+
+query B
+SELECT
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'cpu_256')
+  >
+  (SELECT value FROM maxsim_cost_observations WHERE name = 'cpu_16');
+----
+t
+
+query T
+SELECT plan_top_index(
+  'SELECT id FROM cost_test_maxsim
+     ORDER BY v @# ARRAY[''[1,0,0]''::vector] LIMIT 10'
+);
+----
+cost_test_maxsim_v
+
+statement ok
+RESET vchordrq.maxsim_backend;
+
+statement ok
+RESET vchordrq.maxsim_candidate_limit;
+
+statement ok
+RESET vchordrq.maxsim_planner_query_tokens;
+
+statement ok
+RESET vchordrq.maxsim_planner_document_tokens;
+
+statement ok
+RESET vchordrq.probes;
+
+# ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
 
@@ -403,6 +571,9 @@ DROP TABLE cost_test_cold;
 
 statement ok
 DROP TABLE cost_test_partial;
+
+statement ok
+DROP TABLE cost_test_maxsim;
 
 statement ok
 DROP FUNCTION slow_true(int);

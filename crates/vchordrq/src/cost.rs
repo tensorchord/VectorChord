@@ -18,6 +18,7 @@ use index::relation::{Page, RelationRead};
 pub struct Cost {
     pub dim: u32,
     pub cells: Vec<u32>,
+    pub indexed_vectors: Option<u64>,
 }
 
 #[must_use]
@@ -27,8 +28,13 @@ pub fn cost<R: RelationRead>(index: &R) -> Cost {
     let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
     let dim = meta_tuple.dim();
     let cells = meta_tuple.cells().to_vec();
+    let indexed_vectors = meta_tuple.indexed_vectors();
 
     drop(meta_guard);
 
-    Cost { dim, cells }
+    Cost {
+        dim,
+        cells,
+        indexed_vectors,
+    }
 }

@@ -1937,6 +1937,7 @@ dependencies = [
  "index",
  "index_accessor",
  "k_means",
+ "libc",
  "mimalloc",
  "paste",
  "pgrx",

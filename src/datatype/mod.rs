@@ -29,3 +29,17 @@ mod text_rabitq8;
 pub mod typmod;
 mod typmod_rabitq4;
 mod typmod_rabitq8;
+
+pub(crate) const MAX_MAXSIM_VECTORS: usize = u16::MAX as usize + 1;
+
+pub(crate) fn validate_maxsim_array_len(len: usize) {
+    if len == 0 {
+        pgrx::error!("MaxSim arrays must contain at least one vector");
+    }
+    if len > MAX_MAXSIM_VECTORS {
+        pgrx::error!(
+            "MaxSim arrays cannot contain more than {} vectors",
+            MAX_MAXSIM_VECTORS
+        );
+    }
+}

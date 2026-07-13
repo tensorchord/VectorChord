@@ -95,12 +95,20 @@ fn _vchord_vector_operator_maxsim(
     lhs: Array<'_, VectorInput<'_>>,
     rhs: Array<'_, VectorInput<'_>>,
 ) -> f32 {
+    super::validate_maxsim_array_len(lhs.len());
+    super::validate_maxsim_array_len(rhs.len());
+    if lhs.iter().any(|x| x.is_none()) || rhs.iter().any(|x| x.is_none()) {
+        pgrx::error!("MaxSim arrays must not contain NULL vectors");
+    }
     let mut maxsim = 0.0f32;
     for rhs in rhs.iter().flatten() {
         let mut d = f32::INFINITY;
         for lhs in lhs.iter().flatten() {
             let lhs = lhs.as_borrowed();
             let rhs = rhs.as_borrowed();
+            if lhs.dim() != rhs.dim() {
+                pgrx::error!("dimension is not matched");
+            }
             d = d.min(VectBorrowed::operator_dot(lhs, rhs).to_f32());
         }
         maxsim += d;

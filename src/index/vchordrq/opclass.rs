@@ -92,6 +92,7 @@ impl Opfamily {
             Self::VectorMaxsim => {
                 let vectors =
                     unsafe { pgrx::datum::Array::<VectorInput>::from_datum(datum, false).unwrap() };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -105,6 +106,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<HalfvecInput>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -118,6 +120,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<Rabitq8Input>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -131,6 +134,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<Rabitq4Input>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for (i, vector) in vectors.iter_deny_null().enumerate() {
                     result.push((
@@ -203,6 +207,7 @@ impl Opfamily {
             Self::VectorL2 | Self::VectorIp | Self::VectorCosine | Self::VectorMaxsim => {
                 let vectors =
                     unsafe { pgrx::datum::Array::<VectorInput>::from_datum(datum, false).unwrap() };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Vecf32(vector.as_borrowed())));
@@ -213,6 +218,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<HalfvecInput>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Vecf16(vector.as_borrowed())));
@@ -223,6 +229,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<Rabitq8Input>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Rabitq8(vector.as_borrowed())));
@@ -233,6 +240,7 @@ impl Opfamily {
                 let vectors = unsafe {
                     pgrx::datum::Array::<Rabitq4Input>::from_datum(datum, false).unwrap()
                 };
+                crate::datatype::validate_maxsim_array_len(vectors.len());
                 let mut result = Vec::with_capacity(vectors.len());
                 for vector in vectors.iter_deny_null() {
                     result.push(self.input(BorrowedVector::Rabitq4(vector.as_borrowed())));

@@ -1,0 +1,221 @@
+# Deterministic MaxSim semantics and input-boundary coverage.
+
+statement ok
+SET enable_seqscan TO off;
+
+# @# is a distance: negative late-interaction similarity, ordered ascending.
+query I
+SELECT round((
+  ARRAY['[1,0]'::vector, '[0,1]'::vector]
+  @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+)::numeric, 3);
+----
+-2.000
+
+# MaxSim is asymmetric: the right-hand array contains query vectors.
+query I
+SELECT round((
+  ARRAY['[1,0]'::vector, '[0,1]'::vector]
+  @# ARRAY['[1,1]'::vector]
+)::numeric, 3);
+----
+-1.000
+
+query I
+SELECT round((
+  ARRAY['[1,1]'::vector]
+  @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+)::numeric, 3);
+----
+-2.000
+
+# halfvec uses the same sign and orientation contract.
+query I
+SELECT round((
+  ARRAY['[1,0]'::halfvec, '[0,1]'::halfvec]
+  @# ARRAY['[1,0]'::halfvec, '[0,1]'::halfvec]
+)::numeric, 3);
+----
+-2.000
+
+statement error MaxSim arrays must contain at least one vector
+SELECT ARRAY[]::vector[] @# ARRAY['[1,0]'::vector];
+
+statement error MaxSim arrays must contain at least one vector
+SELECT ARRAY['[1,0]'::vector] @# ARRAY[]::vector[];
+
+statement error MaxSim arrays must not contain NULL vectors
+SELECT ARRAY['[1,0]'::vector, NULL::vector]
+       @# ARRAY['[1,0]'::vector];
+
+statement error dimension is not matched
+SELECT ARRAY['[1,0]'::vector] @# ARRAY['[1,0,0]'::vector];
+
+statement error MaxSim arrays cannot contain more than 65536 vectors
+SELECT ARRAY['[1]'::vector]
+       @# ARRAY(SELECT '[1]'::vector FROM generate_series(1, 65537));
+
+# Indexing an empty document array must fail instead of silently omitting it.
+statement ok
+CREATE TABLE maxsim_invalid_document (val vector(2)[]);
+
+statement ok
+INSERT INTO maxsim_invalid_document VALUES (ARRAY[]::vector[]);
+
+statement error MaxSim arrays must contain at least one vector
+CREATE INDEX ON maxsim_invalid_document
+USING vchordrq (val vector_maxsim_ops);
+
+statement ok
+TRUNCATE maxsim_invalid_document;
+
+statement ok
+INSERT INTO maxsim_invalid_document
+SELECT ARRAY(
+  SELECT '[1,0]'::vector
+  FROM generate_series(1, 65537)
+);
+
+statement error MaxSim arrays cannot contain more than 65536 vectors
+CREATE INDEX ON maxsim_invalid_document
+USING vchordrq (val vector_maxsim_ops);
+
+statement ok
+DROP TABLE maxsim_invalid_document;
+
+# Lock down current ranking with a non-flat index before the Phase 3 refactor.
+statement ok
+CREATE TABLE maxsim_deterministic (
+  id integer primary key,
+  val vector(2)[] not null
+);
+
+statement ok
+INSERT INTO maxsim_deterministic VALUES
+  (1, ARRAY['[1,0]'::vector, '[0,1]'::vector]),
+  (2, ARRAY['[0.8,0]'::vector, '[0,0.8]'::vector]),
+  (3, ARRAY['[0.5,0.5]'::vector]),
+  (4, ARRAY['[-1,0]'::vector, '[0,-1]'::vector]);
+
+statement ok
+CREATE INDEX maxsim_deterministic_idx
+ON maxsim_deterministic
+USING vchordrq (val vector_maxsim_ops)
+WITH (options = $$
+[build.internal]
+lists = [2]
+$$);
+
+statement ok
+SET vchordrq.probes = '2';
+
+statement ok
+SET vchordrq.maxsim_refine = 100;
+
+statement ok
+SET vchordrq.maxsim_threshold = 0;
+
+query I
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 4;
+----
+1
+2
+3
+4
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = 2;
+
+query I
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 4;
+----
+1
+2
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = -1;
+
+statement ok
+SET vchordrq.maxsim_backend = 'cpu_exact';
+
+statement error exact MaxSim requires a positive vchordrq.maxsim_candidate_limit
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 1;
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = 4;
+
+query I
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 4;
+----
+1
+2
+3
+4
+
+query I
+SELECT round((val @# ARRAY['[1,0]'::vector, '[0,1]'::vector])::numeric, 3)
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 4;
+----
+-2.000
+-1.600
+-1.000
+0.000
+
+statement ok
+SET vchordrq.maxsim_backend = 'gpu';
+
+statement error GPU MaxSim transport error: endpoint is empty
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 1;
+
+statement ok
+SET vchordrq.maxsim_backend = 'auto';
+
+query I
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0]'::vector, '[0,1]'::vector]
+LIMIT 4;
+----
+1
+2
+3
+4
+
+statement ok
+SET vchordrq.maxsim_backend = 'coarse_only';
+
+statement ok
+SET vchordrq.maxsim_candidate_limit = -1;
+
+# An empty query must also fail on the index scan path.
+statement error MaxSim arrays must contain at least one vector
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY[]::vector[]
+LIMIT 1;
+
+statement error dimension is not matched
+SELECT id
+FROM maxsim_deterministic
+ORDER BY val @# ARRAY['[1,0,0]'::vector]
+LIMIT 1;
+
+statement ok
+DROP TABLE maxsim_deterministic;

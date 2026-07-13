@@ -24,6 +24,21 @@ pub trait FilterableTuple: Tuple {
 
 pub trait Tuple {
     fn build(&mut self) -> (&[Datum; 32], &[bool; 32]);
+
+    /// Read one user attribute from the already fetched heap slot.
+    ///
+    /// Callers that may expose the value outside PostgreSQL must call
+    /// [`FilterableTuple::filter`] first.  Attribute numbers are PostgreSQL
+    /// one-based `attnum` values, not zero-based Rust indexes.
+    #[allow(dead_code, reason = "reserved for the optional Phase 3C heap source")]
+    fn attribute(&mut self, attnum: i16) -> Option<TupleAttribute>;
+}
+
+#[derive(Clone, Copy)]
+#[allow(dead_code, reason = "reserved for the optional Phase 3C heap source")]
+pub struct TupleAttribute {
+    pub datum: Datum,
+    pub is_null: bool,
 }
 
 pub trait Fetcher {
@@ -52,6 +67,7 @@ pub struct HeapFetcher {
     heap_relation: pgrx::pg_sys::Relation,
     snapshot: pgrx::pg_sys::Snapshot,
     heapfetch: *mut pgrx::pg_sys::IndexFetchTableData,
+    owns_heapfetch: bool,
     slot: *mut pgrx::pg_sys::TupleTableSlot,
     values: [Datum; 32],
     is_nulls: [bool; 32],
@@ -77,11 +93,50 @@ impl HeapFetcher {
                 heap_relation,
                 snapshot,
                 heapfetch,
+                owns_heapfetch: false,
                 slot: pgrx::pg_sys::table_slot_create(heap_relation, std::ptr::null_mut()),
                 values: [Datum::null(); 32],
                 is_nulls: [true; 32],
                 hack,
             }
+        }
+    }
+
+    /// Create a heap fetch state that is not owned by an `IndexScanDesc`.
+    ///
+    /// This is used by the restricted external MaxSim executor to resolve the
+    /// root TIDs stored in the index through HOT chains before SQL-visible
+    /// descriptor projection.  The table AM owns the rules for doing that;
+    /// looking up `ctid` directly does not follow a HOT chain.
+    pub unsafe fn new_standalone(
+        index_relation: pgrx::pg_sys::Relation,
+        heap_relation: pgrx::pg_sys::Relation,
+        snapshot: pgrx::pg_sys::Snapshot,
+    ) -> Self {
+        use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+
+        unsafe {
+            let table_am = (*heap_relation).rd_tableam;
+            if table_am.is_null() {
+                panic!("unknown heap access method");
+            }
+            let index_fetch_begin = (*table_am)
+                .index_fetch_begin
+                .expect("unsupported heap access method");
+            #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+            let heapfetch = pg_guard_ffi_boundary(|| index_fetch_begin(heap_relation));
+            if heapfetch.is_null() {
+                panic!("heap access method returned a null index fetch state");
+            }
+            let mut fetcher = Self::new(
+                index_relation,
+                heap_relation,
+                snapshot,
+                heapfetch,
+                std::ptr::null_mut(),
+            );
+            fetcher.owns_heapfetch = true;
+            fetcher
         }
     }
 }
@@ -93,6 +148,16 @@ impl Drop for HeapFetcher {
             // free common resources
             pgrx::pg_sys::ExecDropSingleTupleTableSlot(self.slot);
             pgrx::pg_sys::FreeExecutorState(self.estate);
+            if self.owns_heapfetch {
+                use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+
+                let table_am = (*self.heap_relation).rd_tableam;
+                let index_fetch_end = (*table_am)
+                    .index_fetch_end
+                    .expect("unsupported heap access method");
+                #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+                pg_guard_ffi_boundary(|| index_fetch_end(self.heapfetch));
+            }
         }
     }
 }
@@ -147,7 +212,14 @@ impl Fetcher for HeapFetcher {
                 false
             };
             if found {
-                Some(HeapTuple { this: self })
+                // The heap table AM rewrites the requested root TID to the
+                // snapshot-visible HOT-chain member.  The slot itself keeps
+                // the rewritten index TID as well, but carrying it explicitly
+                // avoids depending on slot representation details.
+                Some(HeapTuple {
+                    this: self,
+                    current_ctid: ctid,
+                })
             } else {
                 None
             }
@@ -157,6 +229,16 @@ impl Fetcher for HeapFetcher {
 
 pub struct HeapTuple<'a> {
     this: &'a mut HeapFetcher,
+    current_ctid: ItemPointerData,
+}
+
+impl HeapTuple<'_> {
+    /// Return the physical TID of the tuple version materialized in the slot.
+    /// This may differ from the root TID supplied to `Fetcher::fetch` after a
+    /// HOT update.
+    pub fn ctid(&self) -> ItemPointerData {
+        self.current_ctid
+    }
 }
 
 impl Tuple for HeapTuple<'_> {
@@ -173,6 +255,30 @@ impl Tuple for HeapTuple<'_> {
                 this.is_nulls.as_mut_ptr(),
             );
             (&this.values, &this.is_nulls)
+        }
+    }
+
+    fn attribute(&mut self, attnum: i16) -> Option<TupleAttribute> {
+        unsafe {
+            use pgrx::pg_sys::ffi::pg_guard_ffi_boundary;
+
+            let slot = self.this.slot;
+            let tuple_descriptor = (*slot).tts_tupleDescriptor;
+            if attnum <= 0
+                || tuple_descriptor.is_null()
+                || i32::from(attnum) > (*tuple_descriptor).natts
+            {
+                return None;
+            }
+            #[allow(ffi_unwind_calls, reason = "protected by pg_guard_ffi_boundary")]
+            pg_guard_ffi_boundary(|| {
+                pgrx::pg_sys::slot_getsomeattrs_int(slot, i32::from(attnum));
+            });
+            let offset = usize::try_from(attnum - 1).ok()?;
+            Some(TupleAttribute {
+                datum: *(*slot).tts_values.add(offset),
+                is_null: *(*slot).tts_isnull.add(offset),
+            })
         }
     }
 }

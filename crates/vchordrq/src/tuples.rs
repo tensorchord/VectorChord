@@ -21,6 +21,8 @@ pub const ALIGN: usize = 8;
 pub type Tag = u64;
 const MAGIC: Tag = Tag::from_ne_bytes(*b"vchordrq");
 const VERSION: u64 = 1001;
+const STATISTICS_VERSION: u16 = 1;
+const MAX_INDEXED_VECTORS: u64 = (1_u64 << 48) - 1;
 
 #[inline(always)]
 fn tag(source: &[u8]) -> Tag {
@@ -55,12 +57,13 @@ struct MetaTupleHeader {
     rerank_in_heap: Bool,
     cells_s: u16,
     cells_e: u16,
-    _padding_0: [Padding; 2],
+    statistics_version: u16,
     centroids_first: u32,
     vectors_first_s: u16,
     vectors_first_e: u16,
     freepages_first: u32,
-    _padding_1: [Padding; 6],
+    indexed_vectors_low: u32,
+    indexed_vectors_high: u16,
     // tree
     centroid_prefetch_s: u16,
     centroid_prefetch_e: u16,
@@ -69,11 +72,24 @@ struct MetaTupleHeader {
     first: u32,
 }
 
+// Statistics deliberately replace the old 2-byte and 6-byte padding regions.
+// Keep these assertions in non-test builds: changing any offset would require
+// an index format version bump and REINDEX instead of the compatibility path.
+const _: () = {
+    assert!(size_of::<MetaTupleHeader>() == 56);
+    assert!(std::mem::offset_of!(MetaTupleHeader, statistics_version) == 22);
+    assert!(std::mem::offset_of!(MetaTupleHeader, centroids_first) == 24);
+    assert!(std::mem::offset_of!(MetaTupleHeader, indexed_vectors_low) == 36);
+    assert!(std::mem::offset_of!(MetaTupleHeader, indexed_vectors_high) == 40);
+    assert!(std::mem::offset_of!(MetaTupleHeader, centroid_prefetch_s) == 42);
+};
+
 pub struct MetaTuple {
     pub dim: u32,
     pub height_of_root: u32,
     pub is_residual: bool,
     pub rerank_in_heap: bool,
+    pub indexed_vectors: Option<u64>,
     pub cells: Vec<u32>,
     pub centroids_first: u32,
     pub vectors_first: Vec<u32>,
@@ -94,6 +110,7 @@ impl Tuple for MetaTuple {
                 height_of_root,
                 is_residual,
                 rerank_in_heap,
+                indexed_vectors,
                 cells,
                 centroids_first,
                 vectors_first,
@@ -103,6 +120,12 @@ impl Tuple for MetaTuple {
                 centroid_norm,
                 first,
             } => {
+                if let Some(indexed_vectors) = indexed_vectors {
+                    assert!(
+                        *indexed_vectors <= MAX_INDEXED_VECTORS,
+                        "indexed vector count exceeds the on-disk 48-bit limit"
+                    );
+                }
                 buffer.extend((MAGIC as Tag).to_ne_bytes());
                 buffer.extend(std::iter::repeat_n(0, size_of::<MetaTupleHeader>()));
                 // cells
@@ -136,17 +159,20 @@ impl Tuple for MetaTuple {
                         rerank_in_heap: (*rerank_in_heap).into(),
                         cells_s,
                         cells_e,
+                        statistics_version: indexed_vectors
+                            .map(|_| STATISTICS_VERSION)
+                            .unwrap_or(0),
                         centroids_first: *centroids_first,
                         vectors_first_s,
                         vectors_first_e,
                         freepages_first: *freepages_first,
+                        indexed_vectors_low: indexed_vectors.unwrap_or(0) as u32,
+                        indexed_vectors_high: (indexed_vectors.unwrap_or(0) >> 32) as u16,
                         centroid_prefetch_s,
                         centroid_prefetch_e,
                         centroid_head: *centroid_head,
                         centroid_norm: *centroid_norm,
                         first: *first,
-                        _padding_0: Default::default(),
-                        _padding_1: Default::default(),
                     }
                     .as_bytes(),
                 );
@@ -186,6 +212,28 @@ impl WithReader for MetaTuple {
     }
 }
 
+impl WithWriter for MetaTuple {
+    type Writer<'a> = MetaTupleWriter<'a>;
+
+    fn deserialize_mut(source: &mut [u8]) -> MetaTupleWriter<'_> {
+        let tag = tag(source);
+        match tag {
+            MAGIC => {
+                let mut checker = MutChecker::new(source);
+                let header: &mut MetaTupleHeader = checker.prefix(size_of::<Tag>());
+                if VERSION != header.version {
+                    panic!(
+                        "deserialization: bad version number; {}",
+                        "after upgrading VectorChord, please use REINDEX to rebuild the index."
+                    );
+                }
+                MetaTupleWriter { header }
+            }
+            _ => panic!("deserialization: bad magic number"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MetaTupleReader<'a> {
     header: &'a MetaTupleHeader,
@@ -206,6 +254,16 @@ impl<'a> MetaTupleReader<'a> {
     }
     pub fn rerank_in_heap(self) -> bool {
         self.header.rerank_in_heap.into()
+    }
+    pub fn indexed_vectors(self) -> Option<u64> {
+        match self.header.statistics_version {
+            0 => None,
+            STATISTICS_VERSION => Some(
+                u64::from(self.header.indexed_vectors_low)
+                    | (u64::from(self.header.indexed_vectors_high) << 32),
+            ),
+            _ => panic!("deserialization: unsupported statistics version"),
+        }
     }
     pub fn cells(self) -> &'a [u32] {
         self.cells
@@ -230,6 +288,23 @@ impl<'a> MetaTupleReader<'a> {
     }
     pub fn first(self) -> u32 {
         self.header.first
+    }
+}
+
+#[derive(Debug)]
+pub struct MetaTupleWriter<'a> {
+    header: &'a mut MetaTupleHeader,
+}
+
+impl MetaTupleWriter<'_> {
+    pub fn set_indexed_vectors(&mut self, indexed_vectors: u64) {
+        assert!(
+            indexed_vectors <= MAX_INDEXED_VECTORS,
+            "indexed vector count exceeds the on-disk 48-bit limit"
+        );
+        self.header.statistics_version = STATISTICS_VERSION;
+        self.header.indexed_vectors_low = indexed_vectors as u32;
+        self.header.indexed_vectors_high = (indexed_vectors >> 32) as u16;
     }
 }
 
@@ -1483,5 +1558,73 @@ pub struct AppendableTupleWriter<'a> {
 impl AppendableTupleWriter<'_> {
     pub fn payload(&mut self) -> &mut Option<NonZero<u64>> {
         &mut self.header.payload
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn meta(indexed_vectors: Option<u64>) -> MetaTuple {
+        MetaTuple {
+            dim: 3,
+            height_of_root: 1,
+            is_residual: false,
+            rerank_in_heap: false,
+            indexed_vectors,
+            cells: vec![4],
+            centroids_first: 1,
+            vectors_first: vec![2],
+            freepages_first: 3,
+            centroid_prefetch: vec![4],
+            centroid_head: 0,
+            centroid_norm: 1.0,
+            first: 5,
+        }
+    }
+
+    #[test]
+    fn meta_statistics_reuse_padding_without_moving_fields() {
+        assert_eq!(size_of::<MetaTupleHeader>(), 56);
+        assert_eq!(
+            std::mem::offset_of!(MetaTupleHeader, statistics_version),
+            22
+        );
+        assert_eq!(std::mem::offset_of!(MetaTupleHeader, centroids_first), 24);
+        assert_eq!(
+            std::mem::offset_of!(MetaTupleHeader, indexed_vectors_low),
+            36
+        );
+        assert_eq!(
+            std::mem::offset_of!(MetaTupleHeader, indexed_vectors_high),
+            40
+        );
+        assert_eq!(
+            std::mem::offset_of!(MetaTupleHeader, centroid_prefetch_s),
+            42
+        );
+    }
+
+    #[test]
+    fn meta_statistics_roundtrip_full_48_bit_range() {
+        for expected in [0, 1, u32::MAX as u64 + 1, MAX_INDEXED_VECTORS] {
+            let bytes = meta(Some(expected)).serialize();
+            assert_eq!(
+                MetaTuple::deserialize_ref(&bytes).indexed_vectors(),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn old_meta_padding_reads_as_missing_statistics_and_can_be_upgraded() {
+        let mut bytes = meta(None).serialize();
+        assert_eq!(MetaTuple::deserialize_ref(&bytes).indexed_vectors(), None);
+
+        MetaTuple::deserialize_mut(&mut bytes).set_indexed_vectors(42);
+        assert_eq!(
+            MetaTuple::deserialize_ref(&bytes).indexed_vectors(),
+            Some(42)
+        );
     }
 }

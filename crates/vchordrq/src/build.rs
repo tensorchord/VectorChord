@@ -119,6 +119,7 @@ pub fn build<R: RelationWrite, O: Operator>(
         height_of_root: structures.len() as u32,
         is_residual,
         rerank_in_heap: vchordrq_options.rerank_in_table,
+        indexed_vectors: Some(0),
         centroids_first: centroids.first(),
         vectors_first: vectors,
         centroid_prefetch: pointer_of_centroids

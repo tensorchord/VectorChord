@@ -71,42 +71,51 @@ pub fn bulkdelete<R>(
     index: &R,
     check: impl Fn(),
     callback: impl Fn(NonZero<u64>) -> bool,
-) where
+) -> u64
+where
     R: RelationRead + RelationWrite,
     R::Page: Page<Opaque = vchordrq::Opaque>,
 {
     match (opfamily.vector_kind(), opfamily.distance_kind()) {
         (VectorKind::Vecf32, DistanceKind::L2S) => {
-            vchordrq::bulkdelete::<_, Op<VectOwned<f32>, L2S>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<VectOwned<f32>, L2S>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<VectOwned<f32>, L2S>>(index, &check, &callback);
+            live
         }
         (VectorKind::Vecf32, DistanceKind::Dot) => {
-            vchordrq::bulkdelete::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<VectOwned<f32>, Dot>>(index, &check, &callback);
+            live
         }
         (VectorKind::Vecf16, DistanceKind::L2S) => {
-            vchordrq::bulkdelete::<_, Op<VectOwned<f16>, L2S>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<VectOwned<f16>, L2S>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<VectOwned<f16>, L2S>>(index, &check, &callback);
+            live
         }
         (VectorKind::Vecf16, DistanceKind::Dot) => {
-            vchordrq::bulkdelete::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<VectOwned<f16>, Dot>>(index, &check, &callback);
+            live
         }
         (VectorKind::Rabitq8, DistanceKind::L2S) => {
-            vchordrq::bulkdelete::<_, Op<Rabitq8Owned, L2S>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<Rabitq8Owned, L2S>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<Rabitq8Owned, L2S>>(index, &check, &callback);
+            live
         }
         (VectorKind::Rabitq8, DistanceKind::Dot) => {
-            vchordrq::bulkdelete::<_, Op<Rabitq8Owned, Dot>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<Rabitq8Owned, Dot>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<Rabitq8Owned, Dot>>(index, &check, &callback);
+            live
         }
         (VectorKind::Rabitq4, DistanceKind::L2S) => {
-            vchordrq::bulkdelete::<_, Op<Rabitq4Owned, L2S>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<Rabitq4Owned, L2S>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<Rabitq4Owned, L2S>>(index, &check, &callback);
+            live
         }
         (VectorKind::Rabitq4, DistanceKind::Dot) => {
-            vchordrq::bulkdelete::<_, Op<Rabitq4Owned, Dot>>(index, &check, &callback);
+            let live = vchordrq::bulkdelete::<_, Op<Rabitq4Owned, Dot>>(index, &check, &callback);
             vchordrq::bulkdelete_vectors::<_, Op<Rabitq4Owned, Dot>>(index, &check, &callback);
+            live
         }
     }
 }

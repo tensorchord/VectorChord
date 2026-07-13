@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+WORKDIR /opt/vectorchord
+
+COPY devtools/tilemaxsim_reference_sidecar.py devtools/tilemaxsim_reference_sidecar.py
+COPY services/tilemaxsim_cuda_sidecar.py services/tilemaxsim_cuda_sidecar.py
+
+ENV PYTHONPATH=/opt/vectorchord \
+    PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["python3", "-m", "services.tilemaxsim_cuda_sidecar"]
