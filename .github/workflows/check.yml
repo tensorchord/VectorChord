@@ -181,7 +181,7 @@ jobs:
           echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -247,7 +247,7 @@ jobs:
           echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -357,7 +357,7 @@ jobs:
         run: echo CC=$(brew --prefix llvm@18)/bin/clang >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
           version: "v0.12.0"
 
@@ -454,7 +454,7 @@ jobs:
         run: rustup update
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -590,7 +590,7 @@ jobs:
           echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -786,7 +786,7 @@ jobs:
           echo CC=clang-18 >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install PostgreSQL & pgvector
         run: |
@@ -943,7 +943,7 @@ jobs:
           echo CC=clang >> $GITHUB_ENV
 
       - name: Set up Sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Install PostgreSQL & pgvector
         run: |
